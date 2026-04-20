@@ -15,6 +15,7 @@ import { Effect, Stream } from "effect";
 import { type WsRpcProtocolClient } from "./protocol";
 import { resetWsReconnectBackoff } from "./wsConnectionState";
 import { WsTransport } from "./wsTransport";
+import { type WsRpcClientPRGitMethods, makePRGitMethods } from "./wsRpcClientPR";
 
 type RpcTag = keyof WsRpcProtocolClient & string;
 type RpcMethod<TTag extends RpcTag> = WsRpcProtocolClient[TTag];
@@ -77,7 +78,7 @@ export interface WsRpcClient {
       readonly editor: Parameters<LocalApi["shell"]["openInEditor"]>[1];
     }) => ReturnType<LocalApi["shell"]["openInEditor"]>;
   };
-  readonly git: {
+  readonly git: WsRpcClientPRGitMethods & {
     readonly pull: RpcUnaryMethod<typeof WS_METHODS.gitPull>;
     readonly refreshStatus: RpcUnaryMethod<typeof WS_METHODS.gitRefreshStatus>;
     readonly onStatus: (
@@ -156,6 +157,7 @@ export function createWsRpcClient(transport: WsTransport): WsRpcClient {
         transport.request((client) => client[WS_METHODS.shellOpenInEditor](input)),
     },
     git: {
+      ...makePRGitMethods(transport),
       pull: (input) => transport.request((client) => client[WS_METHODS.gitPull](input)),
       refreshStatus: (input) =>
         transport.request((client) => client[WS_METHODS.gitRefreshStatus](input)),

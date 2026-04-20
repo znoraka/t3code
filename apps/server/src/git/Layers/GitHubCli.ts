@@ -8,6 +8,7 @@ import {
   type GitHubRepositoryCloneUrls,
   type GitHubCliShape,
 } from "../Services/GitHubCli.ts";
+import { makeGitHubCliPRMethods } from "./GitHubCliPR.ts";
 import {
   decodeGitHubPullRequestJson,
   decodeGitHubPullRequestListJson,
@@ -232,6 +233,7 @@ const makeGitHubCli = Effect.sync(() => {
         cwd: input.cwd,
         args: ["pr", "checkout", input.reference, ...(input.force ? ["--force"] : [])],
       }).pipe(Effect.asVoid),
+    ...makeGitHubCliPRMethods(execute),
   } satisfies GitHubCliShape;
 
   return service;

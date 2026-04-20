@@ -5,9 +5,8 @@ import {
   type ResolvedKeybindingsConfig,
   type ThreadId,
 } from "@t3tools/contracts";
-import { scopeThreadRef } from "@t3tools/client-runtime";
 import { memo } from "react";
-import GitActionsControl from "../GitActionsControl";
+import CommitControl from "../CommitControl";
 import { type DraftId } from "~/composerDraftStore";
 import { DiffIcon, TerminalSquareIcon } from "lucide-react";
 import { Badge } from "../ui/badge";
@@ -109,10 +108,10 @@ export const ChatHeader = memo(function ChatHeader({
           />
         )}
         {activeProjectName && (
-          <GitActionsControl
+          <CommitControl
+            environmentId={activeThreadEnvironmentId}
             gitCwd={gitCwd}
-            activeThreadRef={scopeThreadRef(activeThreadEnvironmentId, activeThreadId)}
-            {...(draftId ? { draftId } : {})}
+            activeThreadId={activeThreadId}
           />
         )}
         <Tooltip>

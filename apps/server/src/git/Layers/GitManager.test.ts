@@ -589,6 +589,13 @@ function createGitHubCliWithFakeGh(scenario: FakeGhScenario = {}): {
           cwd: input.cwd,
           args: ["pr", "checkout", input.reference, ...(input.force ? ["--force"] : [])],
         }).pipe(Effect.asVoid),
+      listWorkspacePullRequests: () => Effect.die("not implemented in test"),
+      getPullRequestDiff: () => Effect.die("not implemented in test"),
+      getPullRequestBodyHtml: () => Effect.die("not implemented in test"),
+      getPullRequestReviewComments: () => Effect.die("not implemented in test"),
+      getPullRequestIssueComments: () => Effect.die("not implemented in test"),
+      postPullRequestReviewComment: () => Effect.die("not implemented in test"),
+      postPullRequestIssueComment: () => Effect.die("not implemented in test"),
     },
     ghCalls,
   };

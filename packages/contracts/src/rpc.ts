@@ -36,6 +36,16 @@ import {
 } from "./git.ts";
 import { KeybindingsConfigError } from "./keybindings.ts";
 import {
+  WsGitListPullRequestsRpc,
+  WsGitGetPullRequestDiffRpc,
+  WsGitGetPullRequestFileDiffRpc,
+  WsGitGetPullRequestReviewCommentsRpc,
+  WsGitGetPullRequestIssueCommentsRpc,
+  WsGitGetPullRequestBodyRpc,
+  WsGitPostPullRequestReviewCommentRpc,
+  WsGitPostPullRequestIssueCommentRpc,
+} from "./rpc-pr.ts";
+import {
   ClientOrchestrationCommand,
   ORCHESTRATION_WS_METHODS,
   OrchestrationDispatchCommandError,
@@ -103,6 +113,14 @@ export const WS_METHODS = {
   gitInit: "git.init",
   gitResolvePullRequest: "git.resolvePullRequest",
   gitPreparePullRequestThread: "git.preparePullRequestThread",
+  gitListPullRequests: "git.listPullRequests",
+  gitGetPullRequestDiff: "git.getPullRequestDiff",
+  gitGetPullRequestFileDiff: "git.getPullRequestFileDiff",
+  gitGetPullRequestReviewComments: "git.getPullRequestReviewComments",
+  gitGetPullRequestIssueComments: "git.getPullRequestIssueComments",
+  gitGetPullRequestBody: "git.getPullRequestBody",
+  gitPostPullRequestReviewComment: "git.postPullRequestReviewComment",
+  gitPostPullRequestIssueComment: "git.postPullRequestIssueComment",
 
   // Terminal methods
   terminalOpen: "terminal.open",
@@ -393,4 +411,12 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationReplayEventsRpc,
   WsOrchestrationSubscribeShellRpc,
   WsOrchestrationSubscribeThreadRpc,
+  WsGitListPullRequestsRpc,
+  WsGitGetPullRequestDiffRpc,
+  WsGitGetPullRequestFileDiffRpc,
+  WsGitGetPullRequestReviewCommentsRpc,
+  WsGitGetPullRequestIssueCommentsRpc,
+  WsGitGetPullRequestBodyRpc,
+  WsGitPostPullRequestReviewCommentRpc,
+  WsGitPostPullRequestIssueCommentRpc,
 );

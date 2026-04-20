@@ -71,6 +71,14 @@ function makeTestLayer(state: {
     preparePullRequestThread: () =>
       Effect.die("preparePullRequestThread should not be called in this test"),
     runStackedAction: () => Effect.die("runStackedAction should not be called in this test"),
+    listPullRequests: () => Effect.die("not implemented in test"),
+    getPullRequestDiff: () => Effect.die("not implemented in test"),
+    getPullRequestFileDiff: () => Effect.die("not implemented in test"),
+    getPullRequestReviewComments: () => Effect.die("not implemented in test"),
+    getPullRequestIssueComments: () => Effect.die("not implemented in test"),
+    getPullRequestBody: () => Effect.die("not implemented in test"),
+    postPullRequestReviewComment: () => Effect.die("not implemented in test"),
+    postPullRequestIssueComment: () => Effect.die("not implemented in test"),
   };
 
   return GitStatusBroadcasterLive.pipe(Layer.provide(Layer.succeed(GitManager, gitManager)));
@@ -269,6 +277,14 @@ describe("GitStatusBroadcasterLive", () => {
           preparePullRequestThread: () =>
             Effect.die("preparePullRequestThread should not be called in this test"),
           runStackedAction: () => Effect.die("runStackedAction should not be called in this test"),
+          listPullRequests: () => Effect.die("not implemented in test"),
+          getPullRequestDiff: () => Effect.die("not implemented in test"),
+          getPullRequestFileDiff: () => Effect.die("not implemented in test"),
+          getPullRequestReviewComments: () => Effect.die("not implemented in test"),
+          getPullRequestIssueComments: () => Effect.die("not implemented in test"),
+          getPullRequestBody: () => Effect.die("not implemented in test"),
+          postPullRequestReviewComment: () => Effect.die("not implemented in test"),
+          postPullRequestIssueComment: () => Effect.die("not implemented in test"),
         } satisfies GitManagerShape),
       ),
     );

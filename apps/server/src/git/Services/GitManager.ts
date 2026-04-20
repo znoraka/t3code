@@ -8,9 +8,22 @@
  */
 import {
   GitActionProgressEvent,
+  GitListPullRequestsInput,
+  GitListPullRequestsResult,
+  GitPostPullRequestIssueCommentInput,
+  GitPostPullRequestReviewCommentInput,
   GitPreparePullRequestThreadInput,
   GitPreparePullRequestThreadResult,
+  GitPullRequestBodyInput,
+  GitPullRequestBodyResult,
+  GitPullRequestCommentsInput,
+  GitPullRequestDiffInput,
+  GitPullRequestDiffResult,
+  GitPullRequestFileDiffInput,
+  GitPullRequestFileDiffResult,
+  GitPullRequestIssueCommentsResult,
   GitPullRequestRefInput,
+  GitPullRequestReviewCommentsResult,
   GitResolvePullRequestResult,
   GitRunStackedActionInput,
   GitRunStackedActionResult,
@@ -94,6 +107,38 @@ export interface GitManagerShape {
     input: GitRunStackedActionInput,
     options?: GitRunStackedActionOptions,
   ) => Effect.Effect<GitRunStackedActionResult, GitManagerServiceError>;
+
+  readonly listPullRequests: (
+    input: GitListPullRequestsInput,
+  ) => Effect.Effect<GitListPullRequestsResult, GitManagerServiceError>;
+
+  readonly getPullRequestDiff: (
+    input: GitPullRequestDiffInput,
+  ) => Effect.Effect<GitPullRequestDiffResult, GitManagerServiceError>;
+
+  readonly getPullRequestFileDiff: (
+    input: GitPullRequestFileDiffInput,
+  ) => Effect.Effect<GitPullRequestFileDiffResult, GitManagerServiceError>;
+
+  readonly getPullRequestReviewComments: (
+    input: GitPullRequestCommentsInput,
+  ) => Effect.Effect<GitPullRequestReviewCommentsResult, GitManagerServiceError>;
+
+  readonly getPullRequestIssueComments: (
+    input: GitPullRequestCommentsInput,
+  ) => Effect.Effect<GitPullRequestIssueCommentsResult, GitManagerServiceError>;
+
+  readonly getPullRequestBody: (
+    input: GitPullRequestBodyInput,
+  ) => Effect.Effect<GitPullRequestBodyResult, GitManagerServiceError>;
+
+  readonly postPullRequestReviewComment: (
+    input: GitPostPullRequestReviewCommentInput,
+  ) => Effect.Effect<void, GitManagerServiceError>;
+
+  readonly postPullRequestIssueComment: (
+    input: GitPostPullRequestIssueCommentInput,
+  ) => Effect.Effect<void, GitManagerServiceError>;
 }
 
 /**

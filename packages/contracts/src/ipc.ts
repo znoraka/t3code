@@ -2,9 +2,22 @@ import type {
   GitCheckoutInput,
   GitCheckoutResult,
   GitCreateBranchInput,
+  GitListPullRequestsInput,
+  GitListPullRequestsResult,
+  GitPostPullRequestIssueCommentInput,
+  GitPostPullRequestReviewCommentInput,
   GitPreparePullRequestThreadInput,
   GitPreparePullRequestThreadResult,
+  GitPullRequestBodyInput,
+  GitPullRequestBodyResult,
+  GitPullRequestCommentsInput,
+  GitPullRequestDiffInput,
+  GitPullRequestDiffResult,
+  GitPullRequestFileDiffInput,
+  GitPullRequestFileDiffResult,
+  GitPullRequestIssueCommentsResult,
   GitPullRequestRefInput,
+  GitPullRequestReviewCommentsResult,
   GitCreateWorktreeInput,
   GitCreateWorktreeResult,
   GitInitInput,
@@ -259,6 +272,24 @@ export interface EnvironmentApi {
     preparePullRequestThread: (
       input: GitPreparePullRequestThreadInput,
     ) => Promise<GitPreparePullRequestThreadResult>;
+    listPullRequests: (input: GitListPullRequestsInput) => Promise<GitListPullRequestsResult>;
+    getPullRequestDiff: (input: GitPullRequestDiffInput) => Promise<GitPullRequestDiffResult>;
+    getPullRequestFileDiff: (
+      input: GitPullRequestFileDiffInput,
+    ) => Promise<GitPullRequestFileDiffResult>;
+    getPullRequestReviewComments: (
+      input: GitPullRequestCommentsInput,
+    ) => Promise<GitPullRequestReviewCommentsResult>;
+    getPullRequestIssueComments: (
+      input: GitPullRequestCommentsInput,
+    ) => Promise<GitPullRequestIssueCommentsResult>;
+    getPullRequestBody: (input: GitPullRequestBodyInput) => Promise<GitPullRequestBodyResult>;
+    postPullRequestReviewComment: (
+      input: GitPostPullRequestReviewCommentInput,
+    ) => Promise<void>;
+    postPullRequestIssueComment: (
+      input: GitPostPullRequestIssueCommentInput,
+    ) => Promise<void>;
     pull: (input: GitPullInput) => Promise<GitPullResult>;
     refreshStatus: (input: GitStatusInput) => Promise<GitStatusResult>;
     onStatus: (

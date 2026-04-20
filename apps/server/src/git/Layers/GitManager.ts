@@ -41,6 +41,7 @@ import {
 import { GitCore } from "../Services/GitCore.ts";
 import type { GitStatusDetails } from "../Services/GitCore.ts";
 import { GitHubCli, type GitHubPullRequestSummary } from "../Services/GitHubCli.ts";
+import { makeGitManagerPRMethods } from "./GitManagerPR.ts";
 import { TextGeneration } from "../Services/TextGeneration.ts";
 import { ProjectSetupScriptRunner } from "../../project/Services/ProjectSetupScriptRunner.ts";
 import { extractBranchNameFromRemoteRef } from "../remoteRefs.ts";
@@ -1728,6 +1729,7 @@ export const makeGitManager = Effect.fn("makeGitManager")(function* () {
     resolvePullRequest,
     preparePullRequestThread,
     runStackedAction,
+    ...makeGitManagerPRMethods(gitHubCli),
   } satisfies GitManagerShape;
 });
 

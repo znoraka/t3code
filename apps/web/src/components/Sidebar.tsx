@@ -18,6 +18,7 @@ import {
   ThreadStatusLabel,
 } from "./ThreadStatusIndicators";
 import { ProjectFavicon } from "./ProjectFavicon";
+import { SidebarPRButton } from "./SidebarPRButton";
 import { autoAnimate } from "@formkit/auto-animate";
 import React, { useCallback, useEffect, memo, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -2344,6 +2345,7 @@ const SidebarChromeFooter = memo(function SidebarChromeFooter() {
     <SidebarFooter className="p-2">
       <SidebarUpdatePill />
       <SidebarMenu>
+        <SidebarPRButton />
         <SidebarMenuItem>
           <SidebarMenuButton
             size="sm"

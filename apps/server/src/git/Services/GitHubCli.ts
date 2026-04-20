@@ -29,6 +29,57 @@ export interface GitHubRepositoryCloneUrls {
   readonly sshUrl: string;
 }
 
+export interface GitHubPullRequestListEntry {
+  readonly number: number;
+  readonly title: string;
+  readonly url: string;
+  readonly state: string;
+  readonly isDraft: boolean;
+  readonly updatedAt: string;
+  readonly headRefName: string;
+  readonly author: string;
+  readonly reviews: ReadonlyArray<{ readonly author: string; readonly state: string }>;
+  readonly statusCheckRollup: ReadonlyArray<{
+    readonly name: string;
+    readonly status: "pass" | "fail" | "pending";
+  }>;
+}
+
+export interface GitHubPullRequestListResult {
+  readonly reviewRequested: ReadonlyArray<GitHubPullRequestListEntry>;
+  readonly myPrs: ReadonlyArray<GitHubPullRequestListEntry>;
+  readonly ghAvailable: boolean;
+  readonly error: string | null;
+}
+
+export interface GitHubPullRequestFileEntry {
+  readonly path: string;
+  readonly status: "A" | "M" | "D" | "R";
+}
+
+export interface GitHubPullRequestDiff {
+  readonly files: ReadonlyArray<GitHubPullRequestFileEntry>;
+  readonly fullDiff: string;
+}
+
+export interface GitHubPullRequestReviewComment {
+  readonly id: number;
+  readonly path: string;
+  readonly line: number;
+  readonly body: string;
+  readonly bodyHtml: string;
+  readonly user: string;
+  readonly createdAt: string;
+}
+
+export interface GitHubPullRequestIssueComment {
+  readonly id: number;
+  readonly body: string;
+  readonly bodyHtml: string;
+  readonly user: string;
+  readonly createdAt: string;
+}
+
 /**
  * GitHubCliShape - Service API for executing GitHub CLI commands.
  */
@@ -92,6 +143,45 @@ export interface GitHubCliShape {
     readonly cwd: string;
     readonly reference: string;
     readonly force?: boolean;
+  }) => Effect.Effect<void, GitHubCliError>;
+
+  readonly listWorkspacePullRequests: (input: {
+    readonly cwd: string;
+    readonly limitPerBucket?: number;
+  }) => Effect.Effect<GitHubPullRequestListResult, GitHubCliError>;
+
+  readonly getPullRequestDiff: (input: {
+    readonly cwd: string;
+    readonly prNumber: number;
+  }) => Effect.Effect<GitHubPullRequestDiff, GitHubCliError>;
+
+  readonly getPullRequestBodyHtml: (input: {
+    readonly cwd: string;
+    readonly prNumber: number;
+  }) => Effect.Effect<string, GitHubCliError>;
+
+  readonly getPullRequestReviewComments: (input: {
+    readonly cwd: string;
+    readonly prNumber: number;
+  }) => Effect.Effect<ReadonlyArray<GitHubPullRequestReviewComment>, GitHubCliError>;
+
+  readonly getPullRequestIssueComments: (input: {
+    readonly cwd: string;
+    readonly prNumber: number;
+  }) => Effect.Effect<ReadonlyArray<GitHubPullRequestIssueComment>, GitHubCliError>;
+
+  readonly postPullRequestReviewComment: (input: {
+    readonly cwd: string;
+    readonly prNumber: number;
+    readonly body: string;
+    readonly path: string;
+    readonly line: number;
+  }) => Effect.Effect<void, GitHubCliError>;
+
+  readonly postPullRequestIssueComment: (input: {
+    readonly cwd: string;
+    readonly prNumber: number;
+    readonly body: string;
   }) => Effect.Effect<void, GitHubCliError>;
 }
 
