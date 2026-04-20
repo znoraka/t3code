@@ -544,7 +544,19 @@ function toDerivedWorkLogEntry(activity: OrchestrationThreadActivity): DerivedWo
   const itemType = extractWorkLogItemType(payload);
   const requestKind = extractWorkLogRequestKind(payload);
   if (detail) {
-    entry.detail = detail;
+    // Strip the leading "ToolName: " prefix from detail when we already have
+    // the tool name as the heading, to avoid "Glob – Glob: **/*.ts" redundancy.
+    let resolvedDetail: string | null = detail;
+    if (title) {
+      const prefix = `${title}: `;
+      if (resolvedDetail.toLowerCase().startsWith(prefix.toLowerCase())) {
+        const stripped = resolvedDetail.slice(prefix.length).trim();
+        resolvedDetail = stripped.length > 0 ? stripped : null;
+      }
+    }
+    if (resolvedDetail) {
+      entry.detail = resolvedDetail;
+    }
   }
   if (commandPreview.command) {
     entry.command = commandPreview.command;
@@ -881,7 +893,13 @@ function extractToolCommand(payload: Record<string, unknown> | null): {
 }
 
 function extractToolTitle(payload: Record<string, unknown> | null): string | null {
-  return asTrimmedString(payload?.title);
+  // Prefer the specific tool name from data.toolName (e.g. "Glob", "Read")
+  // over the generic title from the itemType mapping (e.g. "Tool call").
+  const data =
+    payload?.data && typeof payload.data === "object"
+      ? (payload.data as Record<string, unknown>)
+      : null;
+  return asTrimmedString(data?.toolName) ?? asTrimmedString(payload?.title);
 }
 
 function extractToolCallId(payload: Record<string, unknown> | null): string | null {
