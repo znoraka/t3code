@@ -37,6 +37,7 @@ import {
 } from "../rpc/serverState";
 import { useStore } from "../store";
 import { useUiStateStore } from "../uiStateStore";
+import { useNotificationSounds } from "../hooks/useNotificationSounds";
 import { syncBrowserChromeTheme } from "../hooks/useTheme";
 import {
   ensureEnvironmentConnectionBootstrapped,
@@ -95,6 +96,7 @@ function RootRouteView() {
         <AuthenticatedTracingBootstrap />
         <ServerStateBootstrap />
         <EnvironmentConnectionManagerBootstrap />
+        <NotificationSoundsBootstrap />
         <EventRouter />
         <WebSocketConnectionCoordinator />
         <SlowRpcAckToastCoordinator />
@@ -179,6 +181,11 @@ function errorDetails(error: unknown): string {
   } catch {
     return "No additional error details are available.";
   }
+}
+
+function NotificationSoundsBootstrap() {
+  useNotificationSounds();
+  return null;
 }
 
 function ServerStateBootstrap() {

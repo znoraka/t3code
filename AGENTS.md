@@ -51,3 +51,53 @@ Docs:
 - Codex-Monitor (Tauri, feature-complete, strong reference implementation): https://github.com/Dimillian/CodexMonitor
 
 Use these as implementation references when designing protocol handling, UX flows, and operational safeguards.
+
+## Fork Management (CRITICAL — read before touching any file)
+
+This repo is a fork of `pingdotgg/t3code` (upstream). The upstream is under heavy active development. **The primary engineering constraint for all changes is: minimize the diff surface against upstream files.**
+
+See `FORK.md` for the full strategy, sync process, and the running log of all upstream files this fork has touched.
+
+### The golden rule
+
+> Prefer adding new files over modifying existing upstream files.
+
+Every line you add to an upstream file is a future merge conflict. Every new file you create is conflict-free by default.
+
+### Where to put fork-specific code
+
+- New features live in a `_lempire/` subdirectory alongside the upstream code they extend:
+  - `apps/web/src/_lempire/`
+  - `apps/server/src/_lempire/`
+  - `packages/shared/src/_lempire/`
+- Use the `_` prefix so it sorts first and is instantly recognizable as fork-only code.
+- Never spread fork logic across multiple upstream files — keep it self-contained.
+
+### When you MUST touch an upstream file
+
+Sometimes you can't avoid it (e.g., registering a route, adding one import). If so:
+
+1. Keep the change to the **absolute minimum** — one import + one call site at most.
+2. Wrap the addition with a `// [FORK]` comment on both sides:
+   ```ts
+   // [FORK] lempire: <short reason>
+   import { myFeature } from "./_lempire/myFeature";
+   myFeature.register(app);
+   // [FORK] end
+   ```
+3. **Log it in `FORK.md`** under "Upstream Files Touched" immediately — before finishing the task.
+
+### Composition over modification
+
+- If upstream exports a function, **wrap it** in `_lempire/` rather than editing it.
+- If upstream defines a type, **extend it** with an intersection type in `_lempire/`.
+- If upstream wires up a router/handler, **add a new route file** and register it in one line.
+
+### Sync with upstream
+
+```bash
+git fetch upstream
+git rebase upstream/main
+```
+
+Always rebase, never merge. This keeps the fork diff linear and makes conflict resolution tractable. Conflicts should almost exclusively appear in upstream files listed in `FORK.md`.

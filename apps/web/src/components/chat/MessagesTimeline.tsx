@@ -930,6 +930,45 @@ function toolWorkEntryHeading(workEntry: TimelineWorkEntry): string {
   return capitalizePhrase(normalizeCompactToolLabel(workEntry.toolTitle));
 }
 
+function getWorkEntryHeadingColor(heading: string, workEntry: TimelineWorkEntry): string {
+  // Match by canonical tool name
+  switch (heading.toLowerCase()) {
+    case "read":
+    case "image view": return "text-blue-400";
+    case "write": return "text-green-400";
+    case "edit":
+    case "file change": return "text-yellow-400";
+    case "bash": return "text-orange-400";
+    case "glob": return "text-purple-400";
+    case "grep": return "text-pink-400";
+    case "web search":
+    case "websearch":
+    case "web fetch":
+    case "webfetch": return "text-cyan-400";
+    case "task": return "text-indigo-400";
+    case "todo write":
+    case "todowrite": return "text-emerald-400";
+    case "agent": return "text-sky-400";
+  }
+  // Skill invocations start with /
+  if (heading.startsWith("/")) return "text-violet-400";
+  // Fall back to requestKind
+  if (workEntry.requestKind === "file-read") return "text-blue-400";
+  if (workEntry.requestKind === "file-change") return "text-yellow-400";
+  if (workEntry.requestKind === "command") return "text-orange-400";
+  // Fall back to itemType
+  switch (workEntry.itemType) {
+    case "command_execution": return "text-orange-400";
+    case "file_change": return "text-yellow-400";
+    case "web_search": return "text-cyan-400";
+    case "image_view": return "text-blue-400";
+    case "mcp_tool_call": return "text-teal-400";
+    case "dynamic_tool_call":
+    case "collab_agent_tool_call": return "text-sky-400";
+  }
+  return "text-foreground/80";
+}
+
 const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: {
   workEntry: TimelineWorkEntry;
   workspaceRoot: string | undefined;
@@ -962,7 +1001,7 @@ const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: {
               )}
               title={rawCommand ? undefined : displayText}
             >
-              <span className={cn("text-foreground/80", workToneClass(workEntry.tone))}>
+              <span className={cn("font-medium", getWorkEntryHeadingColor(heading, workEntry))}>
                 {heading}
               </span>
               {preview &&
