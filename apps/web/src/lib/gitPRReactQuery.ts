@@ -13,6 +13,7 @@ const GIT_PR_DIFF_STALE_TIME_MS = 60_000;
 const GIT_PR_COMMENTS_STALE_TIME_MS = 15_000;
 const GIT_PR_COMMENTS_REFETCH_INTERVAL_MS = 60_000;
 const GIT_PR_BODY_STALE_TIME_MS = 60_000;
+const GIT_PR_VIEWED_FILES_STALE_TIME_MS = 30_000;
 
 export const gitQueryKeys = {
   all: ["git"] as const,
@@ -28,6 +29,8 @@ export const gitQueryKeys = {
     ["git", "pull-request", "issue-comments", cwd, prNumber] as const,
   pullRequestBody: (cwd: string | null, prNumber: number | null) =>
     ["git", "pull-request", "body", cwd, prNumber] as const,
+  pullRequestViewedFiles: (cwd: string | null, prNumber: number | null) =>
+    ["git", "pull-request", "viewed-files", cwd, prNumber] as const,
 };
 
 export const gitPRMutationKeys = {
@@ -210,6 +213,47 @@ export function gitPullRequestBodyQueryOptions(input: {
     staleTime: GIT_PR_BODY_STALE_TIME_MS,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+  });
+}
+
+export function gitPullRequestViewedFilesQueryOptions(input: {
+  environmentId: EnvironmentId | null;
+  cwd: string | null;
+  prNumber: number | null;
+}) {
+  return queryOptions({
+    queryKey: gitQueryKeys.pullRequestViewedFiles(input.cwd, input.prNumber),
+    queryFn: async () => {
+      if (!input.cwd || input.prNumber === null)
+        throw new Error("Pull request viewed files unavailable.");
+      if (!input.environmentId) throw new Error("Pull request viewed files unavailable.");
+      const api = ensureEnvironmentApi(input.environmentId);
+      return api.git.getPullRequestViewedFiles({ cwd: input.cwd, prNumber: input.prNumber });
+    },
+    enabled: input.cwd !== null && input.prNumber !== null && input.environmentId !== null,
+    staleTime: GIT_PR_VIEWED_FILES_STALE_TIME_MS,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+  });
+}
+
+export function gitSetPullRequestFileViewedMutationOptions(input: {
+  environmentId: EnvironmentId | null;
+  cwd: string | null;
+  prNumber: number | null;
+}) {
+  return mutationOptions({
+    mutationFn: async (payload: { path: string; viewed: boolean }) => {
+      if (!input.cwd || input.prNumber === null || !input.environmentId)
+        throw new Error("Cannot sync viewed state: missing context.");
+      const api = ensureEnvironmentApi(input.environmentId);
+      return api.git.setPullRequestFileViewed({
+        cwd: input.cwd,
+        prNumber: input.prNumber,
+        path: payload.path,
+        viewed: payload.viewed,
+      });
+    },
   });
 }
 

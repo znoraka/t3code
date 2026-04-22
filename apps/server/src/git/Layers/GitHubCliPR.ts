@@ -317,6 +317,7 @@ export function makeGitHubCliPRMethods(execute: Execute) {
       args: ["pr", "view", String(input.prNumber), "--json", "body", "--jq", '.body // ""'],
     }).pipe(
       Effect.flatMap((result) => {
+        const body = result.stdout.trim();
         const repoFetch = execute({
           cwd: input.cwd,
           args: ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"],
@@ -324,7 +325,7 @@ export function makeGitHubCliPRMethods(execute: Execute) {
         return repoFetch.pipe(
           Effect.flatMap((repo) => {
             if (repo.length === 0) {
-              return Effect.succeed(result.stdout.trim());
+              return Effect.succeed({ body, bodyHtml: body });
             }
             return execute({
               cwd: input.cwd,
@@ -337,8 +338,8 @@ export function makeGitHubCliPRMethods(execute: Execute) {
                 '.body_html // .body // ""',
               ],
             }).pipe(
-              Effect.map((apiResult) => apiResult.stdout.trim()),
-              Effect.catch(() => Effect.succeed(result.stdout.trim())),
+              Effect.map((apiResult) => ({ body, bodyHtml: apiResult.stdout.trim() })),
+              Effect.catch(() => Effect.succeed({ body, bodyHtml: body })),
             );
           }),
         );
@@ -483,6 +484,102 @@ export function makeGitHubCliPRMethods(execute: Execute) {
       args: ["pr", "comment", String(input.prNumber), "--body", input.body],
     }).pipe(Effect.asVoid);
 
+  const getPullRequestViewedFiles: GitHubCliShape["getPullRequestViewedFiles"] = (input) =>
+    execute({
+      cwd: input.cwd,
+      args: ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"],
+    }).pipe(
+      Effect.map((result) => result.stdout.trim()),
+      Effect.flatMap((nameWithOwner) => {
+        const slashIdx = nameWithOwner.indexOf("/");
+        if (slashIdx === -1) return Effect.succeed([] as ReadonlyArray<string>);
+        const owner = nameWithOwner.slice(0, slashIdx);
+        const repo = nameWithOwner.slice(slashIdx + 1);
+        // Inline values directly — avoids any variable-passing quirks with `gh api graphql`.
+        // Field is `viewerViewedState` (viewer-scoped), not the non-existent `viewedState`.
+        const query = `query { repository(owner: "${owner}", name: "${repo}") { pullRequest(number: ${input.prNumber}) { files(first: 100) { nodes { path viewerViewedState } } } } }`;
+        return execute({
+          cwd: input.cwd,
+          args: ["api", "graphql", "-f", `query=${query}`],
+        }).pipe(
+          Effect.map((result) => {
+            try {
+              const data = JSON.parse(result.stdout) as {
+                data?: {
+                  repository?: {
+                    pullRequest?: {
+                      files?: { nodes?: Array<{ path: string; viewerViewedState: string }> };
+                    };
+                  };
+                };
+              };
+              const nodes = data?.data?.repository?.pullRequest?.files?.nodes ?? [];
+              return nodes
+                .filter((node) => node.viewerViewedState === "VIEWED")
+                .map((node) => node.path);
+            } catch {
+              return [] as ReadonlyArray<string>;
+            }
+          }),
+          Effect.catch(() => Effect.succeed([] as ReadonlyArray<string>)),
+        );
+      }),
+      Effect.catch(() => Effect.succeed([] as ReadonlyArray<string>)),
+    );
+
+  const setPullRequestFileViewed: GitHubCliShape["setPullRequestFileViewed"] = (input) =>
+    execute({
+      cwd: input.cwd,
+      args: ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"],
+    }).pipe(
+      Effect.map((result) => result.stdout.trim()),
+      Effect.flatMap((nameWithOwner) => {
+        const slashIdx = nameWithOwner.indexOf("/");
+        if (slashIdx === -1)
+          return Effect.fail(
+            new GitHubCliError({
+              operation: "getPullRequestReviewComments",
+              detail: "Could not determine repository (not a GitHub remote?).",
+            }),
+          );
+        const owner = nameWithOwner.slice(0, slashIdx);
+        const repo = nameWithOwner.slice(slashIdx + 1);
+        // Step 1: get the PR's GraphQL node ID
+        const idQuery = `query { repository(owner: "${owner}", name: "${repo}") { pullRequest(number: ${input.prNumber}) { id } } }`;
+        return execute({
+          cwd: input.cwd,
+          args: ["api", "graphql", "-f", `query=${idQuery}`],
+        }).pipe(
+          Effect.flatMap((idResult) => {
+            let prId: string;
+            try {
+              const data = JSON.parse(idResult.stdout) as {
+                data?: { repository?: { pullRequest?: { id?: string } } };
+              };
+              prId = data?.data?.repository?.pullRequest?.id ?? "";
+            } catch {
+              prId = "";
+            }
+            if (!prId) {
+              return Effect.fail(
+                new GitHubCliError({
+                  operation: "getPullRequestReviewComments",
+                  detail: "Could not resolve PR node ID for markFileAsViewed mutation.",
+                }),
+              );
+            }
+            // Step 2: run markFileAsViewed or unmarkFileAsViewed
+            const mutationName = input.viewed ? "markFileAsViewed" : "unmarkFileAsViewed";
+            const mutation = `mutation { ${mutationName}(input: { pullRequestId: "${prId}", path: "${input.path}" }) { clientMutationId } }`;
+            return execute({
+              cwd: input.cwd,
+              args: ["api", "graphql", "-f", `query=${mutation}`],
+            }).pipe(Effect.asVoid);
+          }),
+        );
+      }),
+    );
+
   return {
     listWorkspacePullRequests,
     getPullRequestDiff,
@@ -491,5 +588,7 @@ export function makeGitHubCliPRMethods(execute: Execute) {
     getPullRequestIssueComments,
     postPullRequestReviewComment,
     postPullRequestIssueComment,
+    getPullRequestViewedFiles,
+    setPullRequestFileViewed,
   };
 }

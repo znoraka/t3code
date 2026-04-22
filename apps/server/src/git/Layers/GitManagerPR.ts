@@ -154,11 +154,11 @@ export function makeGitManagerPRMethods(gitHubCli: GitHubCliShape) {
 
   const getPullRequestBody: GitManagerShape["getPullRequestBody"] = Effect.fnUntraced(
     function* (input) {
-      const bodyHtml = yield* gitHubCli.getPullRequestBodyHtml({
+      const result = yield* gitHubCli.getPullRequestBodyHtml({
         cwd: input.cwd,
         prNumber: input.prNumber,
       });
-      return { bodyHtml };
+      return { body: result.body, bodyHtml: result.bodyHtml };
     },
   );
 
@@ -182,6 +182,25 @@ export function makeGitManagerPRMethods(gitHubCli: GitHubCliShape) {
       });
     });
 
+  const getPullRequestViewedFiles: GitManagerShape["getPullRequestViewedFiles"] =
+    Effect.fnUntraced(function* (input) {
+      const viewedPaths = yield* gitHubCli.getPullRequestViewedFiles({
+        cwd: input.cwd,
+        prNumber: input.prNumber,
+      });
+      return { viewedPaths };
+    });
+
+  const setPullRequestFileViewed: GitManagerShape["setPullRequestFileViewed"] =
+    Effect.fnUntraced(function* (input) {
+      yield* gitHubCli.setPullRequestFileViewed({
+        cwd: input.cwd,
+        prNumber: input.prNumber,
+        path: input.path,
+        viewed: input.viewed,
+      });
+    });
+
   return {
     listPullRequests,
     getPullRequestDiff,
@@ -191,5 +210,7 @@ export function makeGitManagerPRMethods(gitHubCli: GitHubCliShape) {
     getPullRequestBody,
     postPullRequestReviewComment,
     postPullRequestIssueComment,
+    getPullRequestViewedFiles,
+    setPullRequestFileViewed,
   };
 }

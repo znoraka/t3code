@@ -14,6 +14,9 @@ import {
   GitPullRequestFileDiffResult,
   GitPullRequestIssueCommentsResult,
   GitPullRequestReviewCommentsResult,
+  GitPullRequestViewedFilesInput,
+  GitPullRequestViewedFilesResult,
+  GitSetPullRequestFileViewedInput,
 } from "./git-pr.ts";
 import { GitManagerServiceError } from "./git.ts";
 
@@ -60,5 +63,16 @@ export const WsGitPostPullRequestReviewCommentRpc = Rpc.make("git.postPullReques
 
 export const WsGitPostPullRequestIssueCommentRpc = Rpc.make("git.postPullRequestIssueComment", {
   payload: GitPostPullRequestIssueCommentInput,
+  error: GitManagerServiceError,
+});
+
+export const WsGitGetPullRequestViewedFilesRpc = Rpc.make("git.getPullRequestViewedFiles", {
+  payload: GitPullRequestViewedFilesInput,
+  success: GitPullRequestViewedFilesResult,
+  error: GitManagerServiceError,
+});
+
+export const WsGitSetPullRequestFileViewedRpc = Rpc.make("git.setPullRequestFileViewed", {
+  payload: GitSetPullRequestFileViewedInput,
   error: GitManagerServiceError,
 });

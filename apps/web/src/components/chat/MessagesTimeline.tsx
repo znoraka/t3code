@@ -63,6 +63,47 @@ import {
 import { formatWorkspaceRelativePath } from "../../filePathDisplay";
 
 // ---------------------------------------------------------------------------
+// URL linkification — render plain text with clickable links
+// ---------------------------------------------------------------------------
+
+const URL_RE = /(https?:\/\/[^\s<>'")\]]+)/g;
+
+function LinkifiedText({ text }: { text: string }) {
+  const parts = useMemo(() => {
+    const result: (string | { url: string })[] = [];
+    let lastIndex = 0;
+    for (const match of text.matchAll(URL_RE)) {
+      if (match.index! > lastIndex) result.push(text.slice(lastIndex, match.index));
+      result.push({ url: match[0] });
+      lastIndex = match.index! + match[0].length;
+    }
+    if (lastIndex < text.length) result.push(text.slice(lastIndex));
+    return result;
+  }, [text]);
+
+  return (
+    <>
+      {parts.map((p, i) =>
+        typeof p === "string" ? (
+          p
+        ) : (
+          <a
+            key={i}
+            href={p.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {p.url}
+          </a>
+        ),
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Context — shared state consumed by every row component via useContext.
 // Propagates through LegendList's memo boundaries for shared callbacks and
 // non-row-scoped state. `nowIso` is intentionally excluded — self-ticking
@@ -706,7 +747,7 @@ const UserMessageBody = memo(function UserMessageBody(props: {
         if (matchIndex > cursor) {
           inlineNodes.push(
             <span key={`user-terminal-context-inline-before:${context.header}:${cursor}`}>
-              {props.text.slice(cursor, matchIndex)}
+              <LinkifiedText text={props.text.slice(cursor, matchIndex)} />
             </span>,
           );
         }
@@ -723,7 +764,7 @@ const UserMessageBody = memo(function UserMessageBody(props: {
         if (cursor < props.text.length) {
           inlineNodes.push(
             <span key={`user-message-terminal-context-inline-rest:${cursor}`}>
-              {props.text.slice(cursor)}
+              <LinkifiedText text={props.text.slice(cursor)} />
             </span>,
           );
         }
@@ -751,7 +792,11 @@ const UserMessageBody = memo(function UserMessageBody(props: {
     }
 
     if (props.text.length > 0) {
-      inlineNodes.push(<span key="user-message-terminal-context-inline-text">{props.text}</span>);
+      inlineNodes.push(
+        <span key="user-message-terminal-context-inline-text">
+          <LinkifiedText text={props.text} />
+        </span>,
+      );
     } else if (inlinePrefix.length === 0) {
       return null;
     }
@@ -769,7 +814,7 @@ const UserMessageBody = memo(function UserMessageBody(props: {
 
   return (
     <div className="whitespace-pre-wrap wrap-break-word text-sm leading-relaxed text-foreground">
-      {props.text}
+      <LinkifiedText text={props.text} />
     </div>
   );
 });

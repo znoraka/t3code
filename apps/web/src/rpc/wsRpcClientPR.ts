@@ -27,6 +27,12 @@ export type WsRpcClientPRGitMethods = {
   readonly postPullRequestIssueComment: RpcUnaryMethod<
     typeof WS_METHODS.gitPostPullRequestIssueComment
   >;
+  readonly getPullRequestViewedFiles: RpcUnaryMethod<
+    typeof WS_METHODS.gitGetPullRequestViewedFiles
+  >;
+  readonly setPullRequestFileViewed: RpcUnaryMethod<
+    typeof WS_METHODS.gitSetPullRequestFileViewed
+  >;
 };
 
 export function makePRGitMethods(
@@ -49,5 +55,9 @@ export function makePRGitMethods(
       transport.request((client) => client[WS_METHODS.gitPostPullRequestReviewComment](input)),
     postPullRequestIssueComment: (input) =>
       transport.request((client) => client[WS_METHODS.gitPostPullRequestIssueComment](input)),
+    getPullRequestViewedFiles: (input) =>
+      transport.request((client) => client[WS_METHODS.gitGetPullRequestViewedFiles](input)),
+    setPullRequestFileViewed: (input) =>
+      transport.request((client) => client[WS_METHODS.gitSetPullRequestFileViewed](input)),
   };
 }

@@ -44,6 +44,8 @@ import {
   WsGitGetPullRequestBodyRpc,
   WsGitPostPullRequestReviewCommentRpc,
   WsGitPostPullRequestIssueCommentRpc,
+  WsGitGetPullRequestViewedFilesRpc,
+  WsGitSetPullRequestFileViewedRpc,
 } from "./rpc-pr.ts";
 import {
   ClientOrchestrationCommand,
@@ -121,6 +123,8 @@ export const WS_METHODS = {
   gitGetPullRequestBody: "git.getPullRequestBody",
   gitPostPullRequestReviewComment: "git.postPullRequestReviewComment",
   gitPostPullRequestIssueComment: "git.postPullRequestIssueComment",
+  gitGetPullRequestViewedFiles: "git.getPullRequestViewedFiles",
+  gitSetPullRequestFileViewed: "git.setPullRequestFileViewed",
 
   // Terminal methods
   terminalOpen: "terminal.open",
@@ -419,4 +423,6 @@ export const WsRpcGroup = RpcGroup.make(
   WsGitGetPullRequestBodyRpc,
   WsGitPostPullRequestReviewCommentRpc,
   WsGitPostPullRequestIssueCommentRpc,
+  WsGitGetPullRequestViewedFilesRpc,
+  WsGitSetPullRequestFileViewedRpc,
 );

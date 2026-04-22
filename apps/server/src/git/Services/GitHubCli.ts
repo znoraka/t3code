@@ -158,7 +158,7 @@ export interface GitHubCliShape {
   readonly getPullRequestBodyHtml: (input: {
     readonly cwd: string;
     readonly prNumber: number;
-  }) => Effect.Effect<string, GitHubCliError>;
+  }) => Effect.Effect<{ body: string; bodyHtml: string }, GitHubCliError>;
 
   readonly getPullRequestReviewComments: (input: {
     readonly cwd: string;
@@ -182,6 +182,27 @@ export interface GitHubCliShape {
     readonly cwd: string;
     readonly prNumber: number;
     readonly body: string;
+  }) => Effect.Effect<void, GitHubCliError>;
+
+  /**
+   * Fetch the set of file paths the current viewer has marked as "Viewed" on GitHub for this PR.
+   * Returns an empty array if the information is unavailable (not a GitHub remote, API error, etc).
+   */
+  readonly getPullRequestViewedFiles: (input: {
+    readonly cwd: string;
+    readonly prNumber: number;
+  }) => Effect.Effect<ReadonlyArray<string>, GitHubCliError>;
+
+  /**
+   * Mark or unmark a single PR file as viewed on GitHub via the GraphQL mutations
+   * `markFileAsViewed` / `unmarkFileAsViewed`. Errors are propagated so the caller
+   * can decide whether to show a notification.
+   */
+  readonly setPullRequestFileViewed: (input: {
+    readonly cwd: string;
+    readonly prNumber: number;
+    readonly path: string;
+    readonly viewed: boolean;
   }) => Effect.Effect<void, GitHubCliError>;
 }
 

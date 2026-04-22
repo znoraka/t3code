@@ -24,6 +24,9 @@ import {
   GitPullRequestIssueCommentsResult,
   GitPullRequestRefInput,
   GitPullRequestReviewCommentsResult,
+  GitPullRequestViewedFilesInput,
+  GitPullRequestViewedFilesResult,
+  GitSetPullRequestFileViewedInput,
   GitResolvePullRequestResult,
   GitRunStackedActionInput,
   GitRunStackedActionResult,
@@ -138,6 +141,14 @@ export interface GitManagerShape {
 
   readonly postPullRequestIssueComment: (
     input: GitPostPullRequestIssueCommentInput,
+  ) => Effect.Effect<void, GitManagerServiceError>;
+
+  readonly getPullRequestViewedFiles: (
+    input: GitPullRequestViewedFilesInput,
+  ) => Effect.Effect<GitPullRequestViewedFilesResult, GitManagerServiceError>;
+
+  readonly setPullRequestFileViewed: (
+    input: GitSetPullRequestFileViewedInput,
   ) => Effect.Effect<void, GitManagerServiceError>;
 }
 

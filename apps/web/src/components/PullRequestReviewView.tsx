@@ -12,10 +12,12 @@ import {
   BotIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  Columns2Icon,
   ExternalLinkIcon,
   FolderGit2Icon,
   GitBranchIcon,
   MessageCircleIcon,
+  Rows3Icon,
   SendIcon,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
@@ -29,14 +31,20 @@ import {
   gitPullRequestFileDiffQueryOptions,
   gitPullRequestIssueCommentsQueryOptions,
   gitPullRequestReviewCommentsQueryOptions,
+  gitPullRequestViewedFilesQueryOptions,
+  gitSetPullRequestFileViewedMutationOptions,
 } from "~/lib/gitPRReactQuery";
 import { buildPatchCacheKey, resolveDiffThemeName } from "~/lib/diffRendering";
 import { usePullRequestViewedFiles } from "~/lib/pullRequestViewedFiles";
 import { cn } from "~/lib/utils";
+import { basenameOfPath } from "~/vscode-icons";
+import { VscodeEntryIcon } from "./chat/VscodeEntryIcon";
+import ChatMarkdown from "./ChatMarkdown";
 import { Button } from "./ui/button";
 import { Checkbox } from "./ui/checkbox";
-import { Dialog, DialogHeader, DialogPopup, DialogTitle } from "./ui/dialog";
 import { Spinner } from "./ui/spinner";
+import { Toggle } from "./ui/toggle";
+import { ToggleGroup } from "./ui/toggle-group";
 import { toastManager } from "./ui/toast";
 
 interface PullRequestReviewViewProps {
@@ -51,6 +59,7 @@ interface PullRequestReviewViewProps {
   onOpenExternal?: (url: string) => void;
   onReview?: () => void;
   isReviewPending?: boolean;
+  onHasFileOpen?: (hasFileOpen: boolean) => void;
 }
 
 type PatchRender =
@@ -145,15 +154,9 @@ const CommentEntry = memo(function CommentEntry({ item }: { item: CommentListIte
           {typeof item.line === "number" && item.line > 0 ? `:${item.line}` : ""}
         </p>
       ) : null}
-      {item.bodyHtml.length > 0 ? (
-        <div
-          className="pr-review-body prose prose-sm dark:prose-invert max-w-none text-sm"
-          // Content is produced by GitHub via `gh api` which already sanitizes HTML.
-          dangerouslySetInnerHTML={{ __html: item.bodyHtml }}
-        />
-      ) : (
-        <p className="whitespace-pre-wrap text-sm text-foreground/90">{item.body}</p>
-      )}
+      {item.body.length > 0 ? (
+        <ChatMarkdown text={item.body} cwd={undefined} />
+      ) : null}
     </article>
   );
 });
@@ -170,11 +173,19 @@ export function PullRequestReviewView({
   onOpenExternal,
   onReview,
   isReviewPending,
+  onHasFileOpen,
 }: PullRequestReviewViewProps) {
   const queryClient = useQueryClient();
+  const { resolvedTheme } = useTheme();
 
   const diffQuery = useQuery(gitPullRequestDiffQueryOptions({ environmentId, cwd, prNumber }));
   const bodyQuery = useQuery(gitPullRequestBodyQueryOptions({ environmentId, cwd, prNumber }));
+  const viewedFilesQuery = useQuery(
+    gitPullRequestViewedFilesQueryOptions({ environmentId, cwd, prNumber }),
+  );
+  const setFileViewedMutation = useMutation(
+    gitSetPullRequestFileViewedMutationOptions({ environmentId, cwd, prNumber }),
+  );
   const [reviewCommentsQuery, issueCommentsQuery] = useQueries({
     queries: [
       gitPullRequestReviewCommentsQueryOptions({ environmentId, cwd, prNumber }),
@@ -243,9 +254,21 @@ export function PullRequestReviewView({
     prNumber,
     fullDiff,
     filePaths,
+    githubViewedPaths: viewedFilesQuery.data?.viewedPaths,
+    onSetViewed: useCallback(
+      (filePath: string, viewed: boolean) => {
+        setFileViewedMutation.mutate({ path: filePath, viewed });
+      },
+      [setFileViewedMutation],
+    ),
   });
 
   const [openFilePath, setOpenFilePath] = useState<string | null>(null);
+
+  // Notify parent when a file is opened or closed so it can swap the left panel.
+  useEffect(() => {
+    onHasFileOpen?.(openFilePath !== null);
+  }, [openFilePath, onHasFileOpen]);
 
   const openFileIndex = useMemo(
     () => (openFilePath === null ? -1 : filePaths.indexOf(openFilePath)),
@@ -284,6 +307,102 @@ export function PullRequestReviewView({
     [issueCommentsQuery.data?.comments, reviewCommentsQuery.data?.comments],
   );
 
+  // Shared file list scroll area used in both normal and sidebar modes.
+  const fileListScrollArea = (
+    <div className="min-h-0 flex-1 overflow-y-auto p-2">
+      {diffQuery.isLoading ? (
+        <div className="flex items-center justify-center py-8 text-xs text-muted-foreground">
+          <Spinner className="mr-2 size-3.5" />
+          Loading files...
+        </div>
+      ) : diffQuery.isError ? (
+        <div className="flex flex-col items-center gap-1 px-3 py-6 text-center text-xs text-destructive">
+          <AlertCircleIcon className="size-4" aria-hidden="true" />
+          {diffQuery.error instanceof Error
+            ? diffQuery.error.message
+            : "Failed to load diff."}
+        </div>
+      ) : files.length === 0 ? (
+        <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+          No files changed.
+        </p>
+      ) : (
+        <ul className="space-y-0.5">
+          {files.map((file) => {
+            const viewed = isViewed(file.path);
+            return (
+              <li key={file.path}>
+                <div
+                  className={cn(
+                    "group flex items-center gap-2 rounded px-2 py-1.5 text-xs text-foreground hover:bg-muted",
+                    viewed && "opacity-60",
+                    openFilePath === file.path && "bg-muted",
+                  )}
+                >
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left focus-visible:outline-none"
+                    onClick={() => setOpenFilePath(file.path)}
+                  >
+                    <span className="relative shrink-0">
+                      <VscodeEntryIcon
+                        pathValue={file.path}
+                        kind="file"
+                        theme={resolvedTheme === "dark" ? "dark" : "light"}
+                        className="size-4"
+                      />
+                      <span
+                        className={cn(
+                          "absolute -bottom-0.5 -right-0.5 size-1.5 rounded-full ring-1 ring-background",
+                          file.status === "A" && "bg-emerald-500",
+                          file.status === "D" && "bg-destructive",
+                          file.status === "R" && "bg-amber-500",
+                          file.status === "M" && "bg-muted-foreground/50",
+                        )}
+                        aria-hidden="true"
+                      />
+                    </span>
+                    <span
+                      className="min-w-0 flex-1 overflow-hidden"
+                      title={`${statusLabel(file.status)} · ${file.path}`}
+                    >
+                      <span
+                        className={cn(
+                          "block truncate font-mono text-xs",
+                          viewed && "line-through",
+                        )}
+                      >
+                        {basenameOfPath(file.path)}
+                      </span>
+                      {file.path.includes("/") && (
+                        <span className="block truncate font-mono text-[10px] text-muted-foreground/70">
+                          {file.path.slice(0, file.path.lastIndexOf("/"))}
+                        </span>
+                      )}
+                    </span>
+                    <span className="shrink-0 text-[10px] uppercase text-muted-foreground">
+                      {statusLabel(file.status)}
+                    </span>
+                  </button>
+                  <label
+                    className="flex shrink-0 cursor-pointer items-center gap-1 text-[11px] text-muted-foreground"
+                    title={viewed ? "Marked as viewed" : "Mark as viewed"}
+                  >
+                    <Checkbox
+                      checked={viewed}
+                      onCheckedChange={(value) => setViewed(file.path, value === true)}
+                    />
+                    <span className="select-none">Viewed</span>
+                  </label>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+
   if (prNumber === null || !cwd) {
     return (
       <div className="flex h-full items-center justify-center p-4 text-center text-xs text-muted-foreground">
@@ -293,84 +412,117 @@ export function PullRequestReviewView({
   }
 
   return (
-    <>
-      <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-        <header className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-3">
-          <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-foreground">
-              {title ?? `Pull request #${prNumber}`}
-            </h2>
-            <p className="truncate text-[11px] text-muted-foreground">
-              #{prNumber}
-              {headRefName ? ` · ${headRefName}` : ""}
-              {authorLogin ? ` · ${authorLogin}` : ""}
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {environmentId && cwd && prNumber !== null ? (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void handleCheckout("local")}
-                  disabled={checkoutPending !== null}
-                  title="Checkout this PR branch in your current workspace"
-                >
-                  {checkoutPending === "local" ? (
-                    <Spinner className="size-3.5" />
-                  ) : (
-                    <GitBranchIcon className="size-3.5" aria-hidden="true" />
-                  )}
-                  Checkout
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void handleCheckout("worktree")}
-                  disabled={checkoutPending !== null}
-                  title="Open this PR in a new git worktree"
-                >
-                  {checkoutPending === "worktree" ? (
-                    <Spinner className="size-3.5" />
-                  ) : (
-                    <FolderGit2Icon className="size-3.5" aria-hidden="true" />
-                  )}
-                  New worktree
-                </Button>
-              </>
-            ) : null}
-            {onReview ? (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
+      <header className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-3">
+        <div className="min-w-0">
+          <h2 className="truncate text-sm font-semibold text-foreground">
+            {title ?? `Pull request #${prNumber}`}
+          </h2>
+          <p className="truncate text-[11px] text-muted-foreground">
+            #{prNumber}
+            {headRefName ? ` · ${headRefName}` : ""}
+            {authorLogin ? ` · ${authorLogin}` : ""}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {environmentId && cwd && prNumber !== null ? (
+            <>
               <Button
                 type="button"
+                variant="outline"
                 size="sm"
-                onClick={onReview}
-                disabled={isReviewPending}
-                title="Open this pull request in a new agent thread with a pre-filled review prompt"
+                onClick={() => void handleCheckout("local")}
+                disabled={checkoutPending !== null}
+                title="Checkout this PR branch in your current workspace"
               >
-                {isReviewPending ? (
+                {checkoutPending === "local" ? (
                   <Spinner className="size-3.5" />
                 ) : (
-                  <BotIcon className="size-3.5" aria-hidden="true" />
+                  <GitBranchIcon className="size-3.5" aria-hidden="true" />
                 )}
-                Review with agent
+                Checkout
               </Button>
-            ) : null}
-            {url && onOpenExternal ? (
-              <Button type="button" variant="outline" size="sm" onClick={() => onOpenExternal(url)}>
-                <ExternalLinkIcon className="size-3.5" aria-hidden="true" />
-                GitHub
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void handleCheckout("worktree")}
+                disabled={checkoutPending !== null}
+                title="Open this PR in a new git worktree"
+              >
+                {checkoutPending === "worktree" ? (
+                  <Spinner className="size-3.5" />
+                ) : (
+                  <FolderGit2Icon className="size-3.5" aria-hidden="true" />
+                )}
+                New worktree
               </Button>
-            ) : null}
-            {onClose ? (
-              <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-                Close
-              </Button>
-            ) : null}
-          </div>
-        </header>
+            </>
+          ) : null}
+          {onReview ? (
+            <Button
+              type="button"
+              size="sm"
+              onClick={onReview}
+              disabled={isReviewPending}
+              title="Open this pull request in a new agent thread with a pre-filled review prompt"
+            >
+              {isReviewPending ? (
+                <Spinner className="size-3.5" />
+              ) : (
+                <BotIcon className="size-3.5" aria-hidden="true" />
+              )}
+              Review with agent
+            </Button>
+          ) : null}
+          {url && onOpenExternal ? (
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpenExternal(url)}>
+              <ExternalLinkIcon className="size-3.5" aria-hidden="true" />
+              GitHub
+            </Button>
+          ) : null}
+          {onClose ? (
+            <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+              Close
+            </Button>
+          ) : null}
+        </div>
+      </header>
 
+      {openFilePath !== null ? (
+        // File open mode: compact file list on the left, diff view on the right.
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <div className="flex w-80 shrink-0 flex-col overflow-hidden border-r border-border/70">
+            <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-2">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Files ({files.length})
+              </h3>
+              {totalCount > 0 ? (
+                <span className="tabular-nums text-[11px] text-muted-foreground">
+                  {viewedCount} / {totalCount} viewed
+                </span>
+              ) : null}
+            </div>
+            {fileListScrollArea}
+          </div>
+
+          <PullRequestFileDiffView
+            environmentId={environmentId}
+            cwd={cwd}
+            prNumber={prNumber}
+            filePath={openFilePath}
+            onClose={() => setOpenFilePath(null)}
+            isViewed={isViewed(openFilePath)}
+            onToggleViewed={() => toggleViewed(openFilePath)}
+            onPrevious={handlePreviousFile}
+            onNext={handleNextFile}
+            canGoPrevious={canGoPrevious}
+            canGoNext={canGoNext}
+            positionLabel={positionLabel}
+          />
+        </div>
+      ) : (
+        // Normal mode: file list in the middle, discussion sidebar on the right.
         <div className="flex min-h-0 flex-1">
           <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-2">
@@ -386,80 +538,7 @@ export function PullRequestReviewView({
                 <span className="hidden sm:inline">Click a file to view its diff.</span>
               </div>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-2">
-              {diffQuery.isLoading ? (
-                <div className="flex items-center justify-center py-8 text-xs text-muted-foreground">
-                  <Spinner className="mr-2 size-3.5" />
-                  Loading files...
-                </div>
-              ) : diffQuery.isError ? (
-                <div className="flex flex-col items-center gap-1 px-3 py-6 text-center text-xs text-destructive">
-                  <AlertCircleIcon className="size-4" aria-hidden="true" />
-                  {diffQuery.error instanceof Error
-                    ? diffQuery.error.message
-                    : "Failed to load diff."}
-                </div>
-              ) : files.length === 0 ? (
-                <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-                  No files changed.
-                </p>
-              ) : (
-                <ul className="space-y-0.5">
-                  {files.map((file) => {
-                    const viewed = isViewed(file.path);
-                    return (
-                      <li key={file.path}>
-                        <div
-                          className={cn(
-                            "group flex items-center gap-2 rounded px-2 py-1.5 text-xs text-foreground hover:bg-muted",
-                            viewed && "opacity-60",
-                          )}
-                        >
-                          <button
-                            type="button"
-                            className="flex min-w-0 flex-1 items-center gap-2 text-left focus-visible:outline-none"
-                            onClick={() => setOpenFilePath(file.path)}
-                          >
-                            <span
-                              className={cn(
-                                "size-1.5 shrink-0 rounded-full",
-                                file.status === "A" && "bg-emerald-500",
-                                file.status === "D" && "bg-destructive",
-                                file.status === "R" && "bg-amber-500",
-                                file.status === "M" && "bg-muted-foreground/50",
-                              )}
-                              aria-hidden="true"
-                            />
-                            <span
-                              className={cn(
-                                "min-w-0 flex-1 truncate font-mono",
-                                viewed && "line-through",
-                              )}
-                              title={`${statusLabel(file.status)} · ${file.path}`}
-                            >
-                              {file.path}
-                            </span>
-                            <span className="shrink-0 text-[10px] uppercase text-muted-foreground">
-                              {statusLabel(file.status)}
-                            </span>
-                          </button>
-                          <label
-                            className="flex shrink-0 cursor-pointer items-center gap-1 text-[11px] text-muted-foreground"
-                            title={viewed ? "Marked as viewed" : "Mark as viewed"}
-                          >
-                            <Checkbox
-                              checked={viewed}
-                              onCheckedChange={(value) => setViewed(file.path, value === true)}
-                            />
-                            <span className="select-none">Viewed</span>
-                          </label>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
+            {fileListScrollArea}
           </main>
 
           <aside className="flex w-96 shrink-0 flex-col overflow-hidden border-l border-border/70">
@@ -468,23 +547,20 @@ export function PullRequestReviewView({
                 Discussion
               </h3>
             </div>
-            <div className="flex-1 overflow-y-auto p-3">
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
               <div className="space-y-3">
                 {bodyQuery.isLoading ? (
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Spinner className="size-3" />
                     Loading PR body...
                   </div>
-                ) : bodyQuery.data?.bodyHtml ? (
+                ) : bodyQuery.data?.body ? (
                   <article className="rounded-lg border border-border/70 bg-background p-3">
                     <header className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
                       <span className="font-medium text-foreground">{authorLogin ?? "author"}</span>
                       <span>description</span>
                     </header>
-                    <div
-                      className="pr-review-body prose prose-sm dark:prose-invert max-w-none text-sm"
-                      dangerouslySetInnerHTML={{ __html: bodyQuery.data.bodyHtml }}
-                    />
+                    <ChatMarkdown text={bodyQuery.data.body} cwd={undefined} />
                   </article>
                 ) : null}
 
@@ -548,32 +624,16 @@ export function PullRequestReviewView({
             </form>
           </aside>
         </div>
-      </div>
-      <PullRequestFileDiffDialog
-        environmentId={environmentId}
-        cwd={cwd}
-        prNumber={prNumber}
-        filePath={openFilePath}
-        onClose={() => setOpenFilePath(null)}
-        isViewed={openFilePath !== null ? isViewed(openFilePath) : false}
-        onToggleViewed={() => {
-          if (openFilePath !== null) toggleViewed(openFilePath);
-        }}
-        onPrevious={handlePreviousFile}
-        onNext={handleNextFile}
-        canGoPrevious={canGoPrevious}
-        canGoNext={canGoNext}
-        positionLabel={positionLabel}
-      />
-    </>
+      )}
+    </div>
   );
 }
 
-interface PullRequestFileDiffDialogProps {
+interface PullRequestFileDiffViewProps {
   environmentId: EnvironmentId | null;
   cwd: string | null;
   prNumber: number | null;
-  filePath: string | null;
+  filePath: string;
   onClose: () => void;
   isViewed: boolean;
   onToggleViewed: () => void;
@@ -584,7 +644,7 @@ interface PullRequestFileDiffDialogProps {
   positionLabel: string | null;
 }
 
-function PullRequestFileDiffDialog({
+function PullRequestFileDiffView({
   environmentId,
   cwd,
   prNumber,
@@ -597,28 +657,20 @@ function PullRequestFileDiffDialog({
   canGoPrevious,
   canGoNext,
   positionLabel,
-}: PullRequestFileDiffDialogProps) {
+}: PullRequestFileDiffViewProps) {
   const { resolvedTheme } = useTheme();
-  const open = filePath !== null;
+  const [diffStyle, setDiffStyle] = useState<"unified" | "split">("unified");
 
   const fileDiffQuery = useQuery(
     gitPullRequestFileDiffQueryOptions({ environmentId, cwd, prNumber, filePath }),
   );
 
   const patchRender = useMemo(
-    () => renderPatch(fileDiffQuery.data?.diff, `pr-${prNumber ?? "x"}-file-${filePath ?? "x"}`),
+    () => renderPatch(fileDiffQuery.data?.diff, `pr-${prNumber ?? "x"}-file-${filePath}`),
     [fileDiffQuery.data?.diff, prNumber, filePath],
   );
 
-  const handleOpenChange = useCallback(
-    (nextOpen: boolean) => {
-      if (!nextOpen) onClose();
-    },
-    [onClose],
-  );
-
   useEffect(() => {
-    if (!open) return;
     const handler = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target as HTMLElement | null;
@@ -636,49 +688,26 @@ function PullRequestFileDiffDialog({
     return () => {
       window.removeEventListener("keydown", handler);
     };
-  }, [open, canGoPrevious, canGoNext, onPrevious, onNext]);
+  }, [canGoPrevious, canGoNext, onPrevious, onNext]);
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogPopup className="h-[90vh] max-h-[90vh] max-w-6xl sm:max-w-6xl">
-        <DialogHeader className="pb-3">
-          <div className="flex items-center justify-between gap-3 pe-10">
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              <div className="flex shrink-0 items-center gap-0.5">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  disabled={!canGoPrevious}
-                  onClick={onPrevious}
-                  title="Previous file (←)"
-                  aria-label="Previous file"
-                >
-                  <ChevronLeftIcon aria-hidden="true" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  disabled={!canGoNext}
-                  onClick={onNext}
-                  title="Next file (→)"
-                  aria-label="Next file"
-                >
-                  <ChevronRightIcon aria-hidden="true" />
-                </Button>
-              </div>
-              {positionLabel ? (
-                <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
-                  {positionLabel}
-                </span>
-              ) : null}
-              <DialogTitle className="min-w-0 truncate font-mono text-sm">
-                {filePath ?? "File diff"}
-              </DialogTitle>
-            </div>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              disabled={!canGoPrevious}
+              onClick={onPrevious}
+              title="Previous file (←)"
+              aria-label="Previous file"
+            >
+              <ChevronLeftIcon aria-hidden="true" />
+            </Button>
             <label
-              className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground"
+              className="flex shrink-0 cursor-pointer items-center gap-1.5 px-1 text-xs text-muted-foreground"
               title={isViewed ? "Marked as viewed" : "Mark as viewed"}
             >
               <Checkbox
@@ -689,56 +718,96 @@ function PullRequestFileDiffDialog({
               />
               <span className="select-none">Viewed</span>
             </label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              disabled={!canGoNext}
+              onClick={onNext}
+              title="Next file (→)"
+              aria-label="Next file"
+            >
+              <ChevronRightIcon aria-hidden="true" />
+            </Button>
           </div>
-        </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-auto border-t border-border/70 p-2">
-          {fileDiffQuery.isLoading ? (
-            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-              <Spinner className="mr-2 size-3.5" />
-              Loading diff...
-            </div>
-          ) : fileDiffQuery.isError ? (
-            <div className="flex h-full flex-col items-center justify-center gap-1 px-3 text-center text-xs text-destructive">
-              <AlertCircleIcon className="size-4" aria-hidden="true" />
-              {fileDiffQuery.error instanceof Error
-                ? fileDiffQuery.error.message
-                : "Failed to load file diff."}
-            </div>
-          ) : patchRender?.kind === "files" ? (
-            <div className="diff-render-surface">
-              {patchRender.files.map((fileDiff) => (
-                <div
-                  key={fileDiff.cacheKey ?? resolveFileDiffPath(fileDiff)}
-                  className="diff-render-file rounded-md"
-                >
-                  <FileDiff
-                    fileDiff={fileDiff}
-                    options={{
-                      diffStyle: "unified",
-                      lineDiffType: "none",
-                      overflow: "wrap",
-                      theme: resolveDiffThemeName(resolvedTheme),
-                      themeType: resolvedTheme,
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          ) : patchRender?.kind === "raw" ? (
-            <div>
-              <p className="mb-2 text-[11px] text-muted-foreground/75">{patchRender.reason}</p>
-              <pre className="overflow-auto rounded-md border border-border/70 bg-background p-3 font-mono text-[11px] leading-relaxed text-muted-foreground/90">
-                {patchRender.text}
-              </pre>
-            </div>
-          ) : (
-            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-              No diff available.
-            </div>
-          )}
+          {positionLabel ? (
+            <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+              {positionLabel}
+            </span>
+          ) : null}
+          <span className="min-w-0 truncate font-mono text-sm">{filePath}</span>
         </div>
-      </DialogPopup>
-    </Dialog>
+        <div className="flex shrink-0 items-center gap-2">
+          <ToggleGroup
+            variant="outline"
+            size="xs"
+            value={[diffStyle]}
+            onValueChange={(value) => {
+              const next = value[0];
+              if (next === "unified" || next === "split") {
+                setDiffStyle(next);
+              }
+            }}
+          >
+            <Toggle aria-label="Unified diff view" value="unified" title="Unified diff">
+              <Rows3Icon className="size-3" />
+            </Toggle>
+            <Toggle aria-label="Split diff view" value="split" title="Split diff">
+              <Columns2Icon className="size-3" />
+            </Toggle>
+          </ToggleGroup>
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+            Close
+          </Button>
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto p-2">
+        {fileDiffQuery.isLoading ? (
+          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+            <Spinner className="mr-2 size-3.5" />
+            Loading diff...
+          </div>
+        ) : fileDiffQuery.isError ? (
+          <div className="flex h-full flex-col items-center justify-center gap-1 px-3 text-center text-xs text-destructive">
+            <AlertCircleIcon className="size-4" aria-hidden="true" />
+            {fileDiffQuery.error instanceof Error
+              ? fileDiffQuery.error.message
+              : "Failed to load file diff."}
+          </div>
+        ) : patchRender?.kind === "files" ? (
+          <div className="diff-render-surface">
+            {patchRender.files.map((fileDiff) => (
+              <div
+                key={fileDiff.cacheKey ?? resolveFileDiffPath(fileDiff)}
+                className="diff-render-file rounded-md"
+              >
+                <FileDiff
+                  fileDiff={fileDiff}
+                  options={{
+                    diffStyle: diffStyle,
+                    lineDiffType: "none",
+                    overflow: "wrap",
+                    theme: resolveDiffThemeName(resolvedTheme),
+                    themeType: resolvedTheme,
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        ) : patchRender?.kind === "raw" ? (
+          <div>
+            <p className="mb-2 text-[11px] text-muted-foreground/75">{patchRender.reason}</p>
+            <pre className="overflow-auto rounded-md border border-border/70 bg-background p-3 font-mono text-[11px] leading-relaxed text-muted-foreground/90">
+              {patchRender.text}
+            </pre>
+          </div>
+        ) : (
+          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+            No diff available.
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

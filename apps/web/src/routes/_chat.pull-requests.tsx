@@ -1,11 +1,12 @@
 import { scopeProjectRef, scopedProjectKey } from "@t3tools/client-runtime";
-import type { PullRequestSummary } from "@t3tools/contracts";
+import type { ModelSelection, PullRequestSummary } from "@t3tools/contracts";
 import { DEFAULT_MODEL_BY_PROVIDER, DEFAULT_RUNTIME_MODE } from "@t3tools/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
+import { useComposerDraftStore } from "../composerDraftStore";
 import { PullRequestListPanel } from "../components/PullRequestListPanel";
 import {
   buildPullRequestReviewPrompt,
@@ -24,8 +25,63 @@ import { ensureEnvironmentApi } from "../environmentApi";
 import { newCommandId, newMessageId, newThreadId } from "../lib/utils";
 import { gitPullRequestsQueryOptions } from "../lib/gitPRReactQuery";
 import { readLocalApi } from "../localApi";
-import { selectProjectsAcrossEnvironments, useStore } from "../store";
+import {
+  selectEnvironmentState,
+  selectProjectsAcrossEnvironments,
+  useStore,
+} from "../store";
+import type { Project } from "../types";
 import { DEFAULT_INTERACTION_MODE } from "../types";
+
+/**
+ * Pick the model/provider for a new agent chat spawned from the PR review view.
+ *
+ * Priority:
+ *   1. Most recently updated non-archived thread for this project
+ *      (mirrors "the last model the user was actually working with").
+ *   2. Globally sticky model/provider from the composer draft store
+ *      (covers the case where the project has no threads yet but the user
+ *       has been working in other projects with a non-default model).
+ *   3. The project's configured default model selection.
+ *   4. Hardcoded Codex default (legacy fallback).
+ */
+function resolveReviewModelSelection(project: Project): ModelSelection {
+  const envState = selectEnvironmentState(useStore.getState(), project.environmentId);
+  const projectThreadIds = envState.threadIdsByProjectId[project.id] ?? [];
+
+  let mostRecentSelection: ModelSelection | null = null;
+  let mostRecentTimestamp = "";
+  for (const threadId of projectThreadIds) {
+    const shell = envState.threadShellById[threadId];
+    if (!shell || shell.archivedAt !== null) continue;
+    const timestamp = shell.updatedAt ?? shell.createdAt;
+    if (timestamp > mostRecentTimestamp) {
+      mostRecentTimestamp = timestamp;
+      mostRecentSelection = shell.modelSelection;
+    }
+  }
+  if (mostRecentSelection) {
+    return mostRecentSelection;
+  }
+
+  const composerState = useComposerDraftStore.getState();
+  const stickyProvider = composerState.stickyActiveProvider;
+  if (stickyProvider) {
+    const stickySelection = composerState.stickyModelSelectionByProvider[stickyProvider];
+    if (stickySelection) {
+      return stickySelection;
+    }
+  }
+
+  if (project.defaultModelSelection) {
+    return project.defaultModelSelection;
+  }
+
+  return {
+    provider: "codex" as const,
+    model: DEFAULT_MODEL_BY_PROVIDER.codex,
+  };
+}
 
 const PR_LAST_PROJECT_KEY = "t3code:pr-last-project-id";
 
@@ -157,6 +213,7 @@ function PullRequestsRouteView() {
   );
 
   const [isReviewPending, setIsReviewPending] = useState(false);
+  const [hasFileOpen, setHasFileOpen] = useState(false);
 
   const handleReview = useCallback(async () => {
     if (!activeProject || selectedPrNumber === null) return;
@@ -174,10 +231,7 @@ function PullRequestsRouteView() {
       const commandId = newCommandId();
       const messageId = newMessageId();
       const createdAt = new Date().toISOString();
-      const modelSelection = activeProject.defaultModelSelection ?? {
-        provider: "codex" as const,
-        model: DEFAULT_MODEL_BY_PROVIDER.codex,
-      };
+      const modelSelection = resolveReviewModelSelection(activeProject);
       await api.orchestration.dispatchCommand({
         type: "thread.turn.start",
         commandId,
@@ -216,7 +270,7 @@ function PullRequestsRouteView() {
   }, [activeProject, selectedPrNumber, selectedPullRequest]);
 
   return (
-    <SidebarInset>
+    <SidebarInset className="h-dvh min-h-0 overflow-hidden">
       <div className="flex h-full min-h-0 flex-col">
         <header className="flex items-center gap-2 border-b border-border px-3 py-2">
           <SidebarTrigger className="size-7 shrink-0" />
@@ -254,15 +308,17 @@ function PullRequestsRouteView() {
           ) : null}
         </header>
         <div className="flex min-h-0 flex-1 overflow-hidden">
-          <div className="w-80 shrink-0 border-r border-border/70">
-            <PullRequestListPanel
-              environmentId={environmentId}
-              cwd={cwd}
-              selectedPrNumber={selectedPrNumber}
-              onSelect={handleSelect}
-              onOpenExternal={handleOpenExternal}
-            />
-          </div>
+          {(!hasFileOpen || selectedPrNumber === null) && (
+            <div className="w-80 shrink-0 border-r border-border/70">
+              <PullRequestListPanel
+                environmentId={environmentId}
+                cwd={cwd}
+                selectedPrNumber={selectedPrNumber}
+                onSelect={handleSelect}
+                onOpenExternal={handleOpenExternal}
+              />
+            </div>
+          )}
           <div className="min-w-0 flex-1">
             {selectedPrNumber === null ? (
               <div className="flex h-full items-center justify-center p-4 text-center text-xs text-muted-foreground">
@@ -279,6 +335,7 @@ function PullRequestsRouteView() {
                 url={selectedPullRequest?.url ?? null}
                 onClose={handleClose}
                 onOpenExternal={handleOpenExternal}
+                onHasFileOpen={setHasFileOpen}
                 {...(activeProject ? { onReview: handleReview, isReviewPending } : {})}
               />
             )}

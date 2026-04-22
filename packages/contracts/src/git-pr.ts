@@ -121,6 +121,7 @@ export const GitPullRequestBodyInput = Schema.Struct({
 export type GitPullRequestBodyInput = typeof GitPullRequestBodyInput.Type;
 
 export const GitPullRequestBodyResult = Schema.Struct({
+  body: Schema.String,
   bodyHtml: Schema.String,
 });
 export type GitPullRequestBodyResult = typeof GitPullRequestBodyResult.Type;
@@ -141,3 +142,22 @@ export const GitPostPullRequestIssueCommentInput = Schema.Struct({
   body: TrimmedNonEmptyStringSchema,
 });
 export type GitPostPullRequestIssueCommentInput = typeof GitPostPullRequestIssueCommentInput.Type;
+
+export const GitPullRequestViewedFilesInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+  prNumber: PositiveInt,
+});
+export type GitPullRequestViewedFilesInput = typeof GitPullRequestViewedFilesInput.Type;
+
+export const GitPullRequestViewedFilesResult = Schema.Struct({
+  viewedPaths: Schema.Array(Schema.String),
+});
+export type GitPullRequestViewedFilesResult = typeof GitPullRequestViewedFilesResult.Type;
+
+export const GitSetPullRequestFileViewedInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+  prNumber: PositiveInt,
+  path: TrimmedNonEmptyStringSchema,
+  viewed: Schema.Boolean,
+});
+export type GitSetPullRequestFileViewedInput = typeof GitSetPullRequestFileViewedInput.Type;

@@ -14,6 +14,9 @@ import {
   type GitPullRequestFileDiffResult,
   type GitPullRequestIssueCommentsResult,
   type GitPullRequestReviewCommentsResult,
+  type GitPullRequestViewedFilesInput,
+  type GitPullRequestViewedFilesResult,
+  type GitSetPullRequestFileViewedInput,
   WS_METHODS,
 } from "@t3tools/contracts";
 
@@ -44,6 +47,12 @@ export type PRHandlers = {
   ) => Effect.Effect<void, GitManagerServiceError>;
   readonly [WS_METHODS.gitPostPullRequestIssueComment]: (
     input: GitPostPullRequestIssueCommentInput,
+  ) => Effect.Effect<void, GitManagerServiceError>;
+  readonly [WS_METHODS.gitGetPullRequestViewedFiles]: (
+    input: GitPullRequestViewedFilesInput,
+  ) => Effect.Effect<GitPullRequestViewedFilesResult, GitManagerServiceError>;
+  readonly [WS_METHODS.gitSetPullRequestFileViewed]: (
+    input: GitSetPullRequestFileViewedInput,
   ) => Effect.Effect<void, GitManagerServiceError>;
 };
 
@@ -89,6 +98,18 @@ export function makePRHandlers(gitManager: GitManagerShape): PRHandlers {
       observeRpcEffect(
         WS_METHODS.gitPostPullRequestIssueComment,
         gitManager.postPullRequestIssueComment(input),
+        { "rpc.aggregate": "git" },
+      ),
+    [WS_METHODS.gitGetPullRequestViewedFiles]: (input) =>
+      observeRpcEffect(
+        WS_METHODS.gitGetPullRequestViewedFiles,
+        gitManager.getPullRequestViewedFiles(input),
+        { "rpc.aggregate": "git" },
+      ),
+    [WS_METHODS.gitSetPullRequestFileViewed]: (input) =>
+      observeRpcEffect(
+        WS_METHODS.gitSetPullRequestFileViewed,
+        gitManager.setPullRequestFileViewed(input),
         { "rpc.aggregate": "git" },
       ),
   };

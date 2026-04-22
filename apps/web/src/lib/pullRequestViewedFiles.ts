@@ -74,6 +74,10 @@ export interface UsePullRequestViewedFilesInput {
   readonly prNumber: number | null;
   readonly fullDiff: string;
   readonly filePaths: readonly string[];
+  /** File paths that GitHub reports as already viewed by the current user. */
+  readonly githubViewedPaths?: readonly string[] | undefined;
+  /** Called after local state is updated so the caller can sync the change back to GitHub. */
+  readonly onSetViewed?: ((filePath: string, viewed: boolean) => void) | undefined;
 }
 
 export interface UsePullRequestViewedFilesResult {
@@ -89,12 +93,35 @@ export function usePullRequestViewedFiles({
   prNumber,
   fullDiff,
   filePaths,
+  githubViewedPaths,
+  onSetViewed,
 }: UsePullRequestViewedFilesInput): UsePullRequestViewedFilesResult {
   const [viewedMap, setViewedMap] = useState<ViewedMap>(() => safeReadViewedMap(cwd, prNumber));
 
   useEffect(() => {
     setViewedMap(safeReadViewedMap(cwd, prNumber));
   }, [cwd, prNumber]);
+
+  // Merge GitHub's viewed state into local state whenever either changes.
+  // We always ADD paths that GitHub considers viewed — we never remove locally-viewed ones.
+  // Using the functional updater avoids stale-closure issues with the current map.
+  useEffect(() => {
+    if (!githubViewedPaths?.length || !fullDiff || !cwd || prNumber === null) return;
+    setViewedMap((prev) => {
+      const next: ViewedMap = { ...prev };
+      let changed = false;
+      for (const path of githubViewedPaths) {
+        const hash = buildFileDiffHash(fullDiff, path);
+        if (!hash) continue;
+        if (next[path] === hash) continue; // already up-to-date
+        next[path] = hash;
+        changed = true;
+      }
+      if (!changed) return prev;
+      safeWriteViewedMap(cwd, prNumber, next);
+      return next;
+    });
+  }, [githubViewedPaths, fullDiff, cwd, prNumber]);
 
   const currentHashes = useMemo(() => {
     const map: Record<string, string> = {};
@@ -132,8 +159,9 @@ export function usePullRequestViewedFiles({
         safeWriteViewedMap(cwd, prNumber, next);
         return next;
       });
+      onSetViewed?.(filePath, viewed);
     },
-    [cwd, prNumber, currentHashes, fullDiff],
+    [cwd, prNumber, currentHashes, fullDiff, onSetViewed],
   );
 
   const toggleViewed = useCallback(

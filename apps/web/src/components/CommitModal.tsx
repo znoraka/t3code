@@ -254,40 +254,53 @@ interface BuildCommitChatMessageInput {
 }
 
 export function buildCommitChatMessage(input: BuildCommitChatMessageInput): string {
-  const lines: string[] = [];
-  lines.push("Please commit the following files:");
-  for (const file of input.files) {
-    lines.push(`- ${file}`);
-  }
-  lines.push("");
-
+  let branchContext: string;
   if (input.newBranch) {
     if (input.newBranchName.length > 0) {
-      lines.push(`Create a new branch named \`${input.newBranchName}\` and commit on it.`);
+      branchContext = `The user wants to create a new branch named "${input.newBranchName}" before committing.`;
     } else {
-      lines.push(
-        "Create a new feature branch (suggest a concise, kebab-case name) and commit on it.",
-      );
+      branchContext =
+        "The user wants to create a new branch. Suggest a slug derived from the commit message and ask for confirmation.";
     }
   } else if (input.branch) {
     if (input.isDefaultBranch) {
-      lines.push(
-        `Current branch is \`${input.branch}\` (default branch). Ask before committing directly — suggest creating a feature branch instead.`,
-      );
+      branchContext = `The current branch is \`${input.branch}\` (default branch). Ask the user before committing directly — suggest creating a feature branch instead.`;
     } else {
-      lines.push(`Commit on the current branch \`${input.branch}\`.`);
+      branchContext = `Commit on the current branch \`${input.branch}\`.`;
     }
+  } else {
+    branchContext = "Commit on the current branch.";
   }
 
-  lines.push("");
-  lines.push("Instructions:");
-  lines.push("1. Read the diffs of the selected files to understand the changes.");
-  lines.push("2. Generate a concise commit message (imperative mood, <=72 char subject).");
-  lines.push("3. Show the proposed message and ask me to confirm before committing.");
-  lines.push("4. After confirmation, stage only the selected files and commit.");
-  lines.push("5. Do NOT push unless I ask.");
+  const fileList = input.files.map((f) => `- ${f}`).join("\n");
 
-  return lines.join("\n");
+  return `You are a git commit assistant. Your job is to commit, push, and optionally create a PR for the user's selected files.
+
+IMPORTANT: At every decision point, use AskUserQuestion with clickable options so the user can confirm with a single click. Never ask the user to type a response when a choice would do.
+
+Follow these steps:
+
+1. STAGE FILES: Stage only the specified files.
+
+2. COMMIT MESSAGE: Read the diffs of the selected files, generate a good commit message, and display it as a formatted code block in your response text. Then AFTER showing the message, use AskUserQuestion to ask for confirmation:
+   - question: "Proceed with this commit message?"
+   - options: ["Yes, commit", "Let me edit the message"]
+   If the user wants to edit, let them type a new message, then ask again.
+
+3. BRANCH: ${branchContext}
+
+4. COMMIT & PUSH: After confirmation, commit and push to remote.
+
+5. PR CHECK: After pushing, check if a PR already exists for this branch (use gh pr list or similar). If no PR exists and the branch is not main/master, ask:
+   - question: "Create a pull request?"
+   - options: ["Yes, create a PR", "No, skip"]
+   If yes, generate a PR title and description and create it.
+
+---
+
+Please commit and push the following files:
+
+${fileList}`;
 }
 
 export default CommitModal;

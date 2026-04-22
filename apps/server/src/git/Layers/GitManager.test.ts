@@ -596,6 +596,8 @@ function createGitHubCliWithFakeGh(scenario: FakeGhScenario = {}): {
       getPullRequestIssueComments: () => Effect.die("not implemented in test"),
       postPullRequestReviewComment: () => Effect.die("not implemented in test"),
       postPullRequestIssueComment: () => Effect.die("not implemented in test"),
+      getPullRequestViewedFiles: () => Effect.die("not implemented in test"),
+      setPullRequestFileViewed: () => Effect.die("not implemented in test"),
     },
     ghCalls,
   };

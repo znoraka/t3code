@@ -79,6 +79,8 @@ function makeTestLayer(state: {
     getPullRequestBody: () => Effect.die("not implemented in test"),
     postPullRequestReviewComment: () => Effect.die("not implemented in test"),
     postPullRequestIssueComment: () => Effect.die("not implemented in test"),
+    getPullRequestViewedFiles: () => Effect.die("not implemented in test"),
+    setPullRequestFileViewed: () => Effect.die("not implemented in test"),
   };
 
   return GitStatusBroadcasterLive.pipe(Layer.provide(Layer.succeed(GitManager, gitManager)));
@@ -285,6 +287,8 @@ describe("GitStatusBroadcasterLive", () => {
           getPullRequestBody: () => Effect.die("not implemented in test"),
           postPullRequestReviewComment: () => Effect.die("not implemented in test"),
           postPullRequestIssueComment: () => Effect.die("not implemented in test"),
+          getPullRequestViewedFiles: () => Effect.die("not implemented in test"),
+          setPullRequestFileViewed: () => Effect.die("not implemented in test"),
         } satisfies GitManagerShape),
       ),
     );

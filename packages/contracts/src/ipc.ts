@@ -31,6 +31,11 @@ import type {
   GitStatusResult,
   GitCreateBranchResult,
 } from "./git.ts";
+import type {
+  GitPullRequestViewedFilesInput,
+  GitPullRequestViewedFilesResult,
+  GitSetPullRequestFileViewedInput,
+} from "./git-pr.ts";
 import type { FilesystemBrowseInput, FilesystemBrowseResult } from "./filesystem.ts";
 import type {
   ProjectSearchEntriesInput,
@@ -290,6 +295,10 @@ export interface EnvironmentApi {
     postPullRequestIssueComment: (
       input: GitPostPullRequestIssueCommentInput,
     ) => Promise<void>;
+    getPullRequestViewedFiles: (
+      input: GitPullRequestViewedFilesInput,
+    ) => Promise<GitPullRequestViewedFilesResult>;
+    setPullRequestFileViewed: (input: GitSetPullRequestFileViewedInput) => Promise<void>;
     pull: (input: GitPullInput) => Promise<GitPullResult>;
     refreshStatus: (input: GitStatusInput) => Promise<GitStatusResult>;
     onStatus: (
