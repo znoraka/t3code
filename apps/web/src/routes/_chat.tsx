@@ -14,6 +14,8 @@ import { useThreadSelectionStore } from "../threadSelectionStore";
 import { resolveSidebarNewThreadEnvMode } from "~/components/Sidebar.logic";
 import { useSettings } from "~/hooks/useSettings";
 import { useServerKeybindings } from "~/rpc/serverState";
+import { useWorkspacePickerStore } from "../workspacePickerStore";
+import { WorkspacePickerModal } from "~/components/WorkspacePickerModal";
 
 function ChatRouteGlobalShortcuts() {
   const clearSelection = useThreadSelectionStore((state) => state.clearSelection);
@@ -42,6 +44,10 @@ function ChatRouteGlobalShortcuts() {
         return;
       }
 
+      if (useWorkspacePickerStore.getState().open) {
+        return;
+      }
+
       if (event.key === "Escape" && selectedThreadKeysSize > 0) {
         event.preventDefault();
         clearSelection();
@@ -66,6 +72,14 @@ function ChatRouteGlobalShortcuts() {
       if (command === "chat.new") {
         event.preventDefault();
         event.stopPropagation();
+
+        // Second cmd+n: already viewing a draft → open the workspace picker so the
+        // user can choose a different workspace / worktree for the new session.
+        if (activeDraftThread !== null && routeThreadRef === null) {
+          useWorkspacePickerStore.getState().setOpen(true);
+          return;
+        }
+
         void startNewThreadFromContext({
           activeDraftThread,
           activeThread,
@@ -89,6 +103,7 @@ function ChatRouteGlobalShortcuts() {
     handleNewThread,
     keybindings,
     defaultProjectRef,
+    routeThreadRef,
     selectedThreadKeysSize,
     terminalOpen,
     appSettings.defaultThreadEnvMode,
@@ -101,6 +116,7 @@ function ChatRouteLayout() {
   return (
     <>
       <ChatRouteGlobalShortcuts />
+      <WorkspacePickerModal />
       <Outlet />
     </>
   );
