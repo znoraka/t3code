@@ -18,6 +18,31 @@ import type {
   VcsStatusResult,
   VcsCreateRefResult,
 } from "./git.ts";
+import type {
+  GitListPullRequestsInput,
+  GitListPullRequestsResult,
+  GitPullRequestDiffInput,
+  GitPullRequestDiffResult,
+  GitPullRequestFileDiffInput,
+  GitPullRequestFileDiffResult,
+  GitPullRequestCommentsInput,
+  GitPullRequestReviewCommentsResult,
+  GitPostPullRequestReviewCommentInput,
+  GitPullRequestIssueCommentsResult,
+  GitPostPullRequestIssueCommentInput,
+  GitPullRequestBodyInput,
+  GitPullRequestBodyResult,
+  GitPullRequestViewedFilesInput,
+  GitPullRequestViewedFilesResult,
+  GitSetPullRequestFileViewedInput,
+  GitSubmitPullRequestReviewInput,
+  GitMergePullRequestInput,
+  GitPullRequestDetailInput,
+  GitPullRequestDetailResult,
+  GitEditPullRequestInput,
+  GitRepositoryCollaboratorsInput,
+  GitRepositoryCollaboratorsResult,
+} from "./git-pr.ts";
 import type { FilesystemBrowseInput, FilesystemBrowseResult } from "./filesystem.ts";
 import type {
   ProjectSearchEntriesInput,
@@ -373,6 +398,33 @@ export interface EnvironmentApi {
     preparePullRequestThread: (
       input: GitPreparePullRequestThreadInput,
     ) => Promise<GitPreparePullRequestThreadResult>;
+    listPullRequests: (input: GitListPullRequestsInput) => Promise<GitListPullRequestsResult>;
+    getPullRequestDiff: (input: GitPullRequestDiffInput) => Promise<GitPullRequestDiffResult>;
+    getPullRequestFileDiff: (
+      input: GitPullRequestFileDiffInput,
+    ) => Promise<GitPullRequestFileDiffResult>;
+    getPullRequestReviewComments: (
+      input: GitPullRequestCommentsInput,
+    ) => Promise<GitPullRequestReviewCommentsResult>;
+    postPullRequestComment: (input: GitPostPullRequestReviewCommentInput) => Promise<void>;
+    getPullRequestIssueComments: (
+      input: GitPullRequestCommentsInput,
+    ) => Promise<GitPullRequestIssueCommentsResult>;
+    postPullRequestIssueComment: (input: GitPostPullRequestIssueCommentInput) => Promise<void>;
+    getPullRequestBody: (input: GitPullRequestBodyInput) => Promise<GitPullRequestBodyResult>;
+    getPullRequestViewedFiles: (
+      input: GitPullRequestViewedFilesInput,
+    ) => Promise<GitPullRequestViewedFilesResult>;
+    setPullRequestFileViewed: (input: GitSetPullRequestFileViewedInput) => Promise<void>;
+    submitPullRequestReview: (input: GitSubmitPullRequestReviewInput) => Promise<void>;
+    mergePullRequest: (input: GitMergePullRequestInput) => Promise<void>;
+    getPullRequestDetail: (
+      input: GitPullRequestDetailInput,
+    ) => Promise<GitPullRequestDetailResult>;
+    editPullRequest: (input: GitEditPullRequestInput) => Promise<void>;
+    getRepositoryCollaborators: (
+      input: GitRepositoryCollaboratorsInput,
+    ) => Promise<GitRepositoryCollaboratorsResult>;
   };
   orchestration: {
     dispatchCommand: (command: ClientOrchestrationCommand) => Promise<{ sequence: number }>;

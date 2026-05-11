@@ -1,9 +1,11 @@
 import {
   ArchiveIcon,
+  ArrowLeftIcon,
   ArrowUpDownIcon,
   ChevronRightIcon,
   CloudIcon,
   FolderPlusIcon,
+  GitPullRequestIcon,
   SearchIcon,
   SettingsIcon,
   SquarePenIcon,
@@ -2423,9 +2425,14 @@ const SidebarChromeHeader = memo(function SidebarChromeHeader({
   );
 });
 
+// [FORK] Pull-requests button added alongside Settings
 const SidebarChromeFooter = memo(function SidebarChromeFooter() {
   const navigate = useNavigate();
   const { isMobile, setOpenMobile } = useSidebar();
+  const isOnPullRequests = useLocation({
+    select: (loc) => loc.pathname === "/pull-requests",
+  });
+
   const handleSettingsClick = useCallback(() => {
     if (isMobile) {
       setOpenMobile(false);
@@ -2438,16 +2445,55 @@ const SidebarChromeFooter = memo(function SidebarChromeFooter() {
       <SidebarProviderUpdatePill />
       <SidebarUpdatePill />
       <SidebarMenu>
-        <SidebarMenuItem>
-          <SidebarMenuButton
-            size="sm"
-            className="gap-2 px-2 py-1.5 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
-            onClick={handleSettingsClick}
-          >
-            <SettingsIcon className="size-3.5" />
-            <span className="text-xs">Settings</span>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
+        {isOnPullRequests ? (
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size="sm"
+              className="gap-2 px-2 py-1.5 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
+              onClick={() => window.history.back()}
+            >
+              <ArrowLeftIcon className="size-3.5" />
+              <span className="text-xs">Back</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ) : (
+          <>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                size="sm"
+                className="gap-2 px-2 py-1.5 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
+                onClick={() => {
+                  let search: Record<string, unknown> = {};
+                  try {
+                    const raw = window.localStorage.getItem("t3code:pr-last-state");
+                    if (raw) {
+                      const parsed = JSON.parse(raw);
+                      if (parsed && typeof parsed === "object") {
+                        search = parsed;
+                      }
+                    }
+                  } catch {
+                    // ignore
+                  }
+                  void navigate({ to: "/pull-requests" as string, search } as any);
+                }}
+              >
+                <GitPullRequestIcon className="size-3.5" />
+                <span className="text-xs">Pull requests</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                size="sm"
+                className="gap-2 px-2 py-1.5 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
+                onClick={handleSettingsClick}
+              >
+                <SettingsIcon className="size-3.5" />
+                <span className="text-xs">Settings</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </>
+        )}
       </SidebarMenu>
     </SidebarFooter>
   );

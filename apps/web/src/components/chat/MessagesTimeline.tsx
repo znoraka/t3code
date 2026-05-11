@@ -723,6 +723,7 @@ const UserMessageTerminalContextInlineLabel = memo(
 const UserMessageBody = memo(function UserMessageBody(props: {
   text: string;
   terminalContexts: ParsedTerminalContextEntry[];
+  cwd: string | undefined;
 }) {
   if (props.terminalContexts.length > 0) {
     const hasEmbeddedInlineLabels = textContainsInlineTerminalContextLabels(
@@ -745,7 +746,7 @@ const UserMessageBody = memo(function UserMessageBody(props: {
         if (matchIndex > cursor) {
           inlineNodes.push(
             <span key={`user-terminal-context-inline-before:${context.header}:${cursor}`}>
-              {props.text.slice(cursor, matchIndex)}
+              <ChatMarkdown text={props.text.slice(cursor, matchIndex)} cwd={props.cwd} />
             </span>,
           );
         }
@@ -762,13 +763,13 @@ const UserMessageBody = memo(function UserMessageBody(props: {
         if (cursor < props.text.length) {
           inlineNodes.push(
             <span key={`user-message-terminal-context-inline-rest:${cursor}`}>
-              {props.text.slice(cursor)}
+              <ChatMarkdown text={props.text.slice(cursor)} cwd={props.cwd} />
             </span>,
           );
         }
 
         return (
-          <div className="whitespace-pre-wrap wrap-break-word text-sm leading-relaxed text-foreground">
+          <div className="text-sm leading-relaxed text-foreground">
             {inlineNodes}
           </div>
         );
@@ -790,13 +791,17 @@ const UserMessageBody = memo(function UserMessageBody(props: {
     }
 
     if (props.text.length > 0) {
-      inlineNodes.push(<span key="user-message-terminal-context-inline-text">{props.text}</span>);
+      inlineNodes.push(
+        <span key="user-message-terminal-context-inline-text">
+          <ChatMarkdown text={props.text} cwd={props.cwd} />
+        </span>,
+      );
     } else if (inlinePrefix.length === 0) {
       return null;
     }
 
     return (
-      <div className="whitespace-pre-wrap wrap-break-word text-sm leading-relaxed text-foreground">
+      <div className="text-sm leading-relaxed text-foreground">
         {inlineNodes}
       </div>
     );
@@ -807,8 +812,8 @@ const UserMessageBody = memo(function UserMessageBody(props: {
   }
 
   return (
-    <div className="whitespace-pre-wrap wrap-break-word text-sm leading-relaxed text-foreground">
-      {props.text}
+    <div className="text-sm leading-relaxed text-foreground">
+      <ChatMarkdown text={props.text} cwd={props.cwd} />
     </div>
   );
 });

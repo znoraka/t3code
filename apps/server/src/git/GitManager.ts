@@ -31,6 +31,29 @@ import {
   type VcsStatusRemoteResult,
   VcsStatusResult,
   ModelSelection,
+  type GitListPullRequestsInput,
+  type GitListPullRequestsResult,
+  type GitPullRequestDiffInput,
+  type GitPullRequestDiffResult,
+  type GitPullRequestFileDiffInput,
+  type GitPullRequestFileDiffResult,
+  type GitPullRequestCommentsInput,
+  type GitPullRequestReviewCommentsResult,
+  type GitPullRequestIssueCommentsResult,
+  type GitPullRequestBodyInput,
+  type GitPullRequestBodyResult,
+  type GitPostPullRequestReviewCommentInput,
+  type GitPostPullRequestIssueCommentInput,
+  type GitPullRequestViewedFilesInput,
+  type GitPullRequestViewedFilesResult,
+  type GitSetPullRequestFileViewedInput,
+  type GitSubmitPullRequestReviewInput,
+  type GitMergePullRequestInput,
+  type GitPullRequestDetailInput,
+  type GitPullRequestDetailResult,
+  type GitEditPullRequestInput,
+  type GitRepositoryCollaboratorsInput,
+  type GitRepositoryCollaboratorsResult,
 } from "@t3tools/contracts";
 import {
   detectSourceControlProviderFromGitRemoteUrl,
@@ -52,6 +75,9 @@ import { ServerSettingsService } from "../serverSettings.ts";
 import type { GitManagerServiceError } from "@t3tools/contracts";
 import { GitVcsDriver, type GitStatusDetails } from "../vcs/GitVcsDriver.ts";
 import { SourceControlProviderRegistry } from "../sourceControl/SourceControlProviderRegistry.ts";
+import { GitHubCli as SourceControlGitHubCli } from "../sourceControl/GitHubCli.ts";
+import { makeGitHubCliPRMethods } from "./Layers/GitHubCliPR.ts";
+import { makeGitManagerPRMethods } from "./Layers/GitManagerPR.ts";
 import type { ChangeRequest } from "@t3tools/contracts";
 
 export interface GitActionProgressReporter {
@@ -86,6 +112,53 @@ export interface GitManagerShape {
     input: GitRunStackedActionInput,
     options?: GitRunStackedActionOptions,
   ) => Effect.Effect<GitRunStackedActionResult, GitManagerServiceError>;
+
+  // PR review methods
+  readonly listPullRequests: (
+    input: GitListPullRequestsInput,
+  ) => Effect.Effect<GitListPullRequestsResult, GitManagerServiceError>;
+  readonly getPullRequestDiff: (
+    input: GitPullRequestDiffInput,
+  ) => Effect.Effect<GitPullRequestDiffResult, GitManagerServiceError>;
+  readonly getPullRequestFileDiff: (
+    input: GitPullRequestFileDiffInput,
+  ) => Effect.Effect<GitPullRequestFileDiffResult, GitManagerServiceError>;
+  readonly getPullRequestReviewComments: (
+    input: GitPullRequestCommentsInput,
+  ) => Effect.Effect<GitPullRequestReviewCommentsResult, GitManagerServiceError>;
+  readonly getPullRequestIssueComments: (
+    input: GitPullRequestCommentsInput,
+  ) => Effect.Effect<GitPullRequestIssueCommentsResult, GitManagerServiceError>;
+  readonly getPullRequestBody: (
+    input: GitPullRequestBodyInput,
+  ) => Effect.Effect<GitPullRequestBodyResult, GitManagerServiceError>;
+  readonly postPullRequestReviewComment: (
+    input: GitPostPullRequestReviewCommentInput,
+  ) => Effect.Effect<void, GitManagerServiceError>;
+  readonly postPullRequestIssueComment: (
+    input: GitPostPullRequestIssueCommentInput,
+  ) => Effect.Effect<void, GitManagerServiceError>;
+  readonly getPullRequestViewedFiles: (
+    input: GitPullRequestViewedFilesInput,
+  ) => Effect.Effect<GitPullRequestViewedFilesResult, GitManagerServiceError>;
+  readonly setPullRequestFileViewed: (
+    input: GitSetPullRequestFileViewedInput,
+  ) => Effect.Effect<void, GitManagerServiceError>;
+  readonly submitPullRequestReview: (
+    input: GitSubmitPullRequestReviewInput,
+  ) => Effect.Effect<void, GitManagerServiceError>;
+  readonly mergePullRequest: (
+    input: GitMergePullRequestInput,
+  ) => Effect.Effect<void, GitManagerServiceError>;
+  readonly getPullRequestDetail: (
+    input: GitPullRequestDetailInput,
+  ) => Effect.Effect<GitPullRequestDetailResult, GitManagerServiceError>;
+  readonly editPullRequest: (
+    input: GitEditPullRequestInput,
+  ) => Effect.Effect<void, GitManagerServiceError>;
+  readonly getRepositoryCollaborators: (
+    input: GitRepositoryCollaboratorsInput,
+  ) => Effect.Effect<GitRepositoryCollaboratorsResult, GitManagerServiceError>;
 }
 
 export class GitManager extends Context.Service<GitManager, GitManagerShape>()(
@@ -532,6 +605,11 @@ function toPullRequestHeadRemoteInfo(pr: {
 export const makeGitManager = Effect.fn("makeGitManager")(function* () {
   const gitCore = yield* GitVcsDriver;
   const sourceControlProviders = yield* SourceControlProviderRegistry;
+  const gitHubCli = yield* SourceControlGitHubCli;
+
+  // Build the GitHub CLI adapter with PR methods for the review feature
+  const ghCliPRMethods = makeGitHubCliPRMethods(gitHubCli.execute as any);
+  const ghCliForPR = { ...gitHubCli, ...ghCliPRMethods } as any;
   const textGeneration = yield* TextGeneration;
   const projectSetupScriptRunner = yield* ProjectSetupScriptRunner;
 
@@ -1780,6 +1858,7 @@ export const makeGitManager = Effect.fn("makeGitManager")(function* () {
     resolvePullRequest,
     preparePullRequestThread,
     runStackedAction,
+    ...makeGitManagerPRMethods(ghCliForPR),
   } satisfies GitManagerShape;
 });
 
