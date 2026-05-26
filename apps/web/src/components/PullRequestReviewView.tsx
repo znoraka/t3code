@@ -840,12 +840,18 @@ export function buildPullRequestReviewPrompt(input: BuildPullRequestReviewPrompt
   lines.push(
     "2. Review the changes for correctness, design, edge cases, tests, performance, and security.",
   );
-  lines.push("3. Summarize your findings with concrete, file-and-line-referenced feedback.");
   lines.push(
-    "4. Do NOT post comments, approvals, or change requests to GitHub without explicit confirmation from me first.",
+    "3. Tag each finding with a severity emoji: 🔴 for critical/must-fix, 🟡 for worth-addressing, ✅ for positive/low-priority.",
   );
   lines.push(
-    "5. If I ask you to make changes, ask before editing the working tree — offer to check out the PR branch (locally or in a worktree) first.",
+    "4. End with a Summary table: | Severity | Count | Items | — with rows for 🔴 Should fix, 🟡 Worth addressing, ✅ Good.",
+  );
+  lines.push("5. Summarize your findings with concrete, file-and-line-referenced feedback.");
+  lines.push(
+    "6. Do NOT post comments, approvals, or change requests to GitHub without explicit confirmation from me first.",
+  );
+  lines.push(
+    "7. If I ask you to make changes, ask before editing the working tree — offer to check out the PR branch (locally or in a worktree) first.",
   );
 
   return lines.join("\n");

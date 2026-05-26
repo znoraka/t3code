@@ -1,6 +1,6 @@
 import type { EnvironmentId, PullRequestSummary } from "@t3tools/contracts";
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLinkIcon, FileTextIcon, FilesIcon, MessageCircleIcon } from "lucide-react";
+import { BotIcon, ExternalLinkIcon, FileTextIcon, FilesIcon, MessageCircleIcon } from "lucide-react";
 import { useMemo } from "react";
 
 import { gitPullRequestReviewCommentsQueryOptions } from "~/lib/gitPRReactQuery";
@@ -9,8 +9,9 @@ import { PullRequestConversationPane } from "./PullRequestConversationPane";
 import { PullRequestFilesPane } from "./PullRequestFilesPane";
 import PullRequestOverviewPanel from "./PullRequestOverviewPanel";
 import { PullRequestReviewSidebar } from "./PullRequestReviewSidebar";
+import { PullRequestThreadsPane } from "./PullRequestThreadsPane";
 
-export type PullRequestWorkspaceView = "overview" | "files" | "conversation";
+export type PullRequestWorkspaceView = "overview" | "files" | "conversation" | "threads";
 
 interface PullRequestWorkspaceProps {
   environmentId: EnvironmentId | null;
@@ -32,6 +33,7 @@ const TABS: { value: PullRequestWorkspaceView; label: string; Icon: typeof FileT
   { value: "overview", label: "Overview", Icon: FileTextIcon },
   { value: "files", label: "Files", Icon: FilesIcon },
   { value: "conversation", label: "Conversation", Icon: MessageCircleIcon },
+  { value: "threads", label: "Threads", Icon: BotIcon },
 ];
 
 export function PullRequestWorkspace({
@@ -143,10 +145,18 @@ export function PullRequestWorkspace({
               onJumpToFile={handleJumpToFile}
             />
           )}
+          {view === "threads" && (
+            <PullRequestThreadsPane
+              environmentId={environmentId}
+              prNumber={prNumber}
+              onReviewWithAgent={onReviewWithAgent}
+              isAgentReviewPending={isAgentReviewPending}
+            />
+          )}
         </main>
 
-        {/* Right sidecar — hidden below xl breakpoint (1280px) */}
-        <div className="hidden xl:flex">
+        {/* Right sidecar — only on overview, hidden below xl breakpoint (1280px) */}
+        <div className={cn("hidden", view === "overview" && "xl:flex")}>
           <PullRequestReviewSidebar
             environmentId={environmentId}
             cwd={cwd}

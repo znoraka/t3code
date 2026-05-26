@@ -1,11 +1,11 @@
 import {
   ArchiveIcon,
-  ArrowLeftIcon,
   ArrowUpDownIcon,
   ChevronRightIcon,
   CloudIcon,
   FolderPlusIcon,
   GitPullRequestIcon,
+  MessageSquareTextIcon,
   SearchIcon,
   SettingsIcon,
   SquarePenIcon,
@@ -199,6 +199,8 @@ import {
   type SidebarProjectSnapshot,
 } from "../sidebarProjectGrouping";
 import { SidebarProviderUpdatePill } from "./sidebar/SidebarProviderUpdatePill";
+import { PullRequestListPanel } from "./PullRequestListPanel";
+import { usePrViewStore } from "../prViewStore";
 const SIDEBAR_SORT_LABELS: Record<SidebarProjectSortOrder, string> = {
   updated_at: "Last user message",
   created_at: "Created at",
@@ -2488,13 +2490,186 @@ const SidebarChromeHeader = memo(function SidebarChromeHeader({
   );
 });
 
-// [FORK] Pull-requests button added alongside Settings
+const SidebarModeTabSwitcher = memo(function SidebarModeTabSwitcher({
+  isOnPullRequests,
+}: {
+  isOnPullRequests: boolean;
+}) {
+  const navigate = useNavigate();
+  const pathname = useLocation({ select: (loc) => loc.pathname });
+
+  const handleChatClick = useCallback(() => {
+    const lastChatPath = usePrViewStore.getState().lastChatPath;
+    void navigate({ to: lastChatPath ?? "/" });
+  }, [navigate]);
+
+  const handlePrClick = useCallback(() => {
+    if (!isOnPullRequests) {
+      usePrViewStore.getState().setLastChatPath(pathname);
+    }
+    const state = usePrViewStore.getState();
+    const search: Record<string, unknown> = {};
+    if (state.projectKey) search.projectId = state.projectKey;
+    if (state.prNumber !== null) search.prNumber = state.prNumber;
+    if (state.filePath !== null) search.filePath = state.filePath;
+    if (state.view !== "overview") search.view = state.view;
+    void navigate({ to: "/pull-requests" as string, search } as any);
+  }, [isOnPullRequests, navigate, pathname]);
+
+  return (
+    <div className="mx-3 my-1.5 flex rounded-md border border-border/60 bg-muted/30 p-0.5">
+      <button
+        type="button"
+        onClick={handleChatClick}
+        className={`flex flex-1 items-center justify-center gap-1.5 rounded-[5px] px-2 py-1 text-xs font-medium transition-colors ${
+          !isOnPullRequests
+            ? "bg-background text-foreground shadow-sm"
+            : "text-muted-foreground hover:text-foreground"
+        }`}
+      >
+        <MessageSquareTextIcon className="size-3" />
+        Chat
+      </button>
+      <button
+        type="button"
+        onClick={handlePrClick}
+        className={`flex flex-1 items-center justify-center gap-1.5 rounded-[5px] px-2 py-1 text-xs font-medium transition-colors ${
+          isOnPullRequests
+            ? "bg-background text-foreground shadow-sm"
+            : "text-muted-foreground hover:text-foreground"
+        }`}
+      >
+        <GitPullRequestIcon className="size-3" />
+        PRs
+      </button>
+    </div>
+  );
+});
+
+const SidebarPullRequestsContent = memo(function SidebarPullRequestsContent() {
+  const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
+  const navigate = useNavigate();
+
+  const { projectKey: storeProjectKey, prNumber: selectedPrNumber } = usePrViewStore(
+    useShallow((s) => ({ projectKey: s.projectKey, prNumber: s.prNumber })),
+  );
+
+  const activeProject = useMemo(() => {
+    if (storeProjectKey) {
+      const match = projects.find(
+        (project) =>
+          scopedProjectKey(scopeProjectRef(project.environmentId, project.id)) ===
+          storeProjectKey,
+      );
+      if (match) return match;
+    }
+    return projects[0] ?? null;
+  }, [projects, storeProjectKey]);
+
+  const activeProjectKey = activeProject
+    ? scopedProjectKey(scopeProjectRef(activeProject.environmentId, activeProject.id))
+    : null;
+
+  const environmentId = activeProject?.environmentId ?? null;
+  const cwd = activeProject?.cwd ?? null;
+
+  const projectSelectItems = useMemo(
+    () =>
+      projects.map((project) => ({
+        value: scopedProjectKey(scopeProjectRef(project.environmentId, project.id)),
+        label: project.name,
+      })),
+    [projects],
+  );
+
+  const handleProjectChange = useCallback(
+    (nextProjectKey: string | null) => {
+      if (nextProjectKey === null) return;
+      usePrViewStore.getState().setProjectKey(nextProjectKey);
+      void navigate({
+        to: "/pull-requests" as string,
+        search: { projectId: nextProjectKey },
+      } as any);
+    },
+    [navigate],
+  );
+
+  const handleSelect = useCallback(
+    (pr: { number: number }) => {
+      const key = activeProjectKey;
+      if (!key) return;
+      usePrViewStore.getState().selectPr(pr.number);
+      void navigate({
+        to: "/pull-requests" as string,
+        search: { projectId: key, prNumber: pr.number, view: "overview" },
+      } as any);
+    },
+    [activeProjectKey, navigate],
+  );
+
+  const handleOpenExternal = useCallback(async (url: string) => {
+    try {
+      const api = readLocalApi();
+      if (api) {
+        await api.shell.openExternal(url);
+        return;
+      }
+    } catch {
+      // fall through
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+  }, []);
+
+  return (
+    <SidebarContent>
+      <SidebarGroup className="p-0">
+        {projects.length > 1 && activeProjectKey ? (
+          <div className="border-b border-border/50 px-3 py-2">
+            <Select
+              value={activeProjectKey}
+              onValueChange={handleProjectChange}
+              items={projectSelectItems}
+            >
+              <SelectTrigger variant="ghost" size="xs" className="w-full font-medium">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectPopup>
+                {projects.map((project) => {
+                  const key = scopedProjectKey(
+                    scopeProjectRef(project.environmentId, project.id),
+                  );
+                  return (
+                    <SelectItem key={key} value={key}>
+                      <span className="flex flex-col">
+                        <span className="text-xs">{project.name}</span>
+                        <span className="truncate text-[10px] text-muted-foreground">
+                          {project.cwd}
+                        </span>
+                      </span>
+                    </SelectItem>
+                  );
+                })}
+              </SelectPopup>
+            </Select>
+          </div>
+        ) : null}
+        <div className="flex-1 overflow-hidden">
+          <PullRequestListPanel
+            environmentId={environmentId}
+            cwd={cwd}
+            selectedPrNumber={selectedPrNumber}
+            onSelect={handleSelect}
+            onOpenExternal={handleOpenExternal}
+          />
+        </div>
+      </SidebarGroup>
+    </SidebarContent>
+  );
+});
+
 const SidebarChromeFooter = memo(function SidebarChromeFooter() {
   const navigate = useNavigate();
   const { isMobile, setOpenMobile } = useSidebar();
-  const isOnPullRequests = useLocation({
-    select: (loc) => loc.pathname === "/pull-requests",
-  });
 
   const handleSettingsClick = useCallback(() => {
     if (isMobile) {
@@ -2508,55 +2683,16 @@ const SidebarChromeFooter = memo(function SidebarChromeFooter() {
       <SidebarProviderUpdatePill />
       <SidebarUpdatePill />
       <SidebarMenu>
-        {isOnPullRequests ? (
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              size="sm"
-              className="gap-2 px-2 py-1.5 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
-              onClick={() => window.history.back()}
-            >
-              <ArrowLeftIcon className="size-3.5" />
-              <span className="text-xs">Back</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ) : (
-          <>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                size="sm"
-                className="gap-2 px-2 py-1.5 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
-                onClick={() => {
-                  let search: Record<string, unknown> = {};
-                  try {
-                    const raw = window.localStorage.getItem("t3code:pr-last-state");
-                    if (raw) {
-                      const parsed = JSON.parse(raw);
-                      if (parsed && typeof parsed === "object") {
-                        search = parsed;
-                      }
-                    }
-                  } catch {
-                    // ignore
-                  }
-                  void navigate({ to: "/pull-requests" as string, search } as any);
-                }}
-              >
-                <GitPullRequestIcon className="size-3.5" />
-                <span className="text-xs">Pull requests</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                size="sm"
-                className="gap-2 px-2 py-1.5 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
-                onClick={handleSettingsClick}
-              >
-                <SettingsIcon className="size-3.5" />
-                <span className="text-xs">Settings</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </>
-        )}
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            size="sm"
+            className="gap-2 px-2 py-1.5 text-muted-foreground/70 hover:bg-accent hover:text-foreground"
+            onClick={handleSettingsClick}
+          >
+            <SettingsIcon className="size-3.5" />
+            <span className="text-xs">Settings</span>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
       </SidebarMenu>
     </SidebarFooter>
   );
@@ -2841,6 +2977,7 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const pathname = useLocation({ select: (loc) => loc.pathname });
   const isOnSettings = pathname.startsWith("/settings");
+  const isOnPullRequests = pathname === "/pull-requests";
   const sidebarThreadSortOrder = useSettings((s) => s.sidebarThreadSortOrder);
   const sidebarProjectSortOrder = useSettings((s) => s.sidebarProjectSortOrder);
   const sidebarProjectGroupingMode = useSettings((s) => s.sidebarProjectGroupingMode);
@@ -3466,43 +3603,49 @@ export default function Sidebar() {
         <SettingsSidebarNav pathname={pathname} />
       ) : (
         <>
-          <SidebarProjectsContent
-            showArm64IntelBuildWarning={showArm64IntelBuildWarning}
-            arm64IntelBuildWarningDescription={arm64IntelBuildWarningDescription}
-            desktopUpdateButtonAction={desktopUpdateButtonAction}
-            desktopUpdateButtonDisabled={desktopUpdateButtonDisabled}
-            handleDesktopUpdateButtonClick={handleDesktopUpdateButtonClick}
-            projectSortOrder={sidebarProjectSortOrder}
-            threadSortOrder={sidebarThreadSortOrder}
-            projectGroupingMode={sidebarProjectGroupingMode}
-            threadPreviewCount={sidebarThreadPreviewCount}
-            updateSettings={updateSettings}
-            openAddProject={openAddProjectCommandPalette}
-            isManualProjectSorting={isManualProjectSorting}
-            projectDnDSensors={projectDnDSensors}
-            projectCollisionDetection={projectCollisionDetection}
-            handleProjectDragStart={handleProjectDragStart}
-            handleProjectDragEnd={handleProjectDragEnd}
-            handleProjectDragCancel={handleProjectDragCancel}
-            handleNewThread={handleNewThread}
-            archiveThread={archiveThread}
-            deleteThread={deleteThread}
-            sortedProjects={sortedProjects}
-            expandedThreadListsByProject={expandedThreadListsByProject}
-            activeRouteProjectKey={activeRouteProjectKey}
-            routeThreadKey={routeThreadKey}
-            newThreadShortcutLabel={newThreadShortcutLabel}
-            commandPaletteShortcutLabel={commandPaletteShortcutLabel}
-            threadJumpLabelByKey={visibleThreadJumpLabelByKey}
-            attachThreadListAutoAnimateRef={attachThreadListAutoAnimateRef}
-            expandThreadListForProject={expandThreadListForProject}
-            collapseThreadListForProject={collapseThreadListForProject}
-            dragInProgressRef={dragInProgressRef}
-            suppressProjectClickAfterDragRef={suppressProjectClickAfterDragRef}
-            suppressProjectClickForContextMenuRef={suppressProjectClickForContextMenuRef}
-            attachProjectListAutoAnimateRef={attachProjectListAutoAnimateRef}
-            projectsLength={projects.length}
-          />
+          <SidebarModeTabSwitcher isOnPullRequests={isOnPullRequests} />
+
+          {isOnPullRequests ? (
+            <SidebarPullRequestsContent />
+          ) : (
+            <SidebarProjectsContent
+              showArm64IntelBuildWarning={showArm64IntelBuildWarning}
+              arm64IntelBuildWarningDescription={arm64IntelBuildWarningDescription}
+              desktopUpdateButtonAction={desktopUpdateButtonAction}
+              desktopUpdateButtonDisabled={desktopUpdateButtonDisabled}
+              handleDesktopUpdateButtonClick={handleDesktopUpdateButtonClick}
+              projectSortOrder={sidebarProjectSortOrder}
+              threadSortOrder={sidebarThreadSortOrder}
+              projectGroupingMode={sidebarProjectGroupingMode}
+              threadPreviewCount={sidebarThreadPreviewCount}
+              updateSettings={updateSettings}
+              openAddProject={openAddProjectCommandPalette}
+              isManualProjectSorting={isManualProjectSorting}
+              projectDnDSensors={projectDnDSensors}
+              projectCollisionDetection={projectCollisionDetection}
+              handleProjectDragStart={handleProjectDragStart}
+              handleProjectDragEnd={handleProjectDragEnd}
+              handleProjectDragCancel={handleProjectDragCancel}
+              handleNewThread={handleNewThread}
+              archiveThread={archiveThread}
+              deleteThread={deleteThread}
+              sortedProjects={sortedProjects}
+              expandedThreadListsByProject={expandedThreadListsByProject}
+              activeRouteProjectKey={activeRouteProjectKey}
+              routeThreadKey={routeThreadKey}
+              newThreadShortcutLabel={newThreadShortcutLabel}
+              commandPaletteShortcutLabel={commandPaletteShortcutLabel}
+              threadJumpLabelByKey={visibleThreadJumpLabelByKey}
+              attachThreadListAutoAnimateRef={attachThreadListAutoAnimateRef}
+              expandThreadListForProject={expandThreadListForProject}
+              collapseThreadListForProject={collapseThreadListForProject}
+              dragInProgressRef={dragInProgressRef}
+              suppressProjectClickAfterDragRef={suppressProjectClickAfterDragRef}
+              suppressProjectClickForContextMenuRef={suppressProjectClickForContextMenuRef}
+              attachProjectListAutoAnimateRef={attachProjectListAutoAnimateRef}
+              projectsLength={projects.length}
+            />
+          )}
 
           <SidebarSeparator />
           <SidebarChromeFooter />

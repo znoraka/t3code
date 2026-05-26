@@ -1,7 +1,8 @@
-import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
+import { Outlet, createFileRoute, redirect, useLocation } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { useCommandPaletteStore } from "../commandPaletteStore";
+import { PersistentPullRequestView } from "../components/PersistentPullRequestView";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import {
   startNewLocalThreadFromContext,
@@ -98,10 +99,17 @@ function ChatRouteGlobalShortcuts() {
 }
 
 function ChatRouteLayout() {
+  const isOnPullRequests = useLocation({
+    select: (loc) => loc.pathname === "/pull-requests",
+  });
+
   return (
     <>
       <ChatRouteGlobalShortcuts />
-      <Outlet />
+      <div style={{ display: isOnPullRequests ? "none" : "contents" }}>
+        <Outlet />
+      </div>
+      <PersistentPullRequestView visible={isOnPullRequests} />
     </>
   );
 }
