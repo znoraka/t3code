@@ -1,8 +1,14 @@
-import { Outlet, createFileRoute, redirect, useLocation } from "@tanstack/react-router";
+import {
+  Outlet,
+  createFileRoute,
+  redirect,
+  useLocation,
+} from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { useCommandPaletteStore } from "../commandPaletteStore";
 import { PersistentPullRequestView } from "../components/PersistentPullRequestView";
+import { PersistentT3ChatView } from "../components/PersistentT3ChatView";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import {
   startNewLocalThreadFromContext,
@@ -10,21 +16,36 @@ import {
 } from "../lib/chatThreadActions";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import { resolveShortcutCommand } from "../keybindings";
-import { selectThreadTerminalState, useTerminalStateStore } from "../terminalStateStore";
+import {
+  selectThreadTerminalState,
+  useTerminalStateStore,
+} from "../terminalStateStore";
 import { useThreadSelectionStore } from "../threadSelectionStore";
 import { resolveSidebarNewThreadEnvMode } from "~/components/Sidebar.logic";
 import { useSettings } from "~/hooks/useSettings";
 import { useServerKeybindings } from "~/rpc/serverState";
 
 function ChatRouteGlobalShortcuts() {
-  const clearSelection = useThreadSelectionStore((state) => state.clearSelection);
-  const selectedThreadKeysSize = useThreadSelectionStore((state) => state.selectedThreadKeys.size);
-  const { activeDraftThread, activeThread, defaultProjectRef, handleNewThread, routeThreadRef } =
-    useHandleNewThread();
+  const clearSelection = useThreadSelectionStore(
+    (state) => state.clearSelection,
+  );
+  const selectedThreadKeysSize = useThreadSelectionStore(
+    (state) => state.selectedThreadKeys.size,
+  );
+  const {
+    activeDraftThread,
+    activeThread,
+    defaultProjectRef,
+    handleNewThread,
+    routeThreadRef,
+  } = useHandleNewThread();
   const keybindings = useServerKeybindings();
   const terminalOpen = useTerminalStateStore((state) =>
     routeThreadRef
-      ? selectThreadTerminalState(state.terminalStateByThreadKey, routeThreadRef).terminalOpen
+      ? selectThreadTerminalState(
+          state.terminalStateByThreadKey,
+          routeThreadRef,
+        ).terminalOpen
       : false,
   );
   const appSettings = useSettings();

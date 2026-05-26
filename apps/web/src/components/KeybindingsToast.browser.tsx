@@ -20,13 +20,25 @@ import { RouterProvider, createMemoryHistory } from "@tanstack/react-router";
 import { ws, http, HttpResponse } from "msw";
 import { setupWorker } from "msw/browser";
 import * as Schema from "effect/Schema";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { render } from "vitest-browser-react";
 
 import { useComposerDraftStore } from "../composerDraftStore";
 import { __resetLocalApiForTests } from "../localApi";
 import { AppAtomRegistryProvider } from "../rpc/atomRegistry";
-import { getServerConfig, getServerConfigUpdatedNotification } from "../rpc/serverState";
+import {
+  getServerConfig,
+  getServerConfigUpdatedNotification,
+} from "../rpc/serverState";
 import { getWsConnectionStatus } from "../rpc/wsConnectionState";
 import { getRouter } from "../router";
 import { useStore } from "../store";
@@ -34,7 +46,12 @@ import { createAuthenticatedSessionHandlers } from "../../test/authHttpHandlers"
 import { BrowserWsRpcHarness } from "../../test/wsRpcHarness";
 
 vi.mock("../lib/gitStatusState", () => ({
-  useGitStatus: () => ({ data: null, error: null, cause: null, isPending: false }),
+  useGitStatus: () => ({
+    data: null,
+    error: null,
+    cause: null,
+    isPending: false,
+  }),
   useGitStatuses: () => new Map(),
   refreshGitStatus: () => Promise.resolve(null),
   resetGitStatusStateForTests: () => undefined,
@@ -122,13 +139,25 @@ function createBaseServerConfig(): ServerConfig {
           customModels: [],
           launchArgs: "",
         },
-        cursor: { enabled: true, binaryPath: "", apiEndpoint: "", customModels: [] },
+        cursor: {
+          enabled: true,
+          binaryPath: "",
+          apiEndpoint: "",
+          customModels: [],
+        },
         opencode: {
           enabled: true,
           binaryPath: "",
           serverUrl: "",
           serverPassword: "",
           customModels: [],
+        },
+        t3chat: {
+          enabled: false,
+          binaryPath: "tools/t3chat-bridge",
+          serverUrl: "",
+          wosSession: "",
+          convexSessionId: "",
         },
       },
     },
@@ -228,7 +257,8 @@ function toShellSnapshot(snapshot: OrchestrationReadModel) {
       archivedAt: thread.archivedAt,
       session: thread.session,
       latestUserMessageAt:
-        thread.messages.findLast((message) => message.role === "user")?.createdAt ?? null,
+        thread.messages.findLast((message) => message.role === "user")
+          ?.createdAt ?? null,
       hasPendingApprovals: false,
       hasPendingUserInput: false,
       hasActionableProposedPlan: false,
@@ -267,7 +297,9 @@ function resolveWsRpc(tag: string): unknown {
       hasPrimaryRemote: true,
       nextCursor: null,
       totalCount: 1,
-      refs: [{ name: "main", current: true, isDefault: true, worktreePath: null }],
+      refs: [
+        { name: "main", current: true, isDefault: true, worktreePath: null },
+      ],
     };
   }
   if (tag === WS_METHODS.projectsSearchEntries) {
@@ -286,8 +318,14 @@ const worker = setupWorker(
     });
   }),
   ...createAuthenticatedSessionHandlers(() => fixture.serverConfig.auth),
-  http.get("*/attachments/:attachmentId", () => new HttpResponse(null, { status: 204 })),
-  http.get("*/api/project-favicon", () => new HttpResponse(null, { status: 204 })),
+  http.get(
+    "*/attachments/:attachmentId",
+    () => new HttpResponse(null, { status: 204 }),
+  ),
+  http.get(
+    "*/api/project-favicon",
+    () => new HttpResponse(null, { status: 204 }),
+  ),
 );
 
 function sendServerConfigUpdatedPush(issues: ServerConfig["issues"]) {
@@ -321,7 +359,8 @@ async function waitForElement<T extends Element>(
 
 async function waitForComposerEditor(): Promise<HTMLElement> {
   return waitForElement(
-    () => document.querySelector<HTMLElement>('[data-testid="composer-editor"]'),
+    () =>
+      document.querySelector<HTMLElement>('[data-testid="composer-editor"]'),
     "App should render composer editor",
   );
 }
@@ -346,7 +385,10 @@ async function waitForToast(title: string, count = 1): Promise<void> {
   await vi.waitFor(
     () => {
       const matches = queryToastTitles().filter((t) => t === title);
-      expect(matches.length, `Expected ${count} "${title}" toast(s)`).toBeGreaterThanOrEqual(count);
+      expect(
+        matches.length,
+        `Expected ${count} "${title}" toast(s)`,
+      ).toBeGreaterThanOrEqual(count);
     },
     { timeout: 4_000, interval: 16 },
   );
@@ -374,10 +416,14 @@ async function waitForInitialWsSubscriptions(): Promise<void> {
   await vi.waitFor(
     () => {
       expect(
-        rpcHarness.requests.some((request) => request._tag === WS_METHODS.subscribeServerLifecycle),
+        rpcHarness.requests.some(
+          (request) => request._tag === WS_METHODS.subscribeServerLifecycle,
+        ),
       ).toBe(true);
       expect(
-        rpcHarness.requests.some((request) => request._tag === WS_METHODS.subscribeServerConfig),
+        rpcHarness.requests.some(
+          (request) => request._tag === WS_METHODS.subscribeServerConfig,
+        ),
       ).toBe(true);
     },
     { timeout: 8_000, interval: 16 },
@@ -399,7 +445,9 @@ async function waitForServerConfigStreamReady(): Promise<void> {
     rpcHarness.emitStreamValue(WS_METHODS.subscribeServerConfig, {
       version: 1,
       type: "settingsUpdated",
-      payload: { settings: encodeServerSettings(fixture.serverConfig.settings) },
+      payload: {
+        settings: encodeServerSettings(fixture.serverConfig.settings),
+      },
     });
 
     try {
@@ -417,7 +465,9 @@ async function waitForServerConfigStreamReady(): Promise<void> {
     }
   }
 
-  throw new Error("Timed out waiting for the server config stream to deliver updates.");
+  throw new Error(
+    "Timed out waiting for the server config stream to deliver updates.",
+  );
 }
 
 async function mountApp(): Promise<{ cleanup: () => Promise<void> }> {
@@ -431,7 +481,9 @@ async function mountApp(): Promise<{ cleanup: () => Promise<void> }> {
   document.body.append(host);
 
   const router = getRouter(
-    createMemoryHistory({ initialEntries: [`/${LOCAL_ENVIRONMENT_ID}/${THREAD_ID}`] }),
+    createMemoryHistory({
+      initialEntries: [`/${LOCAL_ENVIRONMENT_ID}/${THREAD_ID}`],
+    }),
   );
 
   const screen = await render(
@@ -550,7 +602,9 @@ describe("Keybindings update toast", () => {
       await new Promise((resolve) => setTimeout(resolve, 250));
 
       const titles = queryToastTitles();
-      expect(titles.filter((title) => title === "Keybindings updated")).toHaveLength(1);
+      expect(
+        titles.filter((title) => title === "Keybindings updated"),
+      ).toHaveLength(1);
     } finally {
       await mounted.cleanup();
     }
@@ -561,7 +615,10 @@ describe("Keybindings update toast", () => {
 
     try {
       sendServerConfigUpdatedPush([
-        { kind: "keybindings.malformed-config", message: "Expected JSON array" },
+        {
+          kind: "keybindings.malformed-config",
+          message: "Expected JSON array",
+        },
       ]);
       await waitForToast("Invalid keybindings configuration");
     } finally {

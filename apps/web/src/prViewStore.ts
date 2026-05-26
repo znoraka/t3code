@@ -54,13 +54,15 @@ function loadInitialState(): PrViewState {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === "object") {
         if (typeof parsed.projectId === "string") projectKey = parsed.projectId;
-        if (typeof parsed.prNumber === "number" && parsed.prNumber > 0)
-          prNumber = parsed.prNumber;
+        if (typeof parsed.prNumber === "number" && parsed.prNumber > 0) prNumber = parsed.prNumber;
         if (typeof parsed.filePath === "string" && parsed.filePath.length > 0)
           filePath = parsed.filePath;
         if (
           typeof parsed.view === "string" &&
-          (parsed.view === "overview" || parsed.view === "files" || parsed.view === "conversation" || parsed.view === "threads")
+          (parsed.view === "overview" ||
+            parsed.view === "files" ||
+            parsed.view === "conversation" ||
+            parsed.view === "threads")
         )
           view = parsed.view;
       }
@@ -131,8 +133,7 @@ export const usePrViewStore = create<PrViewState & PrViewActions>()((set, get) =
   hydrateFromRoute: (search) => {
     const state = get();
     const projectKey = search.projectId ?? state.projectKey;
-    const prNumber =
-      search.prNumber !== undefined ? search.prNumber : state.prNumber;
+    const prNumber = search.prNumber !== undefined ? search.prNumber : state.prNumber;
     const filePath = search.filePath ?? null;
     const view = search.view ?? "overview";
     const next = { ...state, projectKey, prNumber, filePath, view, hasBeenActivated: true };

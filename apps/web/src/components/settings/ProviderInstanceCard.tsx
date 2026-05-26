@@ -2,15 +2,17 @@
 
 import {
   ArrowUpCircleIcon,
+  CheckCircleIcon,
   ChevronDownIcon,
   CopyIcon,
   DownloadIcon,
   LoaderIcon,
   PlusIcon,
   Trash2Icon,
+  XCircleIcon,
   XIcon,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   isProviderDriverKind,
   type ProviderInstanceConfig,
@@ -245,6 +247,107 @@ function ProviderAccentColorPicker(props: {
   );
 }
 
+type T3ChatTestStatus = "idle" | "testing" | "success" | "warning" | "error";
+
+function T3ChatTestConnection({
+  instanceId,
+  config,
+  onRefresh,
+}: {
+  readonly instanceId: ProviderInstanceId;
+  readonly config: Record<string, unknown> | undefined;
+  readonly onRefresh: (instanceId: ProviderInstanceId) => Promise<ServerProvider | undefined>;
+}) {
+  const [status, setStatus] = useState<T3ChatTestStatus>("idle");
+  const [message, setMessage] = useState("");
+
+  const handleTest = useCallback(async () => {
+    const wosSession = (config?.wosSession as string) ?? "";
+    const convexSessionId = (config?.convexSessionId as string) ?? "";
+
+    if (!wosSession || !convexSessionId) {
+      setStatus("error");
+      setMessage("WOS Session and Convex Session ID are both required.");
+      return;
+    }
+
+    if (wosSession.length < 20) {
+      setStatus("error");
+      setMessage("WOS Session token looks too short. Copy the full wos-session cookie value.");
+      return;
+    }
+
+    if (convexSessionId.length < 10) {
+      setStatus("error");
+      setMessage(
+        "Convex Session ID looks too short. Copy the full convex-session-id cookie value.",
+      );
+      return;
+    }
+
+    setStatus("testing");
+    setMessage("");
+
+    try {
+      const provider = await onRefresh(instanceId);
+      if (!provider) {
+        setStatus("warning");
+        setMessage(
+          "Provider status refresh completed, but the updated T3 Chat snapshot was not returned.",
+        );
+        return;
+      }
+
+      if (provider.auth.status === "authenticated" && provider.status === "ready") {
+        setStatus("success");
+        setMessage("Credentials verified successfully through the local bridge.");
+      } else if (provider.auth.status === "unauthenticated") {
+        setStatus("error");
+        setMessage(
+          provider.message ?? "Authentication failed. Your session cookies may have expired.",
+        );
+      } else {
+        setStatus("warning");
+        setMessage(
+          provider.message ?? "Credentials saved. Bridge health check did not reach a ready state.",
+        );
+      }
+    } catch (error) {
+      setStatus("error");
+      setMessage(
+        error instanceof Error ? error.message : "Could not refresh T3 Chat provider status.",
+      );
+    }
+  }, [config?.wosSession, config?.convexSessionId, instanceId, onRefresh]);
+
+  return (
+    <div className="border-t border-border/60 px-4 py-3 sm:px-5">
+      <div className="flex items-center gap-3">
+        <Button size="sm" variant="outline" onClick={handleTest} disabled={status === "testing"}>
+          {status === "testing" ? <LoaderIcon className="mr-1.5 size-3.5 animate-spin" /> : null}
+          Test Connection
+        </Button>
+        {status === "success" ? (
+          <span className="flex items-center gap-1 text-xs text-green-500">
+            <CheckCircleIcon className="size-3.5" />
+            {message}
+          </span>
+        ) : status === "warning" ? (
+          <span className="flex items-center gap-1 text-xs text-yellow-500">
+            <CheckCircleIcon className="size-3.5" />
+            {message}
+          </span>
+        ) : status === "error" ? (
+          <span className="flex items-center gap-1 text-xs text-destructive">
+            <XCircleIcon className="size-3.5" />
+            {message}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function ProviderEnvironmentSection(props: {
   readonly environment: ReadonlyArray<ProviderInstanceEnvironmentVariable>;
   readonly onChange: (environment: ReadonlyArray<ProviderInstanceEnvironmentVariable>) => void;
@@ -419,6 +522,9 @@ interface ProviderInstanceCardProps {
   readonly onHiddenModelsChange: (next: ReadonlyArray<string>) => void;
   readonly onFavoriteModelsChange: (next: ReadonlyArray<string>) => void;
   readonly onModelOrderChange: (next: ReadonlyArray<string>) => void;
+  readonly onRefreshProvider: (
+    instanceId: ProviderInstanceId,
+  ) => Promise<ServerProvider | undefined>;
   readonly onRunUpdate?: (() => void) | undefined;
   readonly isUpdating?: boolean | undefined;
 }
@@ -463,6 +569,7 @@ export function ProviderInstanceCard({
   onHiddenModelsChange,
   onFavoriteModelsChange,
   onModelOrderChange,
+  onRefreshProvider,
   onRunUpdate,
   isUpdating = false,
 }: ProviderInstanceCardProps) {
@@ -840,6 +947,14 @@ export function ProviderInstanceCard({
                 idPrefix={`provider-instance-${instanceId}`}
                 variant="card"
                 onChange={updateConfig}
+              />
+            ) : null}
+
+            {driverKind === "t3chat" ? (
+              <T3ChatTestConnection
+                instanceId={instanceId}
+                config={instance.config as Record<string, unknown> | undefined}
+                onRefresh={onRefreshProvider}
               />
             ) : null}
 

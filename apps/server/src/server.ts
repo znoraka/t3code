@@ -24,6 +24,7 @@ import { ProviderEventLoggersLive } from "./provider/Layers/ProviderEventLoggers
 import { ProviderServiceLive } from "./provider/Layers/ProviderService.ts";
 import { ProviderSessionReaperLive } from "./provider/Layers/ProviderSessionReaper.ts";
 import { OpenCodeRuntimeLive } from "./provider/opencodeRuntime.ts";
+import { T3ChatRuntimeLive } from "./provider/t3chatRuntime.ts";
 import { CheckpointDiffQueryLive } from "./checkpointing/Layers/CheckpointDiffQuery.ts";
 import { CheckpointStoreLive } from "./checkpointing/Layers/CheckpointStore.ts";
 import * as AzureDevOpsCli from "./sourceControl/AzureDevOpsCli.ts";
@@ -271,6 +272,7 @@ const RuntimeCoreDependenciesLive = ReactorLayerLive.pipe(
   // no longer transitively provides it. Exposing it at the runtime level
   // keeps a single Live for all opencode consumers.
   Layer.provideMerge(OpenCodeRuntimeLive),
+  Layer.provideMerge(T3ChatRuntimeLive),
   Layer.provideMerge(ServerSettingsLive),
   Layer.provideMerge(WorkspaceLayerLive),
   Layer.provideMerge(ProjectFaviconResolverLive),

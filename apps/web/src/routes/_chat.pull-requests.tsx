@@ -11,7 +11,12 @@ export interface PullRequestsSearch {
   readonly view?: PullRequestWorkspaceView | undefined;
 }
 
-const VALID_VIEWS = new Set<PullRequestWorkspaceView>(["overview", "files", "conversation", "threads"]);
+const VALID_VIEWS = new Set<PullRequestWorkspaceView>([
+  "overview",
+  "files",
+  "conversation",
+  "threads",
+]);
 
 function parsePullRequestsSearch(search: Record<string, unknown>): PullRequestsSearch {
   const rawProjectId = search.projectId;

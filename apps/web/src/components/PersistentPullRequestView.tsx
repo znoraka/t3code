@@ -7,17 +7,8 @@ import { useShallow } from "zustand/react/shallow";
 
 import { useComposerDraftStore } from "../composerDraftStore";
 import { buildPullRequestReviewPrompt } from "./PullRequestReviewView";
-import {
-  PullRequestWorkspace,
-  type PullRequestWorkspaceView,
-} from "./PullRequestWorkspace";
-import {
-  Select,
-  SelectItem,
-  SelectPopup,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
+import { PullRequestWorkspace, type PullRequestWorkspaceView } from "./PullRequestWorkspace";
+import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./ui/select";
 import { SidebarInset, SidebarTrigger } from "./ui/sidebar";
 import { toastManager } from "./ui/toast";
 import { ensureEnvironmentApi } from "../environmentApi";
@@ -112,8 +103,7 @@ function PersistentPullRequestViewInner() {
     if (storeProjectKey) {
       const match = projects.find(
         (project) =>
-          scopedProjectKey(scopeProjectRef(project.environmentId, project.id)) ===
-          storeProjectKey,
+          scopedProjectKey(scopeProjectRef(project.environmentId, project.id)) === storeProjectKey,
       );
       if (match) return match;
     }

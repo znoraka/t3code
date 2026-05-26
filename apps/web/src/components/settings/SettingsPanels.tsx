@@ -967,6 +967,11 @@ export function ProviderSettingsPanel() {
       });
   }, []);
 
+  const refreshProviderInstance = useCallback(async (instanceId: ProviderInstanceId) => {
+    const result = await ensureLocalApi().server.refreshProviders({ instanceId });
+    return result.providers.find((provider) => provider.instanceId === instanceId);
+  }, []);
+
   const runProviderUpdate = useCallback(async (candidate: ProviderUpdateCandidate) => {
     let started = false;
     setUpdatingProviderDrivers((previous) => {
@@ -1307,6 +1312,7 @@ export function ProviderSettingsPanel() {
                   modelOrder,
                 })
               }
+              onRefreshProvider={refreshProviderInstance}
               onRunUpdate={
                 showInlineUpdateButton && updateCandidate
                   ? () => {

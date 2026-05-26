@@ -5,11 +5,7 @@ import { memo, useCallback, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
 
-import {
-  selectEnvironmentState,
-  selectProjectsAcrossEnvironments,
-  useStore,
-} from "../store";
+import { selectEnvironmentState, selectProjectsAcrossEnvironments, useStore } from "../store";
 import { buildThreadRouteParams } from "../threadRoutes";
 import type { SidebarThreadSummary } from "../types";
 import { cn } from "../lib/utils";
@@ -32,9 +28,7 @@ function relativeTime(value: string | null | undefined): string {
   return `${months}mo ago`;
 }
 
-function sessionStatusLabel(
-  thread: SidebarThreadSummary,
-): { label: string; className: string } {
+function sessionStatusLabel(thread: SidebarThreadSummary): { label: string; className: string } {
   if (thread.session?.status === "running") {
     return { label: "Running", className: "text-blue-500" };
   }
@@ -101,18 +95,14 @@ export function PullRequestThreadsPane({
 }: PullRequestThreadsPaneProps) {
   const navigate = useNavigate();
 
-  const prViewStore = usePrViewStore(
-    useShallow((s) => ({ projectKey: s.projectKey })),
-  );
+  const prViewStore = usePrViewStore(useShallow((s) => ({ projectKey: s.projectKey })));
 
   const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
 
   const activeProject = useMemo(() => {
     if (prViewStore.projectKey) {
       const match = projects.find(
-        (p) =>
-          scopedProjectKey(scopeProjectRef(p.environmentId, p.id)) ===
-          prViewStore.projectKey,
+        (p) => scopedProjectKey(scopeProjectRef(p.environmentId, p.id)) === prViewStore.projectKey,
       );
       if (match) return match;
     }
@@ -197,11 +187,7 @@ export function PullRequestThreadsPane({
         ) : (
           <div className="space-y-2">
             {threads.map((thread) => (
-              <ThreadRow
-                key={thread.id}
-                thread={thread}
-                onNavigate={handleNavigate}
-              />
+              <ThreadRow key={thread.id} thread={thread} onNavigate={handleNavigate} />
             ))}
           </div>
         )}

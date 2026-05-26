@@ -92,9 +92,9 @@ export default defineConfig({
     host,
     port,
     strictPort: true,
-    ...(devProxyTarget
-      ? {
-          proxy: {
+    proxy: {
+      ...(devProxyTarget
+        ? {
             "/.well-known": {
               target: devProxyTarget,
               changeOrigin: true,
@@ -107,9 +107,13 @@ export default defineConfig({
               target: devProxyTarget,
               changeOrigin: true,
             },
-          },
-        }
-      : {}),
+          }
+        : {}),
+      "/.well-known/vercel": {
+        target: "https://t3.chat",
+        changeOrigin: true,
+      },
+    },
     hmr: {
       // Explicit config so Vite's HMR WebSocket connects reliably
       // inside Electron's BrowserWindow. Vite 8 uses console.debug for

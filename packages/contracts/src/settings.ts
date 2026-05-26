@@ -331,6 +331,50 @@ export const OpenCodeSettings = makeProviderSettingsSchema(
 );
 export type OpenCodeSettings = typeof OpenCodeSettings.Type;
 
+export const T3ChatSettings = makeProviderSettingsSchema(
+  {
+    enabled: Schema.Boolean.pipe(
+      Schema.withDecodingDefault(Effect.succeed(false)),
+      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+    ),
+    binaryPath: makeBinaryPathSetting("t3chat-bridge").pipe(
+      Schema.annotateKey({
+        title: "Binary path",
+        description: "Path to the T3 Chat bridge binary used by this instance.",
+        providerSettingsForm: { placeholder: "t3chat-bridge", clearWhenEmpty: "omit" },
+      }),
+    ),
+    serverUrl: TrimmedString.pipe(
+      Schema.withDecodingDefault(Effect.succeed("")),
+      Schema.annotateKey({
+        title: "Server URL",
+        description: "Optional URL for an already-running T3 Chat bridge instance.",
+        providerSettingsForm: { placeholder: "http://127.0.0.1:9876", clearWhenEmpty: "omit" },
+      }),
+    ),
+    wosSession: TrimmedString.pipe(
+      Schema.withDecodingDefault(Effect.succeed("")),
+      Schema.annotateKey({
+        title: "WOS Session",
+        description: "Session token from t3.chat (wos-session cookie value).",
+        providerSettingsForm: { control: "password" },
+      }),
+    ),
+    convexSessionId: TrimmedString.pipe(
+      Schema.withDecodingDefault(Effect.succeed("")),
+      Schema.annotateKey({
+        title: "Convex Session ID",
+        description: "Convex session identifier from t3.chat.",
+        providerSettingsForm: { control: "password" },
+      }),
+    ),
+  },
+  {
+    order: ["binaryPath", "serverUrl", "wosSession", "convexSessionId"],
+  },
+);
+export type T3ChatSettings = typeof T3ChatSettings.Type;
+
 export const ObservabilitySettings = Schema.Struct({
   otlpTracesUrl: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   otlpMetricsUrl: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
@@ -370,6 +414,7 @@ export const ServerSettings = Schema.Struct({
     claudeAgent: ClaudeSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     cursor: CursorSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     opencode: OpenCodeSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+    t3chat: T3ChatSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   }).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   // New driver-agnostic instance map. Keyed by `ProviderInstanceId`; values
   // are `ProviderInstanceConfig` envelopes. The driver-specific config blob
@@ -445,6 +490,14 @@ const OpenCodeSettingsPatch = Schema.Struct({
   customModels: Schema.optionalKey(Schema.Array(Schema.String)),
 });
 
+const T3ChatSettingsPatch = Schema.Struct({
+  enabled: Schema.optionalKey(Schema.Boolean),
+  binaryPath: Schema.optionalKey(TrimmedString),
+  serverUrl: Schema.optionalKey(TrimmedString),
+  wosSession: Schema.optionalKey(TrimmedString),
+  convexSessionId: Schema.optionalKey(TrimmedString),
+});
+
 export const ServerSettingsPatch = Schema.Struct({
   // Server settings
   enableAssistantStreaming: Schema.optionalKey(Schema.Boolean),
@@ -464,6 +517,7 @@ export const ServerSettingsPatch = Schema.Struct({
       claudeAgent: Schema.optionalKey(ClaudeSettingsPatch),
       cursor: Schema.optionalKey(CursorSettingsPatch),
       opencode: Schema.optionalKey(OpenCodeSettingsPatch),
+      t3chat: Schema.optionalKey(T3ChatSettingsPatch),
     }),
   ),
   // Whole-map replacement for the new instance config. Patching individual
