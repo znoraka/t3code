@@ -214,6 +214,14 @@ function PersistentPullRequestViewInner() {
           },
         },
       });
+      toastManager.add({
+        type: "success",
+        title: "PR review started",
+        description: selectedPullRequest?.title
+          ? `Reviewing PR #${selectedPrNumber} · ${selectedPullRequest.title}`
+          : `Reviewing PR #${selectedPrNumber}`,
+      });
+      handleViewChange("threads");
     } catch (err: unknown) {
       toastManager.add({
         type: "error",
@@ -223,7 +231,7 @@ function PersistentPullRequestViewInner() {
     } finally {
       setIsReviewPending(false);
     }
-  }, [activeProject, selectedPrNumber, selectedPullRequest]);
+  }, [activeProject, selectedPrNumber, selectedPullRequest, handleViewChange]);
 
   // Checkout / worktree
   const preparePrMutation = useMutation(
