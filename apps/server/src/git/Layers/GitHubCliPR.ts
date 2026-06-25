@@ -66,6 +66,18 @@ const RawGitHubPrListEntrySchema = Schema.Struct({
       ),
     ),
   ),
+  reviewRequests: Schema.optional(
+    Schema.NullOr(
+      Schema.Array(
+        Schema.Struct({
+          // Users expose `login`; teams expose `slug`/`name` instead.
+          login: Schema.optional(Schema.NullOr(Schema.String)),
+          slug: Schema.optional(Schema.NullOr(Schema.String)),
+          name: Schema.optional(Schema.NullOr(Schema.String)),
+        }),
+      ),
+    ),
+  ),
   statusCheckRollup: Schema.optional(
     Schema.NullOr(
       Schema.Array(
@@ -107,6 +119,9 @@ function normalizePrListEntry(raw: RawPrListEntry): GitHubPullRequestListEntry {
     author: review.author?.login ?? "",
     state: review.state ?? "",
   }));
+  const reviewRequests = (raw.reviewRequests ?? [])
+    .map((req) => req.login ?? req.slug ?? req.name ?? "")
+    .filter((login) => login.length > 0);
   const checks = (raw.statusCheckRollup ?? []).map((check) => ({
     name: check.name ?? check.context ?? "unknown",
     status: classifyCheckStatus({
@@ -125,6 +140,7 @@ function normalizePrListEntry(raw: RawPrListEntry): GitHubPullRequestListEntry {
     headRefName: raw.headRefName,
     author: raw.author?.login ?? "",
     reviews,
+    reviewRequests,
     statusCheckRollup: checks,
   };
 }
@@ -221,7 +237,7 @@ export function makeGitHubCliPRMethods(execute: Execute) {
   const listWorkspacePullRequests: GitHubCliShape["listWorkspacePullRequests"] = (input) => {
     const limit = input.limitPerBucket ?? 30;
     const jsonFields =
-      "number,title,url,state,isDraft,updatedAt,headRefName,author,reviews,statusCheckRollup";
+      "number,title,url,state,isDraft,updatedAt,headRefName,author,reviews,reviewRequests,statusCheckRollup";
 
     // No standalone `gh auth status` precheck here: it is an extra GitHub API
     // call on every poll (adding to rate-limit pressure) and, worse, it turned
@@ -615,7 +631,7 @@ export function makeGitHubCliPRMethods(execute: Execute) {
 
   const getPullRequestDetail: GitHubCliShape["getPullRequestDetail"] = (input) => {
     const jsonFields =
-      "number,title,body,state,isDraft,baseRefName,headRefName,mergeable,reviewDecision,author,statusCheckRollup,reviews,labels,assignees,milestone,additions,deletions";
+      "number,title,body,state,isDraft,baseRefName,headRefName,mergeable,reviewDecision,author,statusCheckRollup,reviews,reviewRequests,labels,assignees,milestone,additions,deletions";
     return execute({
       cwd: input.cwd,
       args: ["pr", "view", String(input.prNumber), `--json=${jsonFields}`],
@@ -637,6 +653,16 @@ export function makeGitHubCliPRMethods(execute: Execute) {
           const state = review.state ?? "";
           if (login.length > 0) {
             reviewMap.set(login, state);
+          }
+        }
+        // A re-requested reviewer's prior review is stale: GitHub is waiting on a
+        // fresh review, so surface it as REVIEW_REQUESTED regardless of any earlier
+        // APPROVED/COMMENTED state. This also adds requested reviewers who have not
+        // reviewed yet.
+        for (const req of raw.reviewRequests ?? []) {
+          const login = req?.login ?? req?.slug ?? req?.name ?? "";
+          if (login.length > 0) {
+            reviewMap.set(login, "REVIEW_REQUESTED");
           }
         }
         const reviewers = Array.from(reviewMap.entries()).map(([login, state]) => ({

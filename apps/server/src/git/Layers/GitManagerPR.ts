@@ -53,7 +53,13 @@ function toPullRequestSummary(
   currentUser: string,
 ): PullRequestSummary {
   const normalizedUser = currentUser.toLowerCase();
+  // A (re-)requested review supersedes any prior approval: GitHub no longer counts
+  // the stale approval and is waiting on a fresh review.
+  const reReviewRequested =
+    normalizedUser.length > 0 &&
+    entry.reviewRequests.some((login) => login.toLowerCase() === normalizedUser);
   const hasMyApproval =
+    !reReviewRequested &&
     normalizedUser.length > 0 &&
     entry.reviews.some(
       (review) => review.author.toLowerCase() === normalizedUser && review.state === "APPROVED",
@@ -88,6 +94,7 @@ function toPullRequestSummary(
     authorAvatar,
     hasMyApproval,
     hasMyComment,
+    reReviewRequested,
     checksTotal,
     checksPassing,
     checksFailing,

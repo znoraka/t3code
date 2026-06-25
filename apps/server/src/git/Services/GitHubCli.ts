@@ -59,6 +59,8 @@ export interface GitHubPullRequestListEntry {
   readonly headRefName: string;
   readonly author: string;
   readonly reviews: ReadonlyArray<{ readonly author: string; readonly state: string }>;
+  /** Logins (or team slugs) of reviewers whose review is currently requested. */
+  readonly reviewRequests: ReadonlyArray<string>;
   readonly statusCheckRollup: ReadonlyArray<{
     readonly name: string;
     readonly status: "pass" | "fail" | "pending";

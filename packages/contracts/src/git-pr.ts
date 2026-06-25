@@ -25,6 +25,8 @@ export const PullRequestSummary = Schema.Struct({
   authorAvatar: Schema.String,
   hasMyApproval: Schema.Boolean,
   hasMyComment: Schema.Boolean,
+  /** True when my review has been (re-)requested, superseding any prior approval. */
+  reReviewRequested: Schema.Boolean,
   checksTotal: NonNegativeInt,
   checksPassing: NonNegativeInt,
   checksFailing: NonNegativeInt,

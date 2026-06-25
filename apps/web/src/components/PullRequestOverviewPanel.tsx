@@ -42,6 +42,7 @@ const REVIEW_STATE_STYLES: Record<string, string> = {
   CHANGES_REQUESTED: "text-destructive",
   COMMENTED: "text-blue-600 dark:text-blue-300",
   PENDING: "text-amber-600 dark:text-amber-300",
+  REVIEW_REQUESTED: "text-amber-600 dark:text-amber-300",
   DISMISSED: "text-muted-foreground line-through",
 };
 
@@ -50,6 +51,7 @@ const REVIEW_STATE_LABELS: Record<string, string> = {
   CHANGES_REQUESTED: "Changes requested",
   COMMENTED: "Commented",
   PENDING: "Pending",
+  REVIEW_REQUESTED: "Review requested",
   DISMISSED: "Dismissed",
 };
 

@@ -115,7 +115,12 @@ const PullRequestCard = memo(function PullRequestCard({
       <div className="flex flex-wrap items-center gap-1.5">
         <StatusPill pr={pr} />
         <ChecksBadge pr={pr} />
-        {pr.hasMyApproval ? (
+        {pr.reReviewRequested ? (
+          <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-300">
+            <AlertCircleIcon className="size-3" aria-hidden="true" />
+            Re-review requested
+          </span>
+        ) : pr.hasMyApproval ? (
           <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/25 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-300">
             <CheckIcon className="size-3" aria-hidden="true" />
             Approved
