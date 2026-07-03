@@ -1,5 +1,9 @@
 import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
-import { scopedProjectKey, scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
+import {
+  scopedProjectKey,
+  scopeProjectRef,
+  scopeThreadRef,
+} from "@t3tools/client-runtime/environment";
 import { BotIcon, ExternalLinkIcon, PlusIcon } from "lucide-react";
 import { memo, useCallback, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";

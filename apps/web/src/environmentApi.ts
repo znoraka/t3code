@@ -5,7 +5,11 @@
 // imperative consumer is the commit → new-chat flow, which dispatches an
 // orchestration command (with an inline thread bootstrap) from an event
 // handler. Backed by `callEnvironmentRpc` (see ./rpc/imperativeEnvironmentRpc).
-import { ORCHESTRATION_WS_METHODS, type EnvironmentApi, type EnvironmentId } from "@t3tools/contracts";
+import {
+  ORCHESTRATION_WS_METHODS,
+  type EnvironmentApi,
+  type EnvironmentId,
+} from "@t3tools/contracts";
 
 import { callEnvironmentRpc } from "./rpc/imperativeEnvironmentRpc";
 

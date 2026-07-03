@@ -130,7 +130,9 @@ function uploadT3ChatAttachments(
       });
       if (!attachmentPath) continue;
 
-      const bytes = yield* deps.fileSystem.readFile(attachmentPath).pipe(Effect.catch(() => Effect.succeed(null)));
+      const bytes = yield* deps.fileSystem
+        .readFile(attachmentPath)
+        .pipe(Effect.catch(() => Effect.succeed(null)));
       if (!bytes) continue;
 
       const response = yield* Effect.tryPromise(() =>
@@ -682,7 +684,7 @@ export const makeT3ChatAdapter = Effect.fn("makeT3ChatAdapter")(function* (
   });
 
   const stopAll: T3ChatAdapterShape["stopAll"] = Effect.fn("stopAll")(function* () {
-    for (const threadId of [...sessions.keys()]) {
+    for (const threadId of sessions.keys()) {
       yield* stopSession(threadId as ThreadId);
     }
   });
@@ -797,8 +799,7 @@ const readSSEStream = (
 
           const delta = extractDelta(parsed);
           if (delta) {
-            const streamKind =
-              delta.kind === "reasoning" ? "reasoning_text" : "assistant_text";
+            const streamKind = delta.kind === "reasoning" ? "reasoning_text" : "assistant_text";
             if (delta.kind === "text") {
               accumulated += delta.text;
             }

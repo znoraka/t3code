@@ -1,5 +1,8 @@
 import type { EnvironmentId, PullRequestMergeMethod } from "@t3tools/contracts";
-import { isAtomCommandInterrupted, squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
+import {
+  isAtomCommandInterrupted,
+  squashAtomCommandFailure,
+} from "@t3tools/client-runtime/state/runtime";
 import { GitMergeIcon } from "lucide-react";
 import { useState } from "react";
 
@@ -137,12 +140,7 @@ export function PullRequestMergeButton({
             >
               Cancel
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => void handleMerge()}
-              disabled={isMerging}
-            >
+            <Button type="button" size="sm" onClick={() => void handleMerge()} disabled={isMerging}>
               {isMerging ? <Spinner className="size-3.5" /> : null}
               Merge
             </Button>

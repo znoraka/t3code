@@ -1,8 +1,12 @@
+import { capModelSelectionEffortAtHigh } from "@t3tools/shared/model";
 import { scopeProjectRef, scopedProjectKey } from "@t3tools/client-runtime/environment";
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import type { ModelSelection, PullRequestSummary } from "@t3tools/contracts";
 import { DEFAULT_MODEL, DEFAULT_RUNTIME_MODE } from "@t3tools/contracts";
-import { isAtomCommandInterrupted, squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
+import {
+  isAtomCommandInterrupted,
+  squashAtomCommandFailure,
+} from "@t3tools/client-runtime/state/runtime";
 import { useCallback, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
@@ -39,7 +43,7 @@ function resolveReviewModelSelection(project: EnvironmentProject): ModelSelectio
     }
   }
   if (mostRecentSelection) {
-    return mostRecentSelection;
+    return capModelSelectionEffortAtHigh(mostRecentSelection) ?? mostRecentSelection;
   }
 
   const composerState = useComposerDraftStore.getState();
@@ -47,12 +51,14 @@ function resolveReviewModelSelection(project: EnvironmentProject): ModelSelectio
   if (stickyProvider) {
     const stickySelection = composerState.stickyModelSelectionByProvider[stickyProvider];
     if (stickySelection) {
-      return stickySelection;
+      return capModelSelectionEffortAtHigh(stickySelection) ?? stickySelection;
     }
   }
 
   if (project.defaultModelSelection) {
-    return project.defaultModelSelection;
+    return (
+      capModelSelectionEffortAtHigh(project.defaultModelSelection) ?? project.defaultModelSelection
+    );
   }
 
   return {

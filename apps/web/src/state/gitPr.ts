@@ -95,7 +95,10 @@ export const gitPrEnvironment = {
 
 export function refreshPullRequests(target: { environmentId: EnvironmentId; cwd: string }): void {
   appAtomRegistry.refresh(
-    gitPrEnvironment.pullRequests({ environmentId: target.environmentId, input: { cwd: target.cwd } }),
+    gitPrEnvironment.pullRequests({
+      environmentId: target.environmentId,
+      input: { cwd: target.cwd },
+    }),
   );
 }
 

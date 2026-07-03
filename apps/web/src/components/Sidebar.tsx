@@ -2827,8 +2827,7 @@ const SidebarPullRequestsContent = memo(function SidebarPullRequestsContent() {
     if (storeProjectKey) {
       const match = projects.find(
         (project) =>
-          scopedProjectKey(scopeProjectRef(project.environmentId, project.id)) ===
-          storeProjectKey,
+          scopedProjectKey(scopeProjectRef(project.environmentId, project.id)) === storeProjectKey,
       );
       if (match) return match;
     }
@@ -2904,9 +2903,7 @@ const SidebarPullRequestsContent = memo(function SidebarPullRequestsContent() {
               </SelectTrigger>
               <SelectPopup>
                 {projects.map((project) => {
-                  const key = scopedProjectKey(
-                    scopeProjectRef(project.environmentId, project.id),
-                  );
+                  const key = scopedProjectKey(scopeProjectRef(project.environmentId, project.id));
                   return (
                     <SelectItem key={key} value={key}>
                       <span className="flex flex-col">

@@ -28,16 +28,7 @@ interface T3ChatModel {
   provider: string;
 }
 
-const PROVIDER_ORDER = [
-  "Claude",
-  "GPT",
-  "Gemini",
-  "DeepSeek",
-  "Grok",
-  "Kimi",
-  "Qwen",
-  "Llama",
-];
+const PROVIDER_ORDER = ["Claude", "GPT", "Gemini", "DeepSeek", "Grok", "Kimi", "Qwen", "Llama"];
 const T3CHAT_STATUS_TIMEOUT = Duration.seconds(10);
 
 const BRAND_CASING: Record<string, string> = {
@@ -65,12 +56,7 @@ function formatModelId(id: string): string {
 function detectProvider(id: string): string {
   const lower = id.toLowerCase();
   if (lower.startsWith("claude")) return "Claude";
-  if (
-    lower.startsWith("gpt") ||
-    lower.startsWith("o3") ||
-    lower.startsWith("o4")
-  )
-    return "GPT";
+  if (lower.startsWith("gpt") || lower.startsWith("o3") || lower.startsWith("o4")) return "GPT";
   if (lower.startsWith("gemini") || lower.startsWith("gemma")) return "Gemini";
   if (lower.startsWith("deepseek")) return "DeepSeek";
   if (lower.startsWith("grok")) return "Grok";
@@ -138,9 +124,7 @@ function parseBridgeModels(data: unknown): T3ChatModel[] {
     });
   }
 
-  const models: T3ChatModel[] = Object.keys(
-    benchmarks as Record<string, unknown>,
-  ).map((id) => ({
+  const models: T3ChatModel[] = Object.keys(benchmarks as Record<string, unknown>).map((id) => ({
     id,
     label: formatModelId(id),
     provider: detectProvider(id),
@@ -158,9 +142,7 @@ function parseBridgeModels(data: unknown): T3ChatModel[] {
   return models;
 }
 
-const fetchModelsFromBridge = Effect.fn("fetchModelsFromBridge")(function* (
-  bridgeURL: string,
-) {
+const fetchModelsFromBridge = Effect.fn("fetchModelsFromBridge")(function* (bridgeURL: string) {
   const response = yield* Effect.tryPromise({
     try: () => fetch(`${bridgeURL}/models`),
     catch: () =>
@@ -189,9 +171,7 @@ const fetchModelsFromBridge = Effect.fn("fetchModelsFromBridge")(function* (
   return parseBridgeModels(payload);
 });
 
-const checkBridgeAuth = Effect.fn("checkBridgeAuth")(function* (
-  bridgeURL: string,
-) {
+const checkBridgeAuth = Effect.fn("checkBridgeAuth")(function* (bridgeURL: string) {
   const response = yield* Effect.tryPromise({
     try: () => fetch(`${bridgeURL}/auth/check`),
     catch: () =>
@@ -212,8 +192,7 @@ const checkBridgeAuth = Effect.fn("checkBridgeAuth")(function* (
 
   return {
     ok: payload.ok === true,
-    status:
-      typeof payload.status === "number" ? payload.status : response.status,
+    status: typeof payload.status === "number" ? payload.status : response.status,
   };
 });
 
@@ -239,8 +218,7 @@ export const makePendingT3ChatProvider = (
           type: "cookie",
           ...(!hasAuth
             ? {
-                label:
-                  "Configure wosSession and convexSessionId in provider settings",
+                label: "Configure wosSession and convexSessionId in provider settings",
               }
             : {}),
         },
@@ -270,8 +248,7 @@ export const checkT3ChatProviderStatus = (
     if (Result.isFailure(versionResult)) {
       const error = versionResult.failure;
       const isMissingBinary =
-        error instanceof T3ChatBridgeError &&
-        error.detail.toLowerCase().includes("enoent");
+        error instanceof T3ChatBridgeError && error.detail.toLowerCase().includes("enoent");
       return buildServerProvider({
         driver: DRIVER_KIND,
         presentation: { displayName: "T3 Chat", showInteractionModeToggle: false },
@@ -315,8 +292,7 @@ export const checkT3ChatProviderStatus = (
           auth: {
             status: "unauthenticated",
             type: "cookie",
-            label:
-              "Configure wosSession and convexSessionId in provider settings",
+            label: "Configure wosSession and convexSessionId in provider settings",
           },
           message: "T3 Chat credentials not configured",
         },
@@ -380,9 +356,7 @@ export const checkT3ChatProviderStatus = (
       version: bridgeVersion,
       status: isAuthenticated ? ("ready" as const) : ("error" as const),
       auth: {
-        status: isAuthenticated
-          ? ("authenticated" as const)
-          : ("unauthenticated" as const),
+        status: isAuthenticated ? ("authenticated" as const) : ("unauthenticated" as const),
         type: "cookie" as const,
         ...(isAuthenticated ? { label: buildBridgeAuthLabel(settings) } : {}),
       } satisfies ServerProvider["auth"],

@@ -3,6 +3,7 @@ import { ProviderInstanceId, type ModelCapabilities } from "@t3tools/contracts";
 
 import {
   buildProviderOptionSelectionsFromDescriptors,
+  capModelSelectionEffortAtHigh,
   createModelCapabilities,
   createModelSelection,
   getModelSelectionBooleanOptionValue,
@@ -142,5 +143,33 @@ describe("descriptor helpers", () => {
     ).toBeUndefined();
     expect(getModelSelectionStringOptionValue(selection, "reasoningEffort")).toBe("high");
     expect(getModelSelectionBooleanOptionValue(selection, "fastMode")).toBe(true);
+  });
+});
+
+describe("review effort helpers", () => {
+  it("caps review effort above high while preserving lower selections", () => {
+    const capped = capModelSelectionEffortAtHigh(
+      createModelSelection(ProviderInstanceId.make("claude"), "claude-opus-4-8", [
+        { id: "effort", value: "ultracode" },
+        { id: "reasoningEffort", value: "medium" },
+      ]),
+    );
+
+    expect(capped).toEqual({
+      instanceId: "claude",
+      model: "claude-opus-4-8",
+      options: [
+        { id: "effort", value: "high" },
+        { id: "reasoningEffort", value: "medium" },
+      ],
+    });
+  });
+
+  it("leaves model selections without effort options untouched", () => {
+    const selection = createModelSelection(ProviderInstanceId.make("codex"), "gpt-5.4", [
+      { id: "fastMode", value: true },
+    ]);
+
+    expect(capModelSelectionEffortAtHigh(selection)).toBe(selection);
   });
 });

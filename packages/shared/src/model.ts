@@ -326,6 +326,44 @@ export function createModelSelection(
   return selections.length > 0 ? { ...base, options: selections } : base;
 }
 
+const REVIEW_EFFORT_CAP = "high";
+const REVIEW_EFFORT_OPTION_IDS = new Set(["effort", "reasoningEffort"]);
+
+function capReviewEffortValue(value: string): string {
+  switch (value) {
+    case "low":
+    case "medium":
+    case "high":
+      return value;
+    default:
+      return REVIEW_EFFORT_CAP;
+  }
+}
+
+export function capModelSelectionEffortAtHigh(
+  modelSelection: ModelSelection | null | undefined,
+): ModelSelection | null | undefined {
+  if (!modelSelection?.options || modelSelection.options.length === 0) {
+    return modelSelection;
+  }
+
+  let changed = false;
+  const options = modelSelection.options.map((selection) => {
+    if (REVIEW_EFFORT_OPTION_IDS.has(selection.id) && typeof selection.value === "string") {
+      const cappedValue = capReviewEffortValue(selection.value);
+      if (cappedValue !== selection.value) {
+        changed = true;
+        return { ...selection, value: cappedValue };
+      }
+    }
+    return selection;
+  });
+
+  return changed
+    ? createModelSelection(modelSelection.instanceId, modelSelection.model, options)
+    : modelSelection;
+}
+
 /**
  * Returns the effort value if it is a prompt-injected value according to
  * any select descriptor in the given capabilities, or null otherwise.

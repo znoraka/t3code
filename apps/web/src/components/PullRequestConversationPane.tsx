@@ -1,5 +1,8 @@
 import type { EnvironmentId } from "@t3tools/contracts";
-import { isAtomCommandInterrupted, squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
+import {
+  isAtomCommandInterrupted,
+  squashAtomCommandFailure,
+} from "@t3tools/client-runtime/state/runtime";
 import {
   FileCodeIcon,
   MessageCircleIcon,
@@ -221,9 +224,7 @@ export const PullRequestConversationPane = memo(function PullRequestConversation
   onJumpToFile,
 }: PullRequestConversationPaneProps) {
   const queryTarget =
-    environmentId !== null && cwd !== null
-      ? { environmentId, input: { cwd, prNumber } }
-      : null;
+    environmentId !== null && cwd !== null ? { environmentId, input: { cwd, prNumber } } : null;
 
   const bodyQuery = useEnvironmentQuery(
     queryTarget ? gitPrEnvironment.pullRequestBody(queryTarget) : null,

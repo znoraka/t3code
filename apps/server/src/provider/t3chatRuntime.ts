@@ -12,6 +12,7 @@ import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
+import { HostProcessPlatform } from "@t3tools/shared/hostProcess";
 import { isWindowsCommandNotFound } from "../processRunner.ts";
 import { collectStreamAsString } from "./providerSnapshot.ts";
 import * as NetService from "@t3tools/shared/Net";
@@ -87,6 +88,7 @@ function parseBridgeVersion(output: string): string | null {
 const makeT3ChatRuntime = Effect.gen(function* () {
   const netService = yield* NetService.NetService;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+  const hostPlatform = yield* HostProcessPlatform;
 
   const runT3ChatBridgeCommand = (input: {
     readonly binaryPath: string;
@@ -97,7 +99,7 @@ const makeT3ChatRuntime = Effect.gen(function* () {
       const child = yield* spawner.spawn(
         ChildProcess.make(input.binaryPath, [...input.args], {
           env: input.environment ?? process.env,
-          shell: process.platform === "win32",
+          shell: hostPlatform === "win32",
         }),
       );
 
@@ -166,8 +168,8 @@ const makeT3ChatRuntime = Effect.gen(function* () {
     const child = yield* spawner
       .spawn(
         ChildProcess.make(input.binaryPath, args, {
-          detached: process.platform !== "win32",
-          shell: process.platform === "win32",
+          detached: hostPlatform !== "win32",
+          shell: hostPlatform === "win32",
           env: input.environment ?? process.env,
         }),
       )
@@ -184,7 +186,7 @@ const makeT3ChatRuntime = Effect.gen(function* () {
       );
 
     const killProcessGroup = (signal: NodeJS.Signals) =>
-      process.platform === "win32"
+      hostPlatform === "win32"
         ? child.kill({ killSignal: signal, forceKillAfter: "1 second" }).pipe(Effect.asVoid)
         : Effect.sync(() => {
             try {
