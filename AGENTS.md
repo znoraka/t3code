@@ -1,5 +1,21 @@
 # AGENTS.md
 
+## ⚠️ Fork — this is `znoraka/t3code`, NOT upstream
+
+This checkout is a fork. `origin` (`znoraka/t3code`) is the ONLY write target.
+The `upstream` remote (`pingdotgg/t3code`) is **read-only — fetch/merge FROM it only.**
+
+NEVER perform any push, PR, comment, or other outward/write action against upstream
+`pingdotgg/t3code`:
+
+- No `git push upstream` — never push any branch or tag to the upstream remote.
+- No pull requests targeting `pingdotgg/t3code` (`gh pr create -R pingdotgg/t3code`, the web UI, etc.).
+- No comments, reviews, reactions, or issues on upstream PRs/issues (`gh pr comment`, `gh pr review`, `gh issue …`).
+- No edits, branches, or any other GitHub API write to `pingdotgg/t3code`.
+
+All pushes, PRs, and comments go to `origin` (the fork) only. Upstream exists solely as a
+source to fetch and merge from. If a task appears to require touching upstream, stop and ask.
+
 ## Task Completion Requirements
 
 - `vp check` and `vp run typecheck` must pass before considering tasks completed.
