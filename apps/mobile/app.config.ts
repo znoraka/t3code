@@ -1,4 +1,4 @@
-import type { ExpoConfig } from "expo/config";
+import type { ConfigContext, ExpoConfig } from "expo/config";
 
 import { loadRepoEnv } from "../../scripts/lib/public-config.ts";
 
@@ -9,6 +9,10 @@ Object.assign(process.env, repoEnv);
 
 const APP_VARIANT = resolveAppVariant(repoEnv.APP_VARIANT);
 
+// Bundle identifiers are globally unique per Apple team; forks must override this root
+// (e.g. MOBILE_BUNDLE_ID=dev.ezag.t3code) to provision under their own team.
+const BUNDLE_ID_ROOT = repoEnv.MOBILE_BUNDLE_ID ?? "com.t3tools.t3code";
+
 const VARIANT_CONFIG: Record<
   AppVariant,
   {
@@ -17,32 +21,28 @@ const VARIANT_CONFIG: Record<
     readonly iosIcon: string;
     readonly iosBundleIdentifier: string;
     readonly androidPackage: string;
-    readonly relyingParty?: string;
   }
 > = {
   development: {
     appName: "T3 Code Dev",
     scheme: "t3code-dev",
     iosIcon: "./assets/icon-composer-dev.icon",
-    iosBundleIdentifier: "com.t3tools.t3code.dev",
-    androidPackage: "com.t3tools.t3code.dev",
-    relyingParty: "clerk.t3.codes",
+    iosBundleIdentifier: `${BUNDLE_ID_ROOT}.dev`,
+    androidPackage: `${BUNDLE_ID_ROOT}.dev`,
   },
   preview: {
     appName: "T3 Code Preview",
     scheme: "t3code-preview",
     iosIcon: "./assets/icon-composer-prod.icon",
-    iosBundleIdentifier: "com.t3tools.t3code.preview",
-    androidPackage: "com.t3tools.t3code.preview",
-    relyingParty: "clerk.t3.codes",
+    iosBundleIdentifier: `${BUNDLE_ID_ROOT}.preview`,
+    androidPackage: `${BUNDLE_ID_ROOT}.preview`,
   },
   production: {
     appName: "T3 Code",
     scheme: "t3code",
     iosIcon: "./assets/icon-composer-prod.icon",
-    iosBundleIdentifier: "com.t3tools.t3code",
-    androidPackage: "com.t3tools.t3code",
-    relyingParty: "clerk.t3.codes",
+    iosBundleIdentifier: BUNDLE_ID_ROOT,
+    androidPackage: BUNDLE_ID_ROOT,
   },
 };
 
@@ -59,13 +59,31 @@ function resolveAppVariant(value: string | undefined): AppVariant {
 
 const variant = VARIANT_CONFIG[APP_VARIANT];
 
-const config: ExpoConfig = {
+const EAS_OWNER = repoEnv.EAS_OWNER ?? "pingdotgg";
+const EAS_PROJECT_ID =
+  repoEnv.EAS_PROJECT_ID ??
+  (EAS_OWNER === "pingdotgg" ? "d763fcb8-d37c-41ea-a773-b54a0ab4a454" : undefined);
+
+// Universal Links (applinks) + passkey/password autofill (webcredentials) domain.
+// These only validate when this domain's apple-app-site-association lists THIS app's
+// ID, so a fork must point it at a domain it controls (MOBILE_RELYING_PARTY) AND enable
+// the Associated Domains capability on its provisioning profile. Enabling the entitlement
+// without a matching profile fails code signing, so default it on only for the upstream
+// app; when unset, the associatedDomains entitlement is omitted entirely.
+const RELYING_PARTY =
+  repoEnv.MOBILE_RELYING_PARTY ?? (EAS_OWNER === "pingdotgg" ? "clerk.t3.codes" : undefined);
+
+// The OTA config lives in apps/mobile/app.json (self-hosted expo-updates-go),
+// which Expo passes here as `base`. Its runtimeVersion / updates.url are also
+// what the `newversion` publish tool reads. When app.json omits them (e.g.
+// upstream), we fall back to EAS Update below.
+const buildConfig = (base: ConfigContext["config"]): ExpoConfig => ({
   name: variant.appName,
   slug: "t3-code",
   platforms: ["ios", "android"],
   scheme: variant.scheme,
   version: "0.1.0",
-  runtimeVersion: {
+  runtimeVersion: base.runtimeVersion ?? {
     // Fingerprint (not appVersion) so an OTA only reaches binaries whose native
     // project — native deps, config plugins, AND patches/ — matches the update.
     // With appVersion, every 0.1.0 build shares a runtime version, so a JS update
@@ -75,12 +93,16 @@ const config: ExpoConfig = {
   orientation: "portrait",
   icon: "./assets/icon.png",
   userInterfaceStyle: "automatic",
-  updates: {
-    enabled: true,
-    url: "https://u.expo.dev/d763fcb8-d37c-41ea-a773-b54a0ab4a454",
-    checkAutomatically: "ON_LOAD",
-    fallbackToCacheTimeout: 0,
-  },
+  updates:
+    base.updates ??
+    (EAS_PROJECT_ID
+      ? {
+          enabled: true,
+          url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
+          checkAutomatically: "ON_LOAD",
+          fallbackToCacheTimeout: 0,
+        }
+      : { enabled: false }),
   ios: {
     icon: variant.iosIcon,
     supportsTablet: true,
@@ -89,10 +111,11 @@ const config: ExpoConfig = {
     // does not fall back to a personal team (which cannot sign app groups,
     // Sign in with Apple, or push notification entitlements).
     appleTeamId: "ARK85ZXQ4Z",
-    associatedDomains: [
-      `applinks:${variant.relyingParty}`,
-      `webcredentials:${variant.relyingParty}`,
-    ],
+    ...(RELYING_PARTY
+      ? {
+          associatedDomains: [`applinks:${RELYING_PARTY}`, `webcredentials:${RELYING_PARTY}`],
+        }
+      : {}),
     infoPlist: {
       NSAppTransportSecurity: {
         NSAllowsArbitraryLoads: true,
@@ -194,11 +217,9 @@ const config: ExpoConfig = {
       tracesDataset: repoEnv.EXPO_PUBLIC_OTLP_TRACES_DATASET ?? null,
       tracesToken: repoEnv.EXPO_PUBLIC_OTLP_TRACES_TOKEN ?? null,
     },
-    eas: {
-      projectId: "d763fcb8-d37c-41ea-a773-b54a0ab4a454",
-    },
+    ...(EAS_PROJECT_ID ? { eas: { projectId: EAS_PROJECT_ID } } : {}),
   },
-  owner: "pingdotgg",
-};
+  owner: EAS_OWNER,
+});
 
-export default config;
+export default ({ config }: ConfigContext): ExpoConfig => buildConfig(config);
