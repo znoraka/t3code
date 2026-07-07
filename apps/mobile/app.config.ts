@@ -19,6 +19,7 @@ const VARIANT_CONFIG: Record<
     readonly appName: string;
     readonly scheme: string;
     readonly iosIcon: string;
+    readonly splashIcon: string;
     readonly iosBundleIdentifier: string;
     readonly androidPackage: string;
   }
@@ -27,6 +28,7 @@ const VARIANT_CONFIG: Record<
     appName: "T3 Code Dev",
     scheme: "t3code-dev",
     iosIcon: "./assets/icon-composer-dev.icon",
+    splashIcon: "./assets/splash-icon-dev.png",
     iosBundleIdentifier: `${BUNDLE_ID_ROOT}.dev`,
     androidPackage: `${BUNDLE_ID_ROOT}.dev`,
   },
@@ -34,6 +36,7 @@ const VARIANT_CONFIG: Record<
     appName: "T3 Code Preview",
     scheme: "t3code-preview",
     iosIcon: "./assets/icon-composer-prod.icon",
+    splashIcon: "./assets/splash-icon-prod.png",
     iosBundleIdentifier: `${BUNDLE_ID_ROOT}.preview`,
     androidPackage: `${BUNDLE_ID_ROOT}.preview`,
   },
@@ -41,6 +44,7 @@ const VARIANT_CONFIG: Record<
     appName: "T3 Code",
     scheme: "t3code",
     iosIcon: "./assets/icon-composer-prod.icon",
+    splashIcon: "./assets/splash-icon-prod.png",
     iosBundleIdentifier: BUNDLE_ID_ROOT,
     androidPackage: BUNDLE_ID_ROOT,
   },
@@ -154,12 +158,12 @@ const buildConfig = (base: ConfigContext["config"]): ExpoConfig => ({
     [
       "expo-splash-screen",
       {
-        image: "./assets/splash-icon.png",
+        image: variant.splashIcon,
         resizeMode: "contain",
         backgroundColor: "#ffffff",
         imageWidth: 220,
         dark: {
-          image: "./assets/splash-icon.png",
+          image: variant.splashIcon,
           backgroundColor: "#0a0a0a",
         },
       },
