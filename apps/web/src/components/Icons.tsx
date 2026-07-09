@@ -647,18 +647,6 @@ export const AntigravityIcon: Icon = (props) => (
   </svg>
 );
 
-export const T3ChatIcon: Icon = (props) => (
-  <svg {...props} viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M90 32c-35.9 0-65 23.3-65 52 0 15.5 8.5 29.4 21.8 39.1l-2.3 21.4c-.2 1.8 1.9 3 3.4 1.9l22.6-15.7c6.2 2 12.8 3.3 19.5 3.3 35.9 0 65-23.3 65-52S125.9 32 90 32Z"
-      stroke="currentColor"
-      strokeWidth="12"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
 export const OpenCodeIcon: Icon = (props) => (
   <svg {...props} viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
     <g clipPath="url(#opencode__clip0_1311_94969)">

@@ -5,18 +5,9 @@ import {
   GrokSettings,
   OpenCodeSettings,
   ProviderDriverKind,
-  T3ChatSettings,
 } from "@t3tools/contracts";
 import type * as Schema from "effect/Schema";
-import {
-  ClaudeAI,
-  CursorIcon,
-  GrokIcon,
-  type Icon,
-  OpenAI,
-  OpenCodeIcon,
-  T3ChatIcon,
-} from "../Icons";
+import { ClaudeAI, CursorIcon, GrokIcon, type Icon, OpenAI, OpenCodeIcon } from "../Icons";
 
 type ProviderSettingsSchema = {
   readonly fields: Readonly<Record<string, Schema.Top>>;
@@ -75,12 +66,6 @@ export const PROVIDER_CLIENT_DEFINITIONS: readonly ProviderClientDefinition[] = 
     label: "OpenCode",
     icon: OpenCodeIcon,
     settingsSchema: OpenCodeSettings,
-  },
-  {
-    value: ProviderDriverKind.make("t3chat"),
-    label: "T3 Chat",
-    icon: T3ChatIcon,
-    settingsSchema: T3ChatSettings,
   },
 ];
 
