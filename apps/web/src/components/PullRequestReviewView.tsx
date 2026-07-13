@@ -870,7 +870,7 @@ export function buildPullRequestReviewPrompt(input: BuildPullRequestReviewPrompt
   );
   if (input.variant === "review-with-tests") {
     lines.push(
-      `8. After completing the review, run /lem-test-pr for pull request #${input.prNumber} and upload the test results.`,
+      `8. After completing the review, run /lem-test-pr for pull request #${input.prNumber} and upload the test results. Both the PR review and the test results must appear on the review you upload.`,
     );
   }
 
