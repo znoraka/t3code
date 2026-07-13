@@ -6,7 +6,10 @@ import {
 import {
   BotIcon,
   CheckCircle2Icon,
+  ChevronDownIcon,
   CircleDashedIcon,
+  ClipboardCopyIcon,
+  FlaskConicalIcon,
   FolderGit2Icon,
   GitBranchIcon,
   MessageSquareIcon,
@@ -19,7 +22,9 @@ import { gitPrEnvironment, refreshAllPullRequestData } from "~/state/gitPr";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { useEnvironmentQuery } from "~/state/query";
 import { cn } from "~/lib/utils";
+import type { PullRequestReviewPromptVariant } from "./PullRequestReviewView";
 import { Button } from "./ui/button";
+import { Menu, MenuItem, MenuPopup, MenuTrigger } from "./ui/menu";
 import { Spinner } from "./ui/spinner";
 import { toastManager } from "./ui/toast";
 
@@ -28,6 +33,7 @@ interface PullRequestReviewSidebarProps {
   cwd: string | null;
   prNumber: number;
   onReviewWithAgent?: (() => void) | undefined;
+  onCopyReviewPrompt?: ((variant: PullRequestReviewPromptVariant) => void) | undefined;
   isAgentReviewPending?: boolean | undefined;
   onCheckout?: ((mode: "local" | "worktree") => void) | undefined;
   isCheckoutPending?: "local" | "worktree" | null | undefined;
@@ -63,6 +69,7 @@ export function PullRequestReviewSidebar({
   cwd,
   prNumber,
   onReviewWithAgent,
+  onCopyReviewPrompt,
   isAgentReviewPending,
   onCheckout,
   isCheckoutPending,
@@ -235,21 +242,48 @@ export function PullRequestReviewSidebar({
           Workspace
         </h3>
         <div className="flex flex-col gap-1.5">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="justify-start"
-            onClick={onReviewWithAgent}
-            disabled={isAgentReviewPending || !onReviewWithAgent}
-          >
-            {isAgentReviewPending ? (
-              <Spinner className="size-3.5" />
-            ) : (
-              <BotIcon className="size-3.5" aria-hidden="true" />
-            )}
-            Review with agent
-          </Button>
+          <div className="flex items-stretch gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="min-w-0 flex-1 justify-start"
+              onClick={onReviewWithAgent}
+              disabled={isAgentReviewPending || !onReviewWithAgent}
+            >
+              {isAgentReviewPending ? (
+                <Spinner className="size-3.5" />
+              ) : (
+                <BotIcon className="size-3.5" aria-hidden="true" />
+              )}
+              Review with agent
+            </Button>
+            <Menu>
+              <MenuTrigger
+                render={
+                  <Button
+                    aria-label="Copy review prompt options"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 px-1.5"
+                  />
+                }
+                disabled={!onCopyReviewPrompt}
+              >
+                <ChevronDownIcon className="size-3.5" aria-hidden="true" />
+              </MenuTrigger>
+              <MenuPopup align="end">
+                <MenuItem onClick={() => onCopyReviewPrompt?.("review")}>
+                  <ClipboardCopyIcon className="size-3.5" aria-hidden="true" />
+                  Copy review prompt
+                </MenuItem>
+                <MenuItem onClick={() => onCopyReviewPrompt?.("review-with-tests")}>
+                  <FlaskConicalIcon className="size-3.5" aria-hidden="true" />
+                  Copy prompt with /lem-test-pr
+                </MenuItem>
+              </MenuPopup>
+            </Menu>
+          </div>
           <Button
             type="button"
             variant="outline"

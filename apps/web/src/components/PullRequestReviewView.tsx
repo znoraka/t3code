@@ -819,12 +819,15 @@ function resolveFileDiffPath(fileDiff: FileDiffMetadata): string {
 
 export const PULL_REQUEST_REVIEW_VIEW_MESSAGE_ICON = MessageCircleIcon;
 
+export type PullRequestReviewPromptVariant = "review" | "review-with-tests";
+
 interface BuildPullRequestReviewPromptInput {
   prNumber: number;
   title?: string | null;
   headRefName?: string | null;
   authorLogin?: string | null;
   url?: string | null;
+  variant?: PullRequestReviewPromptVariant;
 }
 
 export function buildPullRequestReviewPrompt(input: BuildPullRequestReviewPromptInput): string {
@@ -865,6 +868,11 @@ export function buildPullRequestReviewPrompt(input: BuildPullRequestReviewPrompt
   lines.push(
     "7. If I ask you to make changes, ask before editing the working tree — offer to check out the PR branch (locally or in a worktree) first.",
   );
+  if (input.variant === "review-with-tests") {
+    lines.push(
+      `8. After completing the review, run /lem-test-pr for pull request #${input.prNumber} and upload the test results.`,
+    );
+  }
 
   return lines.join("\n");
 }

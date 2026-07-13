@@ -11,7 +11,10 @@ import { useCallback, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { useComposerDraftStore } from "../composerDraftStore";
-import { buildPullRequestReviewPrompt } from "./PullRequestReviewView";
+import {
+  buildPullRequestReviewPrompt,
+  type PullRequestReviewPromptVariant,
+} from "./PullRequestReviewView";
 import { PullRequestWorkspace } from "./PullRequestWorkspace";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./ui/select";
 import { SidebarInset, SidebarTrigger } from "./ui/sidebar";
@@ -240,6 +243,38 @@ function PersistentPullRequestViewInner() {
     }
   }, [activeProject, selectedPrNumber, selectedPullRequest, handleViewChange]);
 
+  const handleCopyReviewPrompt = useCallback(
+    async (variant: PullRequestReviewPromptVariant) => {
+      if (selectedPrNumber === null) return;
+      const prompt = buildPullRequestReviewPrompt({
+        prNumber: selectedPrNumber,
+        title: selectedPullRequest?.title ?? null,
+        headRefName: selectedPullRequest?.headRefName ?? null,
+        authorLogin: selectedPullRequest?.author ?? null,
+        url: selectedPullRequest?.url ?? null,
+        variant,
+      });
+      try {
+        await navigator.clipboard.writeText(prompt);
+        toastManager.add({
+          type: "success",
+          title: "Prompt copied",
+          description:
+            variant === "review-with-tests"
+              ? `Review + /lem-test-pr prompt for PR #${selectedPrNumber} copied to clipboard`
+              : `Review prompt for PR #${selectedPrNumber} copied to clipboard`,
+        });
+      } catch (err: unknown) {
+        toastManager.add({
+          type: "error",
+          title: "Failed to copy prompt",
+          description: err instanceof Error ? err.message : "An error occurred.",
+        });
+      }
+    },
+    [selectedPrNumber, selectedPullRequest],
+  );
+
   // Checkout / worktree
   const preparePullRequestThread = useAtomCommand(gitEnvironment.preparePullRequestThread, {
     reportFailure: false,
@@ -337,6 +372,7 @@ function PersistentPullRequestViewInner() {
                 {...(activeProject
                   ? {
                       onReviewWithAgent: handleReview,
+                      onCopyReviewPrompt: handleCopyReviewPrompt,
                       isAgentReviewPending: isReviewPending,
                       onCheckout: handleCheckout,
                       isCheckoutPending: checkoutPending,

@@ -14,6 +14,7 @@ import { cn } from "~/lib/utils";
 import { PullRequestConversationPane } from "./PullRequestConversationPane";
 import { PullRequestFilesPane } from "./PullRequestFilesPane";
 import PullRequestOverviewPanel from "./PullRequestOverviewPanel";
+import type { PullRequestReviewPromptVariant } from "./PullRequestReviewView";
 import { PullRequestReviewSidebar } from "./PullRequestReviewSidebar";
 import { PullRequestThreadsPane } from "./PullRequestThreadsPane";
 
@@ -30,6 +31,7 @@ interface PullRequestWorkspaceProps {
   onFilePathChange: (filePath: string | null) => void;
   onOpenExternal?: ((url: string) => void) | undefined;
   onReviewWithAgent?: (() => void) | undefined;
+  onCopyReviewPrompt?: ((variant: PullRequestReviewPromptVariant) => void) | undefined;
   isAgentReviewPending?: boolean | undefined;
   onCheckout?: ((mode: "local" | "worktree") => void) | undefined;
   isCheckoutPending?: "local" | "worktree" | null | undefined;
@@ -53,6 +55,7 @@ export function PullRequestWorkspace({
   onFilePathChange,
   onOpenExternal,
   onReviewWithAgent,
+  onCopyReviewPrompt,
   isAgentReviewPending,
   onCheckout,
   isCheckoutPending,
@@ -170,6 +173,7 @@ export function PullRequestWorkspace({
             cwd={cwd}
             prNumber={prNumber}
             onReviewWithAgent={onReviewWithAgent}
+            onCopyReviewPrompt={onCopyReviewPrompt}
             isAgentReviewPending={isAgentReviewPending}
             onCheckout={onCheckout}
             isCheckoutPending={isCheckoutPending}
