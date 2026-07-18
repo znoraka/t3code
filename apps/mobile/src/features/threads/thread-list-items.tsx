@@ -8,7 +8,16 @@ import { SymbolView } from "../../components/AppSymbol";
 import { memo, useCallback, useMemo, type ComponentProps } from "react";
 import { Pressable, useColorScheme, useWindowDimensions, View } from "react-native";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
-import Svg, { Circle, Path } from "react-native-svg";
+import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from "react-native-svg";
+// [FORK] lempire: per-machine accent colors, shared with the web sidebar
+import {
+  ENVIRONMENT_ACCENT_FADE_OFFSET,
+  ENVIRONMENT_ACCENT_WASH_OPACITY,
+  environmentAccentGradientId,
+  environmentAccentStopOffset,
+  environmentAccentTextColor,
+} from "@t3tools/shared/_lempire/environmentColor";
+// [FORK] end
 
 import { AppText as Text } from "../../components/AppText";
 import { ControlPillMenu } from "../../components/ControlPill";
@@ -83,8 +92,46 @@ export const ThreadListGroupHeader = memo(function ThreadListGroupHeader(props: 
   /** Project a quick new thread should target; null hides the button. */
   readonly newThreadTarget?: EnvironmentProject | null;
   readonly onNewThread?: (project: EnvironmentProject) => void;
+  // [FORK] lempire: accents of the machines this group lives on; empty renders
+  // untinted. Assigned across every machine at once (see
+  // `assignEnvironmentAccentColors`), so it arrives as a prop rather than being
+  // derived here. More than one color means the group spans machines.
+  readonly accentColors?: readonly string[];
+  // [FORK] end
 }) {
   const iconMutedColor = useThemeColor("--color-icon-muted");
+  // [FORK] lempire: mirror the web `color-mix(accent, --foreground)` tint.
+  const foregroundColor = useThemeColor("--color-foreground");
+  const accentColors = props.accentColors ?? [];
+  const accentTextColor = accentColors[0]
+    ? environmentAccentTextColor(accentColors[0], String(foregroundColor))
+    : null;
+  const accentGradientId = environmentAccentGradientId(props.groupKey);
+  // One stop per machine, then a final transparent stop to fade the wash out.
+  // Built as a single array because `LinearGradient` types its children as one
+  // node — an inline `.map()` plus a sibling `<Stop>` does not typecheck.
+  const accentStops = [
+    ...accentColors.map((accentColor, index) => {
+      // Keyed on the stop's offset — its position in the gradient is what
+      // identifies it, and offsets are distinct where colors may not be.
+      const offset = environmentAccentStopOffset(index, accentColors.length);
+      return (
+        <Stop
+          key={`stop-${offset}`}
+          offset={`${offset}%`}
+          stopColor={accentColor}
+          stopOpacity={ENVIRONMENT_ACCENT_WASH_OPACITY}
+        />
+      );
+    }),
+    <Stop
+      key="fade"
+      offset={`${ENVIRONMENT_ACCENT_FADE_OFFSET}%`}
+      stopColor={accentColors[accentColors.length - 1]}
+      stopOpacity={0}
+    />,
+  ];
+  // [FORK] end
   const { groupKey, onGroupAction, onNewThread } = props;
   const newThreadTarget = props.newThreadTarget ?? null;
   const compact = props.variant === "compact";
@@ -118,6 +165,33 @@ export const ThreadListGroupHeader = memo(function ThreadListGroupHeader(props: 
         paddingTop: props.isFirst ? (compact ? 8 : 4) : compact ? 24 : 20,
       }}
     >
+      {/* [FORK] lempire: accent wash, inset to the row's content box so it
+          tints the header rather than the gap between groups. Blends left to
+          right when the group spans several machines. */}
+      {accentColors.length > 0 ? (
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: props.isFirst ? (compact ? 8 : 4) : compact ? 24 : 20,
+            bottom: compact ? 12 : 8,
+          }}
+        >
+          <Svg width="100%" height="100%">
+            <Defs>
+              <LinearGradient id={accentGradientId} x1="0%" x2="100%" y1="0%" y2="0%">
+                {accentStops}
+              </LinearGradient>
+            </Defs>
+            <Rect width="100%" height="100%" fill={`url(#${accentGradientId})`} />
+          </Svg>
+        </View>
+      ) : null}
+      {/* [FORK] end */}
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded: !props.collapsed }}
@@ -143,6 +217,9 @@ export const ThreadListGroupHeader = memo(function ThreadListGroupHeader(props: 
               : "flex-shrink text-sm font-t3-bold tracking-[0.2px] text-foreground-muted"
           }
           numberOfLines={1}
+          // [FORK] lempire: accent-tinted project name
+          style={accentTextColor ? { color: accentTextColor } : undefined}
+          // [FORK] end
         >
           {props.title}
         </Text>

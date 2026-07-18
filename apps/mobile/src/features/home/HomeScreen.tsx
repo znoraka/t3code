@@ -43,6 +43,9 @@ import {
   type HomeListItem,
 } from "./homeListItems";
 import { buildHomeThreadGroups, type HomeProjectSortOrder } from "./homeThreadList";
+// [FORK] lempire: per-machine accent colors in the thread list
+import { useGroupAccentColors } from "../../_lempire/projectAccent";
+// [FORK] end
 import { SwipeableScrollGateProvider, useSwipeableScrollGate } from "./thread-swipe-actions";
 import { WorkspaceConnectionStatus } from "./WorkspaceConnectionStatus";
 import { shouldShowWorkspaceConnectionStatus } from "./workspace-connection-status";
@@ -248,6 +251,10 @@ export function HomeScreen(props: HomeScreenProps) {
     ],
   );
 
+  // [FORK] lempire: color each group by the machine(s) it lives on
+  const accentByGroupKey = useGroupAccentColors(props.projects, projectGroups);
+  // [FORK] end
+
   const hasSearchQuery = props.searchQuery.trim().length > 0;
   const listLayout = useMemo(
     () =>
@@ -292,6 +299,9 @@ export function HomeScreen(props: HomeScreenProps) {
               project={item.group.representative}
               threadCount={item.group.threads.length + item.group.pendingTasks.length}
               title={item.group.title}
+              // [FORK] lempire: machine accent colors
+              accentColors={accentByGroupKey.get(item.group.key)}
+              // [FORK] end
             />
           );
         case "pending-task":
@@ -343,6 +353,7 @@ export function HomeScreen(props: HomeScreenProps) {
       }
     },
     [
+      accentByGroupKey, // [FORK] lempire: machine accent colors
       handleSwipeableClose,
       handleSwipeableWillOpen,
       projectCwdByKey,

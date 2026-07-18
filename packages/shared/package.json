@@ -3,6 +3,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./_lempire/environmentColor": {
+      "types": "./src/_lempire/environmentColor.ts",
+      "import": "./src/_lempire/environmentColor.ts"
+    },
     "./projectFavicon": {
       "types": "./src/projectFavicon.ts",
       "import": "./src/projectFavicon.ts"

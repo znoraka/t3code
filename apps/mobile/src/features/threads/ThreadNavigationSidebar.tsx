@@ -43,6 +43,9 @@ import {
   type HomeListItem,
 } from "../home/homeListItems";
 import { buildHomeThreadGroups } from "../home/homeThreadList";
+// [FORK] lempire: per-machine accent colors in the thread list
+import { useGroupAccentColors } from "../../_lempire/projectAccent";
+// [FORK] end
 import { SwipeableScrollGateProvider, useSwipeableScrollGate } from "../home/thread-swipe-actions";
 import { usePendingTaskListActions } from "../home/usePendingTaskListActions";
 import { useThreadListActions } from "../home/useThreadListActions";
@@ -206,6 +209,9 @@ function ThreadNavigationSidebarPane(
       }),
     [options, pendingTasks, projects, props.searchQuery, threads],
   );
+  // [FORK] lempire: color each group by the machine(s) it lives on
+  const accentByGroupKey = useGroupAccentColors(projects, groups);
+  // [FORK] end
   const [groupDisplayStates, setGroupDisplayStates] = useState<
     ReadonlyMap<string, HomeGroupDisplayState>
   >(() => new Map());
@@ -418,6 +424,9 @@ function ThreadNavigationSidebarPane(
               project={item.group.representative}
               threadCount={item.group.threads.length + item.group.pendingTasks.length}
               title={item.group.title}
+              // [FORK] lempire: machine accent colors
+              accentColors={accentByGroupKey.get(item.group.key)}
+              // [FORK] end
             />
           );
         case "pending-task":
@@ -474,6 +483,7 @@ function ThreadNavigationSidebarPane(
       }
     },
     [
+      accentByGroupKey, // [FORK] lempire: machine accent colors
       archiveThread,
       confirmDeletePendingTask,
       confirmDeleteThread,

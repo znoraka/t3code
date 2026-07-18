@@ -15,6 +15,14 @@ import {
   TerminalIcon,
   TriangleAlertIcon,
 } from "lucide-react";
+// [FORK] lempire: per-machine accent colors in the sidebar
+import {
+  projectAccentHeaderStyle,
+  projectAccentNameStyle,
+  useProjectAccents,
+  type WithProjectAccent,
+} from "../_lempire/projectAccent";
+// [FORK] end
 import {
   ChangeRequestStatusIcon,
   prStatusIndicator,
@@ -1068,7 +1076,7 @@ const SidebarProjectThreadList = memo(function SidebarProjectThreadList(
 });
 
 interface SidebarProjectItemProps {
-  project: SidebarProjectSnapshot;
+  project: WithProjectAccent<SidebarProjectSnapshot>; // [FORK] lempire: carries the accent colors of the machines this row lives on
   isThreadListExpanded: boolean;
   activeRouteThreadKey: string | null;
   newThreadShortcutLabel: string | null;
@@ -2205,7 +2213,12 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
 
   return (
     <>
-      <div className="group/project-header relative">
+      {/* [FORK] lempire: accent wash tints the header by machine */}
+      <div
+        className="group/project-header relative overflow-hidden rounded-md"
+        style={projectAccentHeaderStyle(project.accentColors)}
+      >
+        {/* [FORK] end */}
         <SidebarMenuButton
           ref={isManualProjectSorting ? dragHandleProps?.setActivatorNodeRef : undefined}
           size="sm"
@@ -2249,9 +2262,14 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
           )}
           <ProjectFavicon environmentId={project.environmentId} cwd={project.workspaceRoot} />
           <span className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="truncate text-xs font-medium text-foreground/90">
+            {/* [FORK] lempire: name tinted by machine */}
+            <span
+              className="truncate text-xs font-medium text-foreground/90"
+              style={projectAccentNameStyle(project.accentColors)}
+            >
               {project.displayName}
             </span>
+            {/* [FORK] end */}
             {project.groupedProjectCount > 1 ? (
               <span className="shrink-0 text-[10px] text-muted-foreground/60">
                 {project.groupedProjectCount} projects
@@ -3091,6 +3109,10 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
     projectsLength,
   } = props;
 
+  // [FORK] lempire: color each row by the machine(s) it lives on
+  const accentProjects = useProjectAccents(sortedProjects);
+  // [FORK] end
+
   const handleProjectSortOrderChange = useCallback(
     (sortOrder: SidebarProjectSortOrder) => {
       updateSettings({ sidebarProjectSortOrder: sortOrder });
@@ -3214,7 +3236,8 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
                 items={sortedProjects.map((project) => project.projectKey)}
                 strategy={verticalListSortingStrategy}
               >
-                {sortedProjects.map((project) => (
+                {/* [FORK] lempire: accentProjects — sortedProjects + machine accent colors */}
+                {accentProjects.map((project) => (
                   <SortableProjectItem key={project.projectKey} projectId={project.projectKey}>
                     {(dragHandleProps) => (
                       <SidebarProjectItem
@@ -3247,7 +3270,8 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
           </DndContext>
         ) : (
           <SidebarMenu ref={attachProjectListAutoAnimateRef}>
-            {sortedProjects.map((project) => (
+            {/* [FORK] lempire: accentProjects — sortedProjects + machine accent colors */}
+            {accentProjects.map((project) => (
               <SidebarProjectListRow
                 key={project.projectKey}
                 project={project}

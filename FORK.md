@@ -88,9 +88,13 @@ Run `grep -rn '\[FORK\]' . --include='*.ts' --include='*.tsx'` to get the curren
 > **Agents: update this table every time you add a `// [FORK]` marker to an upstream file.**
 > If you remove a fork change from an upstream file, remove it from this table too.
 
-| File         | Reason | PR / Feature |
-| ------------ | ------ | ------------ |
-| _(none yet)_ |        |              |
+| File                                                           | Reason                                                                                                     | PR / Feature           |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------- |
+| `apps/web/src/components/Sidebar.tsx`                          | `useProjectAccents` on the project list; accent wash + tinted name on the project header row.              | Sidebar machine colors |
+| `apps/mobile/src/features/threads/thread-list-items.tsx`       | `accentColors` prop on `ThreadListGroupHeader`; accent wash + tinted title.                                | Sidebar machine colors |
+| `apps/mobile/src/features/home/HomeScreen.tsx`                 | Compute the accent assignment and pass it to the group header.                                             | Sidebar machine colors |
+| `apps/mobile/src/features/threads/ThreadNavigationSidebar.tsx` | Same wiring as HomeScreen — the iPad sidebar renders the same header.                                      | Sidebar machine colors |
+| `packages/shared/package.json`                                 | `exports` entry for `./_lempire/environmentColor`. JSON, carries no `[FORK]` comment — noted here instead. | Sidebar machine colors |
 
 ---
 
@@ -98,9 +102,9 @@ Run `grep -rn '\[FORK\]' . --include='*.ts' --include='*.tsx'` to get the curren
 
 > Track what this fork adds, so it's easy to audit what needs carrying forward after a large upstream rebase.
 
-| Feature      | Location | Notes |
-| ------------ | -------- | ----- |
-| _(none yet)_ |          |       |
+| Feature                | Location                                                                                                                                  | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sidebar machine colors | `packages/shared/src/_lempire/environmentColor.ts`, `apps/web/src/_lempire/projectAccent.ts`, `apps/mobile/src/_lempire/projectAccent.ts` | Tints each sidebar row by the **machine** it runs on — every project on the same laptop/VPS shares a hue. Keyed on `environmentId`, which the server mints once and every client copies verbatim, so web and mobile agree with nothing stored or synced (the connection catalog is per-device and does not sync). Colors are **assigned**, not hashed: hashing alone duplicates a slot in ~95% of 8-machine sidebars, and — worse — picks perceptually identical hues (four machines all landed on cyan/teal/emerald/lime). Assignment gives each machine after the first the unused hue farthest from those already taken. A row aggregating one repo across machines blends their colors left to right. Assignment runs over the _unfiltered_ project list, so searching never reshuffles. Trade-off: connecting/removing a machine can shift colors. On web the accents ride on the project snapshot (`WithProjectAccent`) rather than a context provider, to avoid re-indenting hot upstream JSX. |
 
 ---
 
