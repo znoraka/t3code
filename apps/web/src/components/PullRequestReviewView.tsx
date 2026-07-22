@@ -868,9 +868,10 @@ export function buildPullRequestReviewPrompt(input: BuildPullRequestReviewPrompt
   lines.push(
     "7. If I ask you to make changes, ask before editing the working tree — offer to check out the PR branch (locally or in a worktree) first.",
   );
+  lines.push("8. Always upload the results at the end, in HTML format.");
   if (input.variant === "review-with-tests") {
     lines.push(
-      `8. After completing the review, run /lem-test-pr for pull request #${input.prNumber} and upload the test results. Both the PR review and the test results must appear on the review you upload.`,
+      `9. After completing the review, run /lem-test-pr for pull request #${input.prNumber} and upload the test results. Both the PR review and the test results must appear on the HTML results you upload.`,
     );
   }
 
