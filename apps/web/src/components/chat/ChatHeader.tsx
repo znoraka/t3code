@@ -5,8 +5,9 @@ import {
   type ResolvedKeybindingsConfig,
   type ThreadId,
 } from "@t3tools/contracts";
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { memo } from "react";
-import CommitControl from "../CommitControl"; // [FORK] custom commit modal
+import GitActionsControl from "../GitActionsControl";
 import { type DraftId } from "~/composerDraftStore";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import ProjectScriptsControl, {
@@ -54,6 +55,7 @@ export function shouldShowOpenInPicker(input: {
 export const ChatHeader = memo(function ChatHeader({
   activeThreadEnvironmentId,
   activeThreadId,
+  draftId,
   activeThreadTitle,
   activeProjectName,
   openInCwd,
@@ -117,12 +119,11 @@ export const ChatHeader = memo(function ChatHeader({
             openInCwd={openInCwd}
           />
         )}
-        {/* [FORK] CommitControl replaces upstream GitActionsControl */}
         {activeProjectName && (
-          <CommitControl
-            environmentId={activeThreadEnvironmentId}
+          <GitActionsControl
             gitCwd={gitCwd}
-            activeThreadId={activeThreadId}
+            activeThreadRef={scopeThreadRef(activeThreadEnvironmentId, activeThreadId)}
+            {...(draftId ? { draftId } : {})}
           />
         )}
       </div>
