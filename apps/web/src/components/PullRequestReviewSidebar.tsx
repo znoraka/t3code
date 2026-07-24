@@ -17,10 +17,12 @@ import {
   XCircleIcon,
 } from "lucide-react";
 import { useCallback, useState } from "react";
+import * as Schema from "effect/Schema";
 
 import { gitPrEnvironment, refreshAllPullRequestData } from "~/state/gitPr";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { useEnvironmentQuery } from "~/state/query";
+import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { cn } from "~/lib/utils";
 import type { PullRequestReviewPromptVariant } from "./PullRequestReviewView";
 import { Button } from "./ui/button";
@@ -53,6 +55,12 @@ const REVIEW_VARIANTS: {
     Icon: FlaskConicalIcon,
   },
 ];
+
+const REVIEW_VARIANT_STORAGE_KEY = "t3code:pr-review-variant";
+const reviewVariantSchema: Schema.Codec<PullRequestReviewPromptVariant> = Schema.Literals([
+  "review",
+  "review-with-tests",
+]);
 
 function mergeableColor(value: string): string {
   if (value === "MERGEABLE") return "text-green-500";
@@ -91,7 +99,11 @@ export function PullRequestReviewSidebar({
 }: PullRequestReviewSidebarProps) {
   const [reviewBody, setReviewBody] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [reviewVariant, setReviewVariant] = useState<PullRequestReviewPromptVariant>("review");
+  const [reviewVariant, setReviewVariant] = useLocalStorage(
+    REVIEW_VARIANT_STORAGE_KEY,
+    "review" as PullRequestReviewPromptVariant,
+    reviewVariantSchema,
+  );
   const activeReviewVariant =
     REVIEW_VARIANTS.find((v) => v.value === reviewVariant) ?? REVIEW_VARIANTS[0]!;
   const ReviewVariantIcon = activeReviewVariant.Icon;
