@@ -30,7 +30,7 @@ interface PullRequestWorkspaceProps {
   openFilePath: string | null;
   onFilePathChange: (filePath: string | null) => void;
   onOpenExternal?: ((url: string) => void) | undefined;
-  onReviewWithAgent?: (() => void) | undefined;
+  onReviewWithAgent?: ((variant?: PullRequestReviewPromptVariant) => void) | undefined;
   onCopyReviewPrompt?: ((variant: PullRequestReviewPromptVariant) => void) | undefined;
   isAgentReviewPending?: boolean | undefined;
   onCheckout?: ((mode: "local" | "worktree") => void) | undefined;

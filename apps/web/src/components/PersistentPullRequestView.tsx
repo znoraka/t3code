@@ -179,69 +179,73 @@ function PersistentPullRequestViewInner() {
   // Agent review
   const [isReviewPending, setIsReviewPending] = useState(false);
 
-  const handleReview = useCallback(async () => {
-    if (!activeProject || selectedPrNumber === null) return;
-    setIsReviewPending(true);
-    try {
-      const prompt = buildPullRequestReviewPrompt({
-        prNumber: selectedPrNumber,
-        title: selectedPullRequest?.title ?? null,
-        headRefName: selectedPullRequest?.headRefName ?? null,
-        authorLogin: selectedPullRequest?.author ?? null,
-        url: selectedPullRequest?.url ?? null,
-      });
-      const api = ensureEnvironmentApi(activeProject.environmentId);
-      const threadId = newThreadId();
-      const commandId = newCommandId();
-      const messageId = newMessageId();
-      const createdAt = new Date().toISOString();
-      const modelSelection = resolveReviewModelSelection(activeProject);
-      await api.orchestration.dispatchCommand({
-        type: "thread.turn.start",
-        commandId,
-        threadId,
-        message: {
-          messageId,
-          role: "user",
-          text: prompt,
-          attachments: [],
-        },
-        runtimeMode: DEFAULT_RUNTIME_MODE,
-        interactionMode: DEFAULT_INTERACTION_MODE,
-        createdAt,
-        bootstrap: {
-          createThread: {
-            projectId: activeProject.id,
-            title: selectedPullRequest?.title
-              ? `PR #${selectedPrNumber} · ${selectedPullRequest.title}`
-              : `PR #${selectedPrNumber}`,
-            modelSelection,
-            runtimeMode: DEFAULT_RUNTIME_MODE,
-            interactionMode: DEFAULT_INTERACTION_MODE,
-            branch: null,
-            worktreePath: null,
-            createdAt,
+  const handleReview = useCallback(
+    async (variant?: PullRequestReviewPromptVariant) => {
+      if (!activeProject || selectedPrNumber === null) return;
+      setIsReviewPending(true);
+      try {
+        const prompt = buildPullRequestReviewPrompt({
+          prNumber: selectedPrNumber,
+          title: selectedPullRequest?.title ?? null,
+          headRefName: selectedPullRequest?.headRefName ?? null,
+          authorLogin: selectedPullRequest?.author ?? null,
+          url: selectedPullRequest?.url ?? null,
+          ...(variant ? { variant } : {}),
+        });
+        const api = ensureEnvironmentApi(activeProject.environmentId);
+        const threadId = newThreadId();
+        const commandId = newCommandId();
+        const messageId = newMessageId();
+        const createdAt = new Date().toISOString();
+        const modelSelection = resolveReviewModelSelection(activeProject);
+        await api.orchestration.dispatchCommand({
+          type: "thread.turn.start",
+          commandId,
+          threadId,
+          message: {
+            messageId,
+            role: "user",
+            text: prompt,
+            attachments: [],
           },
-        },
-      });
-      toastManager.add({
-        type: "success",
-        title: "PR review started",
-        description: selectedPullRequest?.title
-          ? `Reviewing PR #${selectedPrNumber} · ${selectedPullRequest.title}`
-          : `Reviewing PR #${selectedPrNumber}`,
-      });
-      handleViewChange("threads");
-    } catch (err: unknown) {
-      toastManager.add({
-        type: "error",
-        title: "Failed to start PR review.",
-        description: err instanceof Error ? err.message : "An error occurred.",
-      });
-    } finally {
-      setIsReviewPending(false);
-    }
-  }, [activeProject, selectedPrNumber, selectedPullRequest, handleViewChange]);
+          runtimeMode: DEFAULT_RUNTIME_MODE,
+          interactionMode: DEFAULT_INTERACTION_MODE,
+          createdAt,
+          bootstrap: {
+            createThread: {
+              projectId: activeProject.id,
+              title: selectedPullRequest?.title
+                ? `PR #${selectedPrNumber} · ${selectedPullRequest.title}`
+                : `PR #${selectedPrNumber}`,
+              modelSelection,
+              runtimeMode: DEFAULT_RUNTIME_MODE,
+              interactionMode: DEFAULT_INTERACTION_MODE,
+              branch: null,
+              worktreePath: null,
+              createdAt,
+            },
+          },
+        });
+        toastManager.add({
+          type: "success",
+          title: "PR review started",
+          description: selectedPullRequest?.title
+            ? `Reviewing PR #${selectedPrNumber} · ${selectedPullRequest.title}`
+            : `Reviewing PR #${selectedPrNumber}`,
+        });
+        handleViewChange("threads");
+      } catch (err: unknown) {
+        toastManager.add({
+          type: "error",
+          title: "Failed to start PR review.",
+          description: err instanceof Error ? err.message : "An error occurred.",
+        });
+      } finally {
+        setIsReviewPending(false);
+      }
+    },
+    [activeProject, selectedPrNumber, selectedPullRequest, handleViewChange],
+  );
 
   const handleCopyReviewPrompt = useCallback(
     async (variant: PullRequestReviewPromptVariant) => {

@@ -24,7 +24,7 @@ import { useEnvironmentQuery } from "~/state/query";
 import { cn } from "~/lib/utils";
 import type { PullRequestReviewPromptVariant } from "./PullRequestReviewView";
 import { Button } from "./ui/button";
-import { Menu, MenuItem, MenuPopup, MenuTrigger } from "./ui/menu";
+import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "./ui/menu";
 import { Spinner } from "./ui/spinner";
 import { toastManager } from "./ui/toast";
 
@@ -32,12 +32,27 @@ interface PullRequestReviewSidebarProps {
   environmentId: EnvironmentId | null;
   cwd: string | null;
   prNumber: number;
-  onReviewWithAgent?: (() => void) | undefined;
+  onReviewWithAgent?: ((variant?: PullRequestReviewPromptVariant) => void) | undefined;
   onCopyReviewPrompt?: ((variant: PullRequestReviewPromptVariant) => void) | undefined;
   isAgentReviewPending?: boolean | undefined;
   onCheckout?: ((mode: "local" | "worktree") => void) | undefined;
   isCheckoutPending?: "local" | "worktree" | null | undefined;
 }
+
+const REVIEW_VARIANTS: {
+  value: PullRequestReviewPromptVariant;
+  faceLabel: string;
+  menuLabel: string;
+  Icon: typeof BotIcon;
+}[] = [
+  { value: "review", faceLabel: "Review", menuLabel: "Review", Icon: BotIcon },
+  {
+    value: "review-with-tests",
+    faceLabel: "Review + /lem-test-pr",
+    menuLabel: "Review with /lem-test-pr",
+    Icon: FlaskConicalIcon,
+  },
+];
 
 function mergeableColor(value: string): string {
   if (value === "MERGEABLE") return "text-green-500";
@@ -76,6 +91,10 @@ export function PullRequestReviewSidebar({
 }: PullRequestReviewSidebarProps) {
   const [reviewBody, setReviewBody] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [reviewVariant, setReviewVariant] = useState<PullRequestReviewPromptVariant>("review");
+  const activeReviewVariant =
+    REVIEW_VARIANTS.find((v) => v.value === reviewVariant) ?? REVIEW_VARIANTS[0]!;
+  const ReviewVariantIcon = activeReviewVariant.Icon;
 
   const detailQuery = useEnvironmentQuery(
     environmentId !== null && cwd !== null
@@ -248,41 +267,59 @@ export function PullRequestReviewSidebar({
               variant="outline"
               size="sm"
               className="min-w-0 flex-1 justify-start"
-              onClick={onReviewWithAgent}
+              onClick={() => onReviewWithAgent?.(reviewVariant)}
               disabled={isAgentReviewPending || !onReviewWithAgent}
             >
               {isAgentReviewPending ? (
                 <Spinner className="size-3.5" />
               ) : (
-                <BotIcon className="size-3.5" aria-hidden="true" />
+                <ReviewVariantIcon className="size-3.5" aria-hidden="true" />
               )}
-              Review with agent
+              {activeReviewVariant.faceLabel}
             </Button>
             <Menu>
               <MenuTrigger
                 render={
                   <Button
-                    aria-label="Copy review prompt options"
+                    aria-label="Choose review variant"
                     variant="outline"
                     size="sm"
                     className="shrink-0 px-1.5"
                   />
                 }
-                disabled={!onCopyReviewPrompt}
+                disabled={!onReviewWithAgent}
               >
                 <ChevronDownIcon className="size-3.5" aria-hidden="true" />
               </MenuTrigger>
               <MenuPopup align="end">
-                <MenuItem onClick={() => onCopyReviewPrompt?.("review")}>
-                  <ClipboardCopyIcon className="size-3.5" aria-hidden="true" />
-                  Copy review prompt
-                </MenuItem>
-                <MenuItem onClick={() => onCopyReviewPrompt?.("review-with-tests")}>
-                  <FlaskConicalIcon className="size-3.5" aria-hidden="true" />
-                  Copy prompt with /lem-test-pr
-                </MenuItem>
+                <MenuRadioGroup
+                  value={reviewVariant}
+                  onValueChange={(value) =>
+                    setReviewVariant(value as PullRequestReviewPromptVariant)
+                  }
+                >
+                  {REVIEW_VARIANTS.map(({ value, menuLabel, Icon }) => (
+                    <MenuRadioItem key={value} value={value}>
+                      <span className="flex items-center gap-2">
+                        <Icon className="size-3.5" aria-hidden="true" />
+                        {menuLabel}
+                      </span>
+                    </MenuRadioItem>
+                  ))}
+                </MenuRadioGroup>
               </MenuPopup>
             </Menu>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-label={`Copy ${activeReviewVariant.menuLabel} prompt`}
+              className="shrink-0 px-2"
+              onClick={() => onCopyReviewPrompt?.(reviewVariant)}
+              disabled={!onCopyReviewPrompt}
+            >
+              <ClipboardCopyIcon className="size-3.5" aria-hidden="true" />
+            </Button>
           </div>
           <Button
             type="button"

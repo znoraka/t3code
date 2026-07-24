@@ -14,6 +14,7 @@ import { buildThreadRouteParams } from "../threadRoutes";
 import type { SidebarThreadSummary } from "../types";
 import { cn } from "../lib/utils";
 import { usePrViewStore } from "../prViewStore";
+import type { PullRequestReviewPromptVariant } from "./PullRequestReviewView";
 import { Button } from "./ui/button";
 
 function relativeTime(value: string | null | undefined): string {
@@ -87,7 +88,7 @@ const ThreadRow = memo(function ThreadRow({
 interface PullRequestThreadsPaneProps {
   environmentId: EnvironmentId | null;
   prNumber: number;
-  onReviewWithAgent?: (() => void) | undefined;
+  onReviewWithAgent?: ((variant?: PullRequestReviewPromptVariant) => void) | undefined;
   isAgentReviewPending?: boolean | undefined;
 }
 
@@ -154,7 +155,7 @@ export function PullRequestThreadsPane({
           <Button
             variant="outline"
             size="sm"
-            onClick={onReviewWithAgent}
+            onClick={() => onReviewWithAgent()}
             disabled={isAgentReviewPending}
           >
             <PlusIcon className="mr-1.5 size-3" />
@@ -176,7 +177,7 @@ export function PullRequestThreadsPane({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={onReviewWithAgent}
+                onClick={() => onReviewWithAgent()}
                 disabled={isAgentReviewPending}
               >
                 {isAgentReviewPending ? "Starting..." : "Review with agent"}
