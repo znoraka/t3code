@@ -186,14 +186,14 @@ export default defineConfig(() => {
       port,
       strictPort: true,
       allowedHosts,
-      proxy: {
-        // One entry per shared prefix; the server's dev catch-all 404s the
-        // same list, so the two sides cannot drift. `/ws` is the app's own
-        // socket — Vite's HMR socket is matched separately and exactly
-        // (path "/" plus a vite-hmr subprotocol), so the two upgrade
-        // handlers don't collide.
-        ...(devProxyTarget
-          ? Object.fromEntries(
+      ...(devProxyTarget
+        ? {
+            // One entry per shared prefix; the server's dev catch-all 404s the
+            // same list, so the two sides cannot drift. `/ws` is the app's own
+            // socket — Vite's HMR socket is matched separately and exactly
+            // (path "/" plus a vite-hmr subprotocol), so the two upgrade
+            // handlers don't collide.
+            proxy: Object.fromEntries(
               DEV_PROXIED_PATH_PREFIXES.map((prefix) => [
                 prefix,
                 {
@@ -202,13 +202,9 @@ export default defineConfig(() => {
                   ...(prefix === "/ws" ? { ws: true } : {}),
                 },
               ]),
-            )
-          : {}),
-        "/.well-known/vercel": {
-          target: "https://t3.chat",
-          changeOrigin: true,
-        },
-      },
+            ),
+          }
+        : {}),
       // Electron's BrowserWindow needs the HMR socket pinned to an explicit
       // host to connect reliably; dev:desktop is the only mode that sets HOST.
       // Everywhere else, leaving this unset lets the client derive it from the
