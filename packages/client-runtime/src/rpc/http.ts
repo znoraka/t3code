@@ -1,14 +1,16 @@
 import {
   EnvironmentHttpApi,
   EnvironmentHttpCommonError,
+  EnvironmentResourceNotFoundError,
   type EnvironmentAuthInvalidError,
   type EnvironmentInternalError,
   type EnvironmentOperationForbiddenError,
   type EnvironmentRequestInvalidError,
-  type EnvironmentResourceNotFoundError,
   type EnvironmentScopeRequiredError,
 } from "@t3tools/contracts";
 import { httpHeaderRedactionLayer } from "@t3tools/shared/httpObservability";
+
+import type { EnvironmentHttpAuthHeaders } from "../state/environmentHttpAuth.ts";
 import * as Data from "effect/Data";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -138,6 +140,83 @@ const failRemoteRequest = (
     }),
   );
 };
+
+/**
+ * Fetches a JSON document and decodes it from the response **text**.
+ *
+ * `HttpApiClient` reads bodies via `response.arrayBuffer` and then `TextDecoder`.
+ * On React Native that is pathological: `FileReader.readAsArrayBuffer`
+ * (Libraries/Blob/FileReader.js) is implemented as `readAsDataURL`, so the body
+ * crosses the bridge base64-encoded, gets `split(',')` into another copy, and is
+ * then base64-decoded in JavaScript — before `TextDecoder` turns it back into a
+ * string. For a multi-megabyte snapshot that allocated enough to spend ~18
+ * seconds in garbage collection with the JS thread pinned, while the equivalent
+ * decode from the local cache took ~320ms.
+ *
+ * Reading `.text` instead goes through `FileReader.readAsText`, which decodes
+ * natively and hands back a string directly.
+ *
+ * Only worth using for large payloads; small requests are fine through the typed
+ * client and keep its declared error handling.
+ */
+export const fetchEnvironmentJsonDocument = <A>(options: {
+  readonly requestUrl: string;
+  readonly decode: (body: string) => Effect.Effect<A, unknown>;
+  readonly headers: EnvironmentHttpAuthHeaders;
+}): Effect.Effect<A, RemoteEnvironmentRequestError, HttpClient.HttpClient> =>
+  HttpClient.get(options.requestUrl, { headers: { ...options.headers } }).pipe(
+    Effect.flatMap((response) => {
+      // Preserved so callers can keep treating a missing resource as "defer to
+      // the socket" rather than an error worth surfacing.
+      const failure: Effect.Effect<string, RemoteEnvironmentRequestError> =
+        response.status === 404
+          ? Effect.fail(
+              new EnvironmentResourceNotFoundError({
+                code: "not_found",
+                reason: "thread_not_found",
+                traceId: "client-http",
+              }),
+            )
+          : Effect.fail(
+              new RemoteEnvironmentAuthUndeclaredStatusError(options.requestUrl, response.status),
+            );
+      return response.status >= 200 && response.status < 300
+        ? response.text.pipe(
+            Effect.mapError(
+              (cause) =>
+                new RemoteEnvironmentAuthFetchError({
+                  message: `Remote environment endpoint ${options.requestUrl} returned an unreadable body.`,
+                  cause,
+                }),
+            ),
+          )
+        : failure;
+    }),
+    Effect.flatMap((body) =>
+      // Hoisted by the caller: compiling the codec per request would rebuild the
+      // decoder on every load.
+      options.decode(body).pipe(
+        Effect.mapError(
+          (cause) =>
+            new RemoteEnvironmentAuthInvalidJsonError({
+              message: `Remote environment endpoint returned an invalid response from ${options.requestUrl}.`,
+              cause,
+            }),
+        ),
+      ),
+    ),
+    Effect.catch(
+      (cause): Effect.Effect<never, RemoteEnvironmentRequestError> =>
+        cause instanceof HttpClientError.HttpClientError
+          ? Effect.fail(
+              new RemoteEnvironmentAuthFetchError({
+                message: `Remote environment endpoint ${options.requestUrl} could not be reached.`,
+                cause,
+              }),
+            )
+          : Effect.fail(cause),
+    ),
+  );
 
 export const executeEnvironmentHttpRequest = <A, E, R>(
   requestUrl: string,

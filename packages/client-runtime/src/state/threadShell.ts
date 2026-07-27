@@ -24,6 +24,7 @@ import {
 const EMPTY_THREADS: ReadonlyArray<OrchestrationThreadShell> = Object.freeze([]);
 const EMPTY_SCOPED_THREAD_REFS: ReadonlyArray<ScopedThreadRef> = Object.freeze([]);
 const EMPTY_THREAD_INDEX: ReadonlyMap<ThreadId, OrchestrationThreadShell> = new Map();
+const EMPTY_SCOPED_THREAD_INDEX: ReadonlyMap<ThreadId, EnvironmentThreadShell> = new Map();
 const EMPTY_THREAD_REFS_BY_PROJECT: ReadonlyMap<
   ProjectId,
   ReadonlyArray<ScopedThreadRef>
@@ -100,19 +101,50 @@ export function createEnvironmentThreadShellAtoms(input: {
     }).pipe(Atom.withLabel(`environment-thread-refs-by-project:${environmentId}`));
   });
 
-  const threadShellAtomFamily = Atom.family((key: string) => {
-    const ref = parseThreadKey(key);
-    let previousSource: OrchestrationThreadShell | null = null;
-    let previousValue: EnvironmentThreadShell | null = null;
-    return Atom.make((get) => {
-      const source = get(environmentThreadIndexAtom(ref.environmentId)).get(ref.threadId) ?? null;
+  // One scoped-shell index per environment, rather than one atom per thread.
+  //
+  // The aggregate atoms below used to build themselves by reading a per-thread
+  // atom for every ref, which mounted a registry node for every thread in the
+  // entire history and kept them all resident (nothing could idle out, because
+  // the list depended on all of them). On mobile that reached ~1,770 live nodes
+  // and dominated a 224 MB heap, and the resulting collector pressure — not the
+  // work itself — is what froze the UI.
+  //
+  // Scoped objects are still reused when their underlying shell is unchanged, so
+  // list identity and per-row render avoidance survive the change.
+  const environmentScopedThreadIndexAtom = Atom.family((environmentId: EnvironmentId) => {
+    let previousSource: ReadonlyMap<ThreadId, OrchestrationThreadShell> = EMPTY_THREAD_INDEX;
+    let previousValue: ReadonlyMap<ThreadId, EnvironmentThreadShell> = EMPTY_SCOPED_THREAD_INDEX;
+    return Atom.make((get): ReadonlyMap<ThreadId, EnvironmentThreadShell> => {
+      const source = get(environmentThreadIndexAtom(environmentId));
       if (source === previousSource) {
         return previousValue;
       }
+      if (source.size === 0) {
+        previousSource = source;
+        previousValue = EMPTY_SCOPED_THREAD_INDEX;
+        return previousValue;
+      }
+      const next = new Map<ThreadId, EnvironmentThreadShell>();
+      for (const [threadId, thread] of source) {
+        const unchanged = previousSource.get(threadId) === thread;
+        const existing = unchanged ? previousValue.get(threadId) : undefined;
+        next.set(threadId, existing ?? scopeThreadShell(environmentId, thread));
+      }
       previousSource = source;
-      previousValue = source === null ? null : scopeThreadShell(ref.environmentId, source);
-      return previousValue;
-    }).pipe(Atom.withLabel(`environment-thread-shell:${key}`));
+      previousValue = next;
+      return next;
+    }).pipe(Atom.withLabel(`environment-scoped-thread-index:${environmentId}`));
+  });
+
+  // Retained only for callers that subscribe to a single thread. Aggregates must
+  // not use it, or they reintroduce the per-thread node explosion.
+  const threadShellAtomFamily = Atom.family((key: string) => {
+    const ref = parseThreadKey(key);
+    return Atom.make(
+      (get): EnvironmentThreadShell | null =>
+        get(environmentScopedThreadIndexAtom(ref.environmentId)).get(ref.threadId) ?? null,
+    ).pipe(Atom.withLabel(`environment-thread-shell:${key}`));
   });
 
   const threadShellsForProjectRefsAtomFamily = Atom.family((key: string) => {
@@ -126,14 +158,15 @@ export function createEnvironmentThreadShellAtoms(input: {
           get(environmentThreadRefsByProjectAtom(projectRef.environmentId)).get(
             projectRef.projectId,
           ) ?? EMPTY_SCOPED_THREAD_REFS;
+        const scoped = get(environmentScopedThreadIndexAtom(projectRef.environmentId));
         for (const ref of refs) {
           const key = threadKey(ref);
           if (seen.has(key)) {
             continue;
           }
           seen.add(key);
-          const thread = get(threadShellAtomFamily(key));
-          if (thread !== null) {
+          const thread = scoped.get(ref.threadId);
+          if (thread !== undefined) {
             next.push(thread);
           }
         }
@@ -161,10 +194,13 @@ export function createEnvironmentThreadShellAtoms(input: {
 
   let previousThreadShells: ReadonlyArray<EnvironmentThreadShell> = [];
   const threadShellsAtom = Atom.make((get) => {
-    const next = get(threadRefsAtom).flatMap((ref) => {
-      const thread = get(threadShellAtomFamily(threadKey(ref)));
-      return thread === null ? [] : [thread];
-    });
+    const next: EnvironmentThreadShell[] = [];
+    for (const ref of get(threadRefsAtom)) {
+      const thread = get(environmentScopedThreadIndexAtom(ref.environmentId)).get(ref.threadId);
+      if (thread !== undefined) {
+        next.push(thread);
+      }
+    }
     if (arrayElementsEqual(previousThreadShells, next)) {
       return previousThreadShells;
     }

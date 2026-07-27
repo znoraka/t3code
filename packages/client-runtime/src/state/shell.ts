@@ -23,6 +23,7 @@ import { EnvironmentCacheStore } from "../platform/persistence.ts";
 import { subscribeDynamic } from "../rpc/client.ts";
 import { ShellSnapshotLoader } from "./shellSnapshotHttp.ts";
 import { applyShellStreamEvent } from "./shellReducer.ts";
+import { makeCooperativeYield } from "./cooperativeYield.ts";
 import type { EnvironmentCatalogState } from "./connections.ts";
 import { followStreamInEnvironment } from "./runtime.ts";
 
@@ -48,6 +49,19 @@ function shellStatusForSnapshot(
 
 const SHELL_SYNCHRONIZATION_ERROR_MESSAGE = "Could not synchronize environment data.";
 
+// The shell cache exists to warm the UI on the next launch; nothing reads it
+// while the app is running. Persisting on every change therefore bought nothing
+// and cost a great deal: encoding the whole thread list allocates a
+// multi-megabyte string, and on mobile that allocation rate drove the garbage
+// collector to consume ~74% of the JS thread, which is what made buttons hang
+// on a slow connection (a burst of small events each triggered a full rewrite).
+//
+// So: collapse bursts, cap how often a busy list can write at all, and rely on
+// the finalizer below to flush the latest state when the environment closes.
+const SHELL_PERSIST_SETTLE = "5 seconds";
+const SHELL_PERSIST_MIN_INTERVAL = "60 seconds";
+const SHELL_PERSIST_FLUSH_TIMEOUT = "2 seconds";
+
 export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")(function* () {
   const supervisor = yield* EnvironmentSupervisor;
   const cache = yield* EnvironmentCacheStore;
@@ -71,7 +85,18 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
     error: Option.none(),
   });
   const awaitingCompletion = yield* Ref.make(false);
+  // Distinguishes "we have a snapshot the server can resume from" (synced in
+  // this process) from "we restored a possibly-stale one from disk".
+  const synchronizedThisSession = yield* Ref.make(false);
+  // Returning to the foreground is not the same as a transport reconnect: the
+  // socket was likely dead for an unbounded stretch, so resume-by-sequence may
+  // not cover the gap and the authoritative snapshot must be refetched.
+  const forceAuthoritativeRefresh = yield* Ref.make(false);
   const persistence = yield* Queue.sliding<OrchestrationShellSnapshot>(1);
+
+  // Tracks what actually reached the cache so the finalizer can skip a write
+  // when the throttled stream already persisted the current state.
+  const persistedSequence = yield* Ref.make<number | null>(null);
 
   const persist = Effect.fn("EnvironmentShellState.persist")(function* (
     snapshot: OrchestrationShellSnapshot,
@@ -86,12 +111,39 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
         ),
       ),
     );
+    yield* Ref.set(persistedSequence, snapshot.snapshotSequence);
   });
 
   yield* Stream.fromQueue(persistence).pipe(
-    Stream.debounce("500 millis"),
+    Stream.debounce(SHELL_PERSIST_SETTLE),
+    // "enforce" drops writes that arrive inside the window rather than queueing
+    // them. Dropping is correct here: the queue is sliding(1), so the next write
+    // carries the newest state anyway, and the finalizer flushes whatever the
+    // throttle discarded.
+    Stream.throttle({
+      cost: () => 1,
+      units: 1,
+      duration: SHELL_PERSIST_MIN_INTERVAL,
+      strategy: "enforce",
+    }),
     Stream.runForEach(persist),
     Effect.forkScoped,
+  );
+
+  yield* Effect.addFinalizer(() =>
+    Effect.all([SubscriptionRef.get(state), Ref.get(persistedSequence)]).pipe(
+      Effect.flatMap(([current, persisted]) =>
+        Option.match(current.snapshot, {
+          onNone: () => Effect.void,
+          onSome: (snapshot) =>
+            persisted === snapshot.snapshotSequence ? Effect.void : persist(snapshot),
+        }),
+      ),
+      // A wedged cache write must not hold the environment open. Losing the
+      // final flush only costs a cold list on next launch.
+      Effect.timeoutOption(SHELL_PERSIST_FLUSH_TIMEOUT),
+      Effect.asVoid,
+    ),
   );
 
   const setDisconnected = Ref.set(awaitingCompletion, false).pipe(
@@ -132,11 +184,15 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
       ),
     );
 
+  // Gives the host a window to dispatch touches during a long sync burst.
+  const cooperativeYield = makeCooperativeYield();
+
   const applyItem = Effect.fn("EnvironmentShellState.applyItem")(function* (
     item: OrchestrationShellStreamItem,
   ) {
     if (item.kind === "synchronized") {
       yield* Ref.set(awaitingCompletion, false);
+      yield* Ref.set(synchronizedThisSession, true);
       yield* SubscriptionRef.update(state, (current) =>
         Option.isSome(current.snapshot)
           ? { ...current, status: "live" as const, error: Option.none() }
@@ -172,7 +228,10 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
   const foregroundResubscriptions = Option.match(wakeups, {
     onNone: () => Stream.never,
     onSome: (service) =>
-      service.changes.pipe(Stream.filter((reason) => reason === "application-active")),
+      service.changes.pipe(
+        Stream.filter((reason) => reason === "application-active"),
+        Stream.tap(() => Ref.set(forceAuthoritativeRefresh, true)),
+      ),
   });
 
   yield* setSynchronizing;
@@ -186,6 +245,29 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
         );
         yield* Ref.set(awaitingCompletion, supportsCompletionMarker);
         yield* setSynchronizing;
+
+        // Once this process has synchronized, the in-memory snapshot is known
+        // good and the server can resume from its sequence — so a reconnect
+        // must not re-download the whole thread list. It used to, on every
+        // reconnect: several megabytes fetched, decoded and re-applied, which
+        // allocated hard enough to hand the JS thread to the garbage collector
+        // for tens of seconds. That is the freeze on an unstable connection.
+        //
+        // A snapshot restored from disk does NOT qualify: it can be arbitrarily
+        // stale, possibly beyond what the server can resume from, so a cold
+        // start still fetches the authoritative snapshot.
+        const current = yield* SubscriptionRef.get(state);
+        const forced = yield* Ref.getAndSet(forceAuthoritativeRefresh, false);
+        const resumable =
+          !forced && (yield* Ref.get(synchronizedThisSession))
+            ? Option.getOrUndefined(current.snapshot)
+            : undefined;
+        if (resumable !== undefined) {
+          return {
+            afterSequence: resumable.snapshotSequence,
+            ...(supportsCompletionMarker ? { requestCompletionMarker: true as const } : {}),
+          };
+        }
 
         const prepared = yield* SubscriptionRef.get(supervisor.prepared).pipe(
           Effect.flatMap(
@@ -204,6 +286,7 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
         const httpSnapshot = yield* snapshotLoader.load(prepared);
         if (Option.isSome(httpSnapshot)) {
           yield* applyItem({ kind: "snapshot", snapshot: httpSnapshot.value });
+          yield* Ref.set(synchronizedThisSession, true);
           return {
             afterSequence: httpSnapshot.value.snapshotSequence,
             ...(supportsCompletionMarker ? { requestCompletionMarker: true as const } : {}),
@@ -217,7 +300,7 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
         retryExpectedFailureAfter: "250 millis",
         resubscribe: foregroundResubscriptions,
       },
-    ).pipe(Stream.runForEach(applyItem)),
+    ).pipe(Stream.runForEach((item) => applyItem(item).pipe(Effect.andThen(cooperativeYield)))),
   );
   yield* SubscriptionRef.changes(supervisor.state).pipe(
     Stream.runForEach((connectionState) => {

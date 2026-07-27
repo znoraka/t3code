@@ -24,6 +24,7 @@ import { subscribeDynamic } from "../rpc/client.ts";
 import { ThreadSnapshotLoader } from "./threadSnapshotHttp.ts";
 import { parseThreadKey, threadKey } from "./entities.ts";
 import { applyThreadDetailEvent } from "./threadReducer.ts";
+import { makeCooperativeYield } from "./cooperativeYield.ts";
 import { THREAD_STATE_IDLE_TTL_MS } from "./threadRetention.ts";
 import { followStreamInEnvironment } from "./runtime.ts";
 import {
@@ -179,6 +180,9 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
     );
   });
 
+  // Gives the host a window to dispatch touches during a long resume burst.
+  const cooperativeYield = makeCooperativeYield();
+
   const applyItem = Effect.fn("EnvironmentThreadState.applyItem")(function* (
     item: OrchestrationThreadStreamItem,
   ) {
@@ -295,7 +299,7 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
         retryExpectedFailureAfter: "250 millis",
         resubscribe: foregroundResubscriptions,
       },
-    ).pipe(Stream.runForEach(applyItem)),
+    ).pipe(Stream.runForEach((item) => applyItem(item).pipe(Effect.andThen(cooperativeYield)))),
   );
 
   yield* Effect.addFinalizer(() =>

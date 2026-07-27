@@ -1,20 +1,25 @@
-import type { OrchestrationShellSnapshot } from "@t3tools/contracts";
+import { OrchestrationShellSnapshot } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import { HttpClient } from "effect/unstable/http";
 
 import type { PreparedConnection } from "../connection/model.ts";
 import { environmentEndpointUrl } from "../environment/endpoint.ts";
 import { ManagedRelayDpopSigner } from "../relay/managedRelay.ts";
-import { executeEnvironmentHttpRequest, makeEnvironmentHttpApiClient } from "../rpc/http.ts";
+import { executeEnvironmentHttpRequest, fetchEnvironmentJsonDocument } from "../rpc/http.ts";
 import { buildEnvironmentAuthHeaders, withEnvironmentCredentials } from "./environmentHttpAuth.ts";
 
 // Bounded so a pathologically slow endpoint cannot block the (cheaper) socket
 // fallback for long. The cached shell renders while this runs.
 const DEFAULT_SHELL_SNAPSHOT_TIMEOUT_MS = 6_000;
+
+const decodeShellSnapshot = Schema.decodeUnknownEffect(
+  Schema.fromJsonString(OrchestrationShellSnapshot),
+);
 
 /**
  * Load the environment shell snapshot (projects + thread shells) over HTTP
@@ -30,7 +35,6 @@ export const fetchEnvironmentShellSnapshot = Effect.fn(
   readonly timeoutMs?: number;
 }) {
   const requestUrl = environmentEndpointUrl(input.prepared.httpBaseUrl, "/api/orchestration/shell");
-  const client = yield* makeEnvironmentHttpApiClient(input.prepared.httpBaseUrl);
   const headers = yield* buildEnvironmentAuthHeaders(
     input.prepared.httpAuthorization,
     "GET",
@@ -42,7 +46,11 @@ export const fetchEnvironmentShellSnapshot = Effect.fn(
     input.timeoutMs ?? DEFAULT_SHELL_SNAPSHOT_TIMEOUT_MS,
     withEnvironmentCredentials(
       input.prepared.httpAuthorization,
-      client.orchestration.shellSnapshot({ headers }),
+      fetchEnvironmentJsonDocument({
+        requestUrl,
+        decode: decodeShellSnapshot,
+        headers,
+      }),
     ),
   );
 });

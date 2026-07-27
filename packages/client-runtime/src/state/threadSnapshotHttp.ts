@@ -1,9 +1,10 @@
-import type { OrchestrationThreadDetailSnapshot, ThreadId } from "@t3tools/contracts";
+import { OrchestrationThreadDetailSnapshot, type ThreadId } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import { HttpClient } from "effect/unstable/http";
 
 import type { PreparedConnection } from "../connection/model.ts";
@@ -11,7 +12,7 @@ import { environmentEndpointUrl } from "../environment/endpoint.ts";
 import { ManagedRelayDpopSigner } from "../relay/managedRelay.ts";
 import {
   executeEnvironmentHttpRequest,
-  makeEnvironmentHttpApiClient,
+  fetchEnvironmentJsonDocument,
   type RemoteEnvironmentRequestError,
 } from "../rpc/http.ts";
 import { buildEnvironmentAuthHeaders, withEnvironmentCredentials } from "./environmentHttpAuth.ts";
@@ -20,6 +21,10 @@ import { buildEnvironmentAuthHeaders, withEnvironmentCredentials } from "./envir
 // fallback for long. The cached thread renders while this runs, so the wait only
 // delays the transition to live data on the first open, not the initial paint.
 const DEFAULT_THREAD_SNAPSHOT_TIMEOUT_MS = 6_000;
+
+const decodeThreadSnapshot = Schema.decodeUnknownEffect(
+  Schema.fromJsonString(OrchestrationThreadDetailSnapshot),
+);
 
 /**
  * Load a thread's detail snapshot over HTTP instead of embedding it in the
@@ -38,7 +43,6 @@ export const fetchEnvironmentThreadSnapshot = Effect.fn(
     input.prepared.httpBaseUrl,
     `/api/orchestration/threads/${input.threadId}`,
   );
-  const client = yield* makeEnvironmentHttpApiClient(input.prepared.httpBaseUrl);
   const headers = yield* buildEnvironmentAuthHeaders(
     input.prepared.httpAuthorization,
     "GET",
@@ -50,8 +54,9 @@ export const fetchEnvironmentThreadSnapshot = Effect.fn(
     input.timeoutMs ?? DEFAULT_THREAD_SNAPSHOT_TIMEOUT_MS,
     withEnvironmentCredentials(
       input.prepared.httpAuthorization,
-      client.orchestration.threadSnapshot({
-        params: { threadId: input.threadId },
+      fetchEnvironmentJsonDocument({
+        requestUrl,
+        decode: decodeThreadSnapshot,
         headers,
       }),
     ),
