@@ -48,7 +48,7 @@ import {
 } from "../home/homeListItems";
 import { buildHomeProjectScopes, buildHomeThreadGroups } from "../home/homeThreadList";
 // [FORK] lempire: per-machine accent colors in the thread list
-import { useGroupAccentColors } from "../../_lempire/projectAccent";
+import { useEnvironmentAccents, useGroupAccentColors } from "../../_lempire/projectAccent";
 // [FORK] end
 import { SwipeableScrollGateProvider, useSwipeableScrollGate } from "../home/thread-swipe-actions";
 import { usePendingTaskListActions } from "../home/usePendingTaskListActions";
@@ -321,6 +321,12 @@ function ThreadNavigationSidebarPane(
   );
   // [FORK] lempire: color each group by the machine(s) it lives on
   const accentByGroupKey = useGroupAccentColors(projects, groups);
+  // v2 lists threads flat, so its rows resolve their own color by machine.
+  // Assignment runs over the full project list, not the scoped/filtered one, so
+  // picking a project scope never reshuffles the colors of the rows that remain.
+  const accentByEnvironmentId = useEnvironmentAccents(
+    projects.map((project) => project.environmentId),
+  );
   // [FORK] end
   const [groupDisplayStates, setGroupDisplayStates] = useState<
     ReadonlyMap<string, HomeGroupDisplayState>
@@ -778,6 +784,8 @@ function ThreadNavigationSidebarPane(
               showSettledDivider={item.item.showSettledDivider}
               project={projectByKey.get(scopeKey) ?? null}
               projectTitle={projectTitleByProjectKey.get(scopeKey)}
+              /* [FORK] lempire: name tinted by machine */
+              accentColor={accentByEnvironmentId.get(thread.environmentId) ?? null}
               providerDriver={
                 serverConfigs
                   .get(thread.environmentId)
@@ -900,6 +908,7 @@ function ThreadNavigationSidebarPane(
       }
     },
     [
+      accentByEnvironmentId, // [FORK] lempire: machine accent colors (v2 rows)
       accentByGroupKey, // [FORK] lempire: machine accent colors
       archiveThread,
       confirmDeletePendingTask,

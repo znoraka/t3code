@@ -56,3 +56,27 @@ export function useGroupAccentColors(
     );
   }, [environmentIdsToken, groupsToken]);
 }
+
+/**
+ * Accent color per machine, keyed on environment id.
+ *
+ * Thread list v2 lists threads flat instead of nesting them under project group
+ * headers, so there is no group key to look up — a row resolves its color from
+ * `thread.environmentId`. Same assignment as `useGroupAccentColors` over the
+ * same set of machines, so a machine reads the same color in either list, and
+ * the same color as the web sidebar (which derives it identically).
+ *
+ * Memoized on the *set* of ids rather than array identity: callers derive the
+ * list inline on every render, and re-running assignment would hand every row a
+ * fresh color string and defeat the row memo.
+ */
+export function useEnvironmentAccents(
+  environmentIds: readonly string[],
+): ReadonlyMap<string, string> {
+  // Newline-joined so the key round-trips ids containing any URL-ish character.
+  const accentKey = [...new Set(environmentIds)].sort().join("\n");
+  return useMemo(
+    () => assignEnvironmentAccentColors(accentKey === "" ? [] : accentKey.split("\n")),
+    [accentKey],
+  );
+}

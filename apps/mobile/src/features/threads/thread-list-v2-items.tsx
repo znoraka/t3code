@@ -7,6 +7,9 @@ import { memo, useCallback, useEffect, useMemo, type ComponentProps } from "reac
 import { Platform, Pressable, useWindowDimensions, View } from "react-native";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 
+// [FORK] lempire: per-machine accent colors, shared with the web sidebar
+import { environmentAccentTextColor } from "@t3tools/shared/_lempire/environmentColor";
+// [FORK] end
 import { AppText as Text } from "../../components/AppText";
 import { ControlPillMenu } from "../../components/ControlPill";
 import { ProjectFavicon } from "../../components/ProjectFavicon";
@@ -91,6 +94,10 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   readonly showSettledDivider: boolean;
   readonly project: EnvironmentProject | null;
   readonly projectTitle?: string;
+  /** [FORK] lempire: color of the machine hosting the thread, tinting the
+      project name. Rows are flat here, so unlike the v1 group header there is
+      no header to wash — one wash per row would be ten washes on screen. */
+  readonly accentColor?: string | null;
   readonly providerDriver: string | null;
   /** Which machine hosts the thread. Null when only one environment is
       connected — repeating the same label on every row is noise. Mirrors
@@ -154,6 +161,16 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   const selectedBackgroundColor = useThemeColor("--color-user-bubble");
   const sidebarPane = props.pane === "sidebar";
   const selected = props.selected === true;
+
+  // [FORK] lempire: tint the project name by machine. Skipped while selected —
+  // the sidebar fills that row with the selection color, whose text must stay
+  // white-on-accent to keep contrast.
+  const foregroundColor = useThemeColor("--color-foreground");
+  const accentTextColor =
+    props.accentColor && !selected
+      ? environmentAccentTextColor(props.accentColor, String(foregroundColor))
+      : null;
+  // [FORK] end
 
   const status = resolveThreadListV2Status(thread);
   const statusLabel = STATUS_LABEL_BY_STATUS[status];
@@ -230,6 +247,8 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
             selected ? "text-user-bubble-foreground-muted" : "text-foreground-muted",
           )}
           numberOfLines={1}
+          /* [FORK] lempire: name tinted by machine */
+          style={accentTextColor ? { color: accentTextColor } : undefined}
         >
           {props.projectTitle ?? props.project?.title ?? ""}
         </Text>

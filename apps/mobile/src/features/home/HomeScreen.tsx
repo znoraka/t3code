@@ -60,7 +60,7 @@ import {
   type HomeProjectSortOrder,
 } from "./homeThreadList";
 // [FORK] lempire: per-machine accent colors in the thread list
-import { useGroupAccentColors } from "../../_lempire/projectAccent";
+import { useEnvironmentAccents, useGroupAccentColors } from "../../_lempire/projectAccent";
 // [FORK] end
 import { SwipeableScrollGateProvider, useSwipeableScrollGate } from "./thread-swipe-actions";
 import { WorkspaceConnectionStatus } from "./WorkspaceConnectionStatus";
@@ -338,6 +338,12 @@ export function HomeScreen(props: HomeScreenProps) {
 
   // [FORK] lempire: color each group by the machine(s) it lives on
   const accentByGroupKey = useGroupAccentColors(props.projects, projectGroups);
+  // v2 lists threads flat, so its rows resolve their own color by machine.
+  // Assignment runs over the full project list, not the scoped/filtered one, so
+  // picking a project scope never reshuffles the colors of the rows that remain.
+  const accentByEnvironmentId = useEnvironmentAccents(
+    props.projects.map((project) => project.environmentId),
+  );
   // [FORK] end
 
   const hasSearchQuery = props.searchQuery.trim().length > 0;
@@ -571,6 +577,8 @@ export function HomeScreen(props: HomeScreenProps) {
         projectTitle={v2ProjectTitleByProjectKey.get(
           scopedProjectKey(item.thread.environmentId, item.thread.projectId),
         )}
+        /* [FORK] lempire: name tinted by machine */
+        accentColor={accentByEnvironmentId.get(item.thread.environmentId) ?? null}
         providerDriver={
           serverConfigs
             .get(item.thread.environmentId)
@@ -601,6 +609,7 @@ export function HomeScreen(props: HomeScreenProps) {
       />
     ),
     [
+      accentByEnvironmentId,
       handleChangeRequestState,
       handleDeleteThread,
       handleSettleThread,
