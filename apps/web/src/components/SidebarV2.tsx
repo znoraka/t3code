@@ -46,7 +46,8 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
-import { useParams, useRouter } from "@tanstack/react-router";
+// [FORK] lempire: useLocation — pull-request mode is decided by the pathname
+import { useLocation, useParams, useRouter } from "@tanstack/react-router";
 
 import {
   isAtomCommandInterrupted,
@@ -127,6 +128,16 @@ import {
   snoozeWakeLabel,
   type SnoozePreset,
 } from "./Sidebar.snooze";
+// [FORK] lempire: per-machine accent colors in the sidebar
+import {
+  projectAccentColors,
+  projectAccentNameStyle,
+  useEnvironmentAccents,
+} from "../_lempire/projectAccent";
+// [FORK] end
+// [FORK] lempire: pull-request mode, shared with sidebar v1
+import { SidebarV2ModeToggle, SidebarV2PullRequestsPane } from "../_lempire/SidebarPullRequests";
+// [FORK] end
 import { ProjectFavicon } from "./ProjectFavicon";
 import { ProviderInstanceIcon } from "./chat/ProviderInstanceIcon";
 import { getTriggerDisplayModelLabel } from "./chat/providerIconUtils";
@@ -374,6 +385,9 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
   environmentLabel: string | null;
   projectCwd: string | null;
   projectTitle: string | null;
+  // [FORK] lempire: accent of the machine this thread runs on, tinting the
+  // project name. Null when the row's environment is not in the accent map.
+  accentColor: string | null;
   providerEntryByInstanceId: ReadonlyMap<string, ProviderInstanceEntry>;
   onThreadClick: (event: ReactMouseEvent, threadRef: ScopedThreadRef) => void;
   onThreadActivate: (threadRef: ScopedThreadRef) => void;
@@ -868,11 +882,13 @@ const SidebarV2Row = memo(function SidebarV2Row(props: {
                 className="size-4 shrink-0"
               />
               {props.projectTitle ? (
+                /* [FORK] lempire: name tinted by machine */
                 <span
                   className={cn(
                     "min-w-0 flex-1 truncate text-xs text-muted-foreground/85",
                     shouldRecede ? "font-normal" : "font-medium",
                   )}
+                  style={projectAccentNameStyle(props.accentColor ? [props.accentColor] : [])}
                 >
                   {props.projectTitle}
                 </span>
@@ -1045,6 +1061,9 @@ export default function SidebarV2() {
     () => openCommandPalette({ open: "add-project" }),
     [],
   );
+  // [FORK] lempire: pull-request mode
+  const isOnPullRequests = useLocation({ select: (loc) => loc.pathname === "/pull-requests" });
+  // [FORK] end
   const { environments } = useEnvironments();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const clearSelection = useThreadSelectionStore((s) => s.clearSelection);
@@ -1127,6 +1146,13 @@ export default function SidebarV2() {
       ),
     [projects],
   );
+  // [FORK] lempire: color each row by the machine it runs on. Assignment runs
+  // over the full project list, not the scoped/filtered one, so picking a
+  // project scope never reshuffles the colors of the rows that remain.
+  const accentByEnvironmentId = useEnvironmentAccents(
+    projects.map((project) => project.environmentId),
+  );
+  // [FORK] end
   const projectDisplayNameByKey = useMemo(
     () =>
       new Map(
@@ -2211,6 +2237,20 @@ export default function SidebarV2() {
   const newThreadShortcutLabel =
     shortcutLabelForCommand(keybindings, "chat.newLocal") ??
     shortcutLabelForCommand(keybindings, "chat.new");
+  // [FORK] lempire: pull-request mode replaces the thread list, as in v1. An
+  // early return rather than a conditional around the tree below: every hook
+  // has already run, and wrapping ~350 lines of upstream JSX would conflict on
+  // every rebase.
+  if (isOnPullRequests) {
+    return (
+      <>
+        <SidebarChromeHeader isElectron={isElectron} />
+        <SidebarV2PullRequestsPane />
+        <SidebarChromeFooter />
+      </>
+    );
+  }
+  // [FORK] end
   return (
     <>
       <SidebarChromeHeader isElectron={isElectron} />
@@ -2238,6 +2278,11 @@ export default function SidebarV2() {
                 ) : null}
               </CommandDialogTrigger>
             </div>
+            {/* [FORK] lempire: way into pull-request mode */}
+            <div className="shrink-0">
+              <SidebarV2ModeToggle isOnPullRequests={false} />
+            </div>
+            {/* [FORK] end */}
             <div className="shrink-0">
               <Tooltip>
                 <TooltipTrigger
@@ -2282,7 +2327,17 @@ export default function SidebarV2() {
                   ) : (
                     <FolderIcon className="size-4 shrink-0 text-sidebar-muted-foreground/80" />
                   )}
-                  <span className="min-w-0 flex-1 truncate">
+                  {/* [FORK] lempire: scoped project name tinted by machine */}
+                  <span
+                    className="min-w-0 flex-1 truncate"
+                    style={
+                      scopedProjectGroup
+                        ? projectAccentNameStyle(
+                            projectAccentColors(scopedProjectGroup, accentByEnvironmentId),
+                          )
+                        : undefined
+                    }
+                  >
                     {scopedProjectGroup?.displayName ?? "All projects"}
                   </span>
                   <ChevronDownIcon className="size-4 shrink-0 text-sidebar-muted-foreground/70" />
@@ -2316,7 +2371,15 @@ export default function SidebarV2() {
                             cwd={project.workspaceRoot}
                             className="size-4 shrink-0"
                           />
-                          <span className="min-w-0 truncate text-sm">{project.displayName}</span>
+                          {/* [FORK] lempire: name tinted by machine */}
+                          <span
+                            className="min-w-0 truncate text-sm"
+                            style={projectAccentNameStyle(
+                              projectAccentColors(project, accentByEnvironmentId),
+                            )}
+                          >
+                            {project.displayName}
+                          </span>
                           <button
                             type="button"
                             aria-label={`Project actions for ${project.displayName}`}
@@ -2431,6 +2494,8 @@ export default function SidebarV2() {
                           `${thread.environmentId}:${thread.projectId}`,
                         ) ?? null
                       }
+                      // [FORK] lempire: machine accent for the project name
+                      accentColor={accentByEnvironmentId.get(thread.environmentId) ?? null}
                       providerEntryByInstanceId={providerEntryByInstanceId}
                       onThreadClick={handleThreadClick}
                       onThreadActivate={navigateToThread}

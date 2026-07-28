@@ -52,12 +52,50 @@ export function useProjectAccents(
 
     return projects.map((project) => ({
       ...project,
-      accentColors: rowEnvironmentIds(project).flatMap((environmentId) => {
-        const accent = accentByEnvironmentId.get(environmentId);
-        return accent ? [accent] : [];
-      }),
+      accentColors: projectAccentColors(project, accentByEnvironmentId),
     }));
   }, [projects]);
+}
+
+/**
+ * The accents of the machines a project row lives on, in blend order.
+ *
+ * For callers that already hold an assignment (Sidebar V2 assigns once for the
+ * whole thread list and reuses it for the project scope menu) rather than
+ * deriving one per project list.
+ */
+export function projectAccentColors(
+  project: SidebarProjectSnapshot,
+  accentByEnvironmentId: ReadonlyMap<string, string>,
+): readonly string[] {
+  return rowEnvironmentIds(project).flatMap((environmentId) => {
+    const accent = accentByEnvironmentId.get(environmentId);
+    return accent ? [accent] : [];
+  });
+}
+
+/**
+ * Accent color per machine, keyed on environment id.
+ *
+ * Sidebar V2 lists threads flat instead of nesting them under project headers,
+ * so there is no project snapshot to hang `accentColors` off — a row resolves
+ * its color from `thread.environmentId`. Same assignment as `useProjectAccents`
+ * over the same set of machines, so a machine reads the same color in either
+ * sidebar.
+ *
+ * Memoized on the *set* of ids rather than array identity: callers derive the
+ * list inline on every render, and re-running assignment would hand every row a
+ * fresh style object.
+ */
+export function useEnvironmentAccents(
+  environmentIds: readonly string[],
+): ReadonlyMap<string, string> {
+  // Newline-joined so the key round-trips ids containing any URL-ish character.
+  const accentKey = [...new Set(environmentIds)].sort().join("\n");
+  return useMemo(
+    () => assignEnvironmentAccentColors(accentKey === "" ? [] : accentKey.split("\n")),
+    [accentKey],
+  );
 }
 
 /**

@@ -5,10 +5,8 @@ import {
   CloudIcon,
   ContainerIcon,
   FolderPlusIcon,
-  GitPullRequestIcon,
   Globe2Icon,
   LoaderIcon,
-  MessageSquareTextIcon,
   SearchIcon,
   SquarePenIcon,
   TerminalIcon,
@@ -21,6 +19,12 @@ import {
   useProjectAccents,
   type WithProjectAccent,
 } from "../_lempire/projectAccent";
+// [FORK] end
+// [FORK] lempire: pull-request mode, shared with sidebar v2
+import {
+  SidebarModeTabSwitcher,
+  SidebarPullRequestsContent,
+} from "../_lempire/SidebarPullRequests";
 // [FORK] end
 import {
   ChangeRequestStatusIcon,
@@ -216,8 +220,6 @@ import {
   type SidebarProjectSnapshot,
 } from "../sidebarProjectGrouping";
 import { SidebarProviderUpdatePill } from "./sidebar/SidebarProviderUpdatePill";
-import { PullRequestListPanel } from "./PullRequestListPanel";
-import { usePrViewStore } from "../prViewStore";
 const SIDEBAR_SORT_LABELS: Record<SidebarProjectSortOrder, string> = {
   updated_at: "Last user message",
   created_at: "Created at",
@@ -2748,180 +2750,6 @@ function SortableProjectItem({
     </li>
   );
 }
-
-const SidebarModeTabSwitcher = memo(function SidebarModeTabSwitcher({
-  isOnPullRequests,
-}: {
-  isOnPullRequests: boolean;
-}) {
-  const navigate = useNavigate();
-  const pathname = useLocation({ select: (loc) => loc.pathname });
-
-  const handleChatClick = useCallback(() => {
-    const lastChatPath = usePrViewStore.getState().lastChatPath;
-    void navigate({ to: lastChatPath ?? "/" });
-  }, [navigate]);
-
-  const handlePrClick = useCallback(() => {
-    if (!isOnPullRequests) {
-      usePrViewStore.getState().setLastChatPath(pathname);
-    }
-    const state = usePrViewStore.getState();
-    const search: Record<string, unknown> = {};
-    if (state.projectKey) search.projectId = state.projectKey;
-    if (state.prNumber !== null) search.prNumber = state.prNumber;
-    if (state.filePath !== null) search.filePath = state.filePath;
-    if (state.view !== "overview") search.view = state.view;
-    void navigate({ to: "/pull-requests" as string, search } as any);
-  }, [isOnPullRequests, navigate, pathname]);
-
-  return (
-    <div className="mx-3 my-1.5 flex rounded-md border border-border/60 bg-muted/30 p-0.5">
-      <button
-        type="button"
-        onClick={handleChatClick}
-        className={`flex flex-1 items-center justify-center gap-1.5 rounded-[5px] px-2 py-1 text-xs font-medium transition-colors ${
-          !isOnPullRequests
-            ? "bg-background text-foreground shadow-sm"
-            : "text-muted-foreground hover:text-foreground"
-        }`}
-      >
-        <MessageSquareTextIcon className="size-3" />
-        Chat
-      </button>
-      <button
-        type="button"
-        onClick={handlePrClick}
-        className={`flex flex-1 items-center justify-center gap-1.5 rounded-[5px] px-2 py-1 text-xs font-medium transition-colors ${
-          isOnPullRequests
-            ? "bg-background text-foreground shadow-sm"
-            : "text-muted-foreground hover:text-foreground"
-        }`}
-      >
-        <GitPullRequestIcon className="size-3" />
-        PRs
-      </button>
-    </div>
-  );
-});
-
-const SidebarPullRequestsContent = memo(function SidebarPullRequestsContent() {
-  const projects = useProjects();
-  const navigate = useNavigate();
-
-  const { projectKey: storeProjectKey, prNumber: selectedPrNumber } = usePrViewStore(
-    useShallow((s) => ({ projectKey: s.projectKey, prNumber: s.prNumber })),
-  );
-
-  const activeProject = useMemo(() => {
-    if (storeProjectKey) {
-      const match = projects.find(
-        (project) =>
-          scopedProjectKey(scopeProjectRef(project.environmentId, project.id)) === storeProjectKey,
-      );
-      if (match) return match;
-    }
-    return projects[0] ?? null;
-  }, [projects, storeProjectKey]);
-
-  const activeProjectKey = activeProject
-    ? scopedProjectKey(scopeProjectRef(activeProject.environmentId, activeProject.id))
-    : null;
-
-  const environmentId = activeProject?.environmentId ?? null;
-  const cwd = activeProject?.workspaceRoot ?? null;
-
-  const projectSelectItems = useMemo(
-    () =>
-      projects.map((project) => ({
-        value: scopedProjectKey(scopeProjectRef(project.environmentId, project.id)),
-        label: project.title,
-      })),
-    [projects],
-  );
-
-  const handleProjectChange = useCallback(
-    (nextProjectKey: string | null) => {
-      if (nextProjectKey === null) return;
-      usePrViewStore.getState().setProjectKey(nextProjectKey);
-      void navigate({
-        to: "/pull-requests" as string,
-        search: { projectId: nextProjectKey },
-      } as any);
-    },
-    [navigate],
-  );
-
-  const handleSelect = useCallback(
-    (pr: { number: number }) => {
-      const key = activeProjectKey;
-      if (!key) return;
-      usePrViewStore.getState().selectPr(pr.number);
-      void navigate({
-        to: "/pull-requests" as string,
-        search: { projectId: key, prNumber: pr.number, view: "overview" },
-      } as any);
-    },
-    [activeProjectKey, navigate],
-  );
-
-  const handleOpenExternal = useCallback(async (url: string) => {
-    try {
-      const api = readLocalApi();
-      if (api) {
-        await api.shell.openExternal(url);
-        return;
-      }
-    } catch {
-      // fall through
-    }
-    window.open(url, "_blank", "noopener,noreferrer");
-  }, []);
-
-  return (
-    <SidebarContent>
-      <SidebarGroup className="p-0">
-        {projects.length > 1 && activeProjectKey ? (
-          <div className="border-b border-border/50 px-3 py-2">
-            <Select
-              value={activeProjectKey}
-              onValueChange={handleProjectChange}
-              items={projectSelectItems}
-            >
-              <SelectTrigger variant="ghost" size="xs" className="w-full font-medium">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectPopup>
-                {projects.map((project) => {
-                  const key = scopedProjectKey(scopeProjectRef(project.environmentId, project.id));
-                  return (
-                    <SelectItem key={key} value={key}>
-                      <span className="flex flex-col">
-                        <span className="text-xs">{project.title}</span>
-                        <span className="truncate text-[10px] text-muted-foreground">
-                          {project.workspaceRoot}
-                        </span>
-                      </span>
-                    </SelectItem>
-                  );
-                })}
-              </SelectPopup>
-            </Select>
-          </div>
-        ) : null}
-        <div className="flex-1 overflow-hidden">
-          <PullRequestListPanel
-            environmentId={environmentId}
-            cwd={cwd}
-            selectedPrNumber={selectedPrNumber}
-            onSelect={handleSelect}
-            onOpenExternal={handleOpenExternal}
-          />
-        </div>
-      </SidebarGroup>
-    </SidebarContent>
-  );
-});
 
 interface SidebarProjectsContentProps {
   showArm64IntelBuildWarning: boolean;
