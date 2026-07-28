@@ -57,6 +57,7 @@ describe("fetchEnvironmentJsonDocument", () => {
         requestUrl: "https://example.test/api/orchestration/shell",
         decode: decodeShellSnapshot,
         headers: {},
+        // @effect-diagnostics-next-line preferSchemaOverJson:off - Fixture body.
       }).pipe(Effect.provide(layerFor(trackingFetch({ body: JSON.stringify(SNAPSHOT), reads }))));
 
       expect(snapshot.snapshotSequence).toBe(3);

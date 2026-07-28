@@ -159,9 +159,12 @@ const failRemoteRequest = (
  * Only worth using for large payloads; small requests are fine through the typed
  * client and keep its declared error handling.
  */
-export const fetchEnvironmentJsonDocument = <A>(options: {
+export const fetchEnvironmentJsonDocument = <A, E>(options: {
   readonly requestUrl: string;
-  readonly decode: (body: string) => Effect.Effect<A, unknown>;
+  // Left open rather than pinned to a schema error: the failure is only ever
+  // carried as `cause` on RemoteEnvironmentAuthInvalidJsonError, never matched
+  // on, and the two callers decode with different codecs.
+  readonly decode: (body: string) => Effect.Effect<A, E>;
   readonly headers: EnvironmentHttpAuthHeaders;
 }): Effect.Effect<A, RemoteEnvironmentRequestError, HttpClient.HttpClient> =>
   HttpClient.get(options.requestUrl, { headers: { ...options.headers } }).pipe(

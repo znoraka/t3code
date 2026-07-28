@@ -122,12 +122,10 @@ export const SidebarV2ModeToggle = memo(function SidebarV2ModeToggle({
       <TooltipTrigger
         render={
           <SidebarMenuButton
-            size="sm"
+            size="icon"
             type="button"
-            className={`relative size-8 justify-center rounded-md border-0 p-0 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar ${
-              isOnPullRequests
-                ? "bg-sidebar-row-active text-sidebar-foreground"
-                : "bg-transparent text-sidebar-muted-foreground hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
+            className={`relative focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar ${
+              isOnPullRequests ? "bg-sidebar-row-active text-sidebar-foreground" : ""
             }`}
             onClick={isOnPullRequests ? goToChat : goToPullRequests}
             aria-pressed={isOnPullRequests}
@@ -135,11 +133,7 @@ export const SidebarV2ModeToggle = memo(function SidebarV2ModeToggle({
           />
         }
       >
-        {isOnPullRequests ? (
-          <MessageSquareTextIcon className="size-4 shrink-0" />
-        ) : (
-          <GitPullRequestIcon className="size-4 shrink-0 text-sidebar-muted-foreground/80" />
-        )}
+        {isOnPullRequests ? <MessageSquareTextIcon /> : <GitPullRequestIcon />}
         <span
           className="pointer-events-none absolute left-1/2 top-1/2 size-[max(100%,3rem)] -translate-1/2 pointer-fine:hidden"
           aria-hidden="true"
@@ -280,7 +274,9 @@ export const SidebarPullRequestsContent = memo(function SidebarPullRequestsConte
 export function SidebarV2PullRequestsPane() {
   return (
     <>
-      <SidebarGroup className="px-2 pb-2 pt-3">
+      {/* Padding matches upstream's fixedHeader group so the toggle lands in the
+          same spot in both modes and the header does not jump on switch. */}
+      <SidebarGroup className="gap-1 p-2">
         <div className="flex items-center gap-1">
           <div className="min-w-0 flex-1 truncate px-2 text-sm font-medium text-sidebar-foreground">
             Pull requests

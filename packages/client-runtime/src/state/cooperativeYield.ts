@@ -31,10 +31,18 @@ interface ClockLike {
 function monotonicNow(): number {
   const performanceLike = (globalThis as { readonly performance?: ClockLike }).performance;
   const now = performanceLike?.now;
+  // Measures a wall-clock slice of uninterrupted host work. Effect's Clock is
+  // virtual under test and would report no elapsed time, so the burst would
+  // never yield.
+  // @effect-diagnostics-next-line globalDate:off - Host wall clock, not Effect time.
   return typeof now === "function" ? now.call(performanceLike) : Date.now();
 }
 
 const handOffToHost = Effect.callback<void>((resume) => {
+  // The whole point of this module: only a real host timer returns the JS
+  // thread to React Native. Effect.sleep resolves on Effect's own scheduler and
+  // never lets queued touches through.
+  // @effect-diagnostics-next-line globalTimersInEffect:off - Must be a host timer.
   const timer = setTimeout(() => resume(Effect.void), 0);
   return Effect.sync(() => clearTimeout(timer));
 });
