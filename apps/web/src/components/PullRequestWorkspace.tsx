@@ -25,6 +25,7 @@ interface PullRequestWorkspaceProps {
   cwd: string | null;
   prNumber: number;
   prSummary: PullRequestSummary | null;
+  prIsMine?: boolean | undefined;
   view: PullRequestWorkspaceView;
   onViewChange: (view: PullRequestWorkspaceView) => void;
   openFilePath: string | null;
@@ -49,6 +50,7 @@ export function PullRequestWorkspace({
   cwd,
   prNumber,
   prSummary,
+  prIsMine,
   view,
   onViewChange,
   openFilePath,
@@ -133,8 +135,14 @@ export function PullRequestWorkspace({
               cwd={cwd}
               prNumber={prNumber}
               prUrl={prSummary?.url ?? null}
+              prSummary={prSummary}
+              prIsMine={prIsMine === true}
               onSwitchToFiles={() => onViewChange("files")}
               onSwitchToConversation={() => onViewChange("conversation")}
+              onReviewWithAgent={onReviewWithAgent}
+              isAgentReviewPending={isAgentReviewPending}
+              onCheckout={onCheckout}
+              onOpenExternal={onOpenExternal}
             />
           )}
           {view === "files" && (

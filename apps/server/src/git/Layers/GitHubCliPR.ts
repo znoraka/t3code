@@ -282,13 +282,26 @@ export function makeGitHubCliPRMethods(execute: Execute) {
       `--json=${jsonFields}`,
       `--limit=${limit}`,
     ]);
+    // The sidebar's "Settled" section: recently merged PRs I was involved in.
+    // `sort:updated-desc` because `--search` otherwise orders by best match.
+    const merged = fetchBucket([
+      "pr",
+      "list",
+      "--search",
+      "involves:@me sort:updated-desc",
+      "--state",
+      "merged",
+      `--json=${jsonFields}`,
+      `--limit=${Math.min(limit, 15)}`,
+    ]);
 
-    return Effect.all([reviewRequested, myPrs], { concurrency: 2 }).pipe(
+    return Effect.all([reviewRequested, myPrs, merged], { concurrency: 3 }).pipe(
       Effect.map(
-        ([reviewRequestedEntries, myPrsEntries]) =>
+        ([reviewRequestedEntries, myPrsEntries, mergedEntries]) =>
           ({
             reviewRequested: reviewRequestedEntries,
             myPrs: myPrsEntries,
+            merged: mergedEntries,
             ghAvailable: true,
             error: null,
           }) satisfies GitHubPullRequestListResult,
@@ -306,6 +319,7 @@ export function makeGitHubCliPRMethods(execute: Execute) {
           return Effect.succeed({
             reviewRequested: [] as ReadonlyArray<GitHubPullRequestListEntry>,
             myPrs: [] as ReadonlyArray<GitHubPullRequestListEntry>,
+            merged: [] as ReadonlyArray<GitHubPullRequestListEntry>,
             ghAvailable: false,
             error: error.detail,
           } satisfies GitHubPullRequestListResult);

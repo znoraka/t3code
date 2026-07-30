@@ -145,6 +145,7 @@ export function makeGitManagerPRMethods(gitHubCli: GitHubCliShape): PRMethods {
           return {
             reviewRequested: [],
             myPrs: [],
+            merged: [],
             ghAvailable: false,
             error: rawResult.error,
           } satisfies GitListPullRequestsResult;
@@ -155,6 +156,9 @@ export function makeGitManagerPRMethods(gitHubCli: GitHubCliShape): PRMethods {
             toPullRequestSummary(entry, currentUser),
           ),
           myPrs: rawResult.myPrs.map((entry: GitHubPullRequestListEntry) =>
+            toPullRequestSummary(entry, currentUser),
+          ),
+          merged: rawResult.merged.map((entry: GitHubPullRequestListEntry) =>
             toPullRequestSummary(entry, currentUser),
           ),
           ghAvailable: true,

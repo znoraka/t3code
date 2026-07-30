@@ -70,6 +70,8 @@ export interface GitHubPullRequestListEntry {
 export interface GitHubPullRequestListResult {
   readonly reviewRequested: ReadonlyArray<GitHubPullRequestListEntry>;
   readonly myPrs: ReadonlyArray<GitHubPullRequestListEntry>;
+  /** Recently merged PRs involving me, newest first. */
+  readonly merged: ReadonlyArray<GitHubPullRequestListEntry>;
   readonly ghAvailable: boolean;
   readonly error: string | null;
 }

@@ -2387,11 +2387,6 @@ export default function SidebarV2() {
                   ) : null}
                 </CommandDialogTrigger>
               </div>
-              {/* [FORK] lempire: way into pull-request mode */}
-              <div className="shrink-0">
-                <SidebarV2ModeToggle isOnPullRequests={false} />
-              </div>
-              {/* [FORK] end */}
               <div className="shrink-0">
                 <Tooltip>
                   <TooltipTrigger
@@ -2419,6 +2414,12 @@ export default function SidebarV2() {
                   </TooltipPopup>
                 </Tooltip>
               </div>
+              {/* [FORK] lempire: way into pull-request mode — kept last so it
+                  sits where the "Back to chat" toggle renders in PR mode. */}
+              <div className="shrink-0">
+                <SidebarV2ModeToggle isOnPullRequests={false} />
+              </div>
+              {/* [FORK] end */}
             </div>
             {projectGroups.length > 0 ? (
               <div className="flex items-center gap-1">
