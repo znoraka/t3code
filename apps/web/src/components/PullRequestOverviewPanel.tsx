@@ -365,6 +365,7 @@ export default function PullRequestOverviewPanel({
         <PullRequestReportCard
           environmentId={environmentId}
           prNumber={prNumber}
+          lastCommitAt={detail.lastCommitAt}
           onOpenExternal={onOpenExternal}
         />
 

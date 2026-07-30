@@ -645,7 +645,7 @@ export function makeGitHubCliPRMethods(execute: Execute) {
 
   const getPullRequestDetail: GitHubCliShape["getPullRequestDetail"] = (input) => {
     const jsonFields =
-      "number,title,body,state,isDraft,baseRefName,headRefName,mergeable,reviewDecision,author,statusCheckRollup,reviews,reviewRequests,labels,assignees,milestone,additions,deletions";
+      "number,title,body,state,isDraft,baseRefName,headRefName,mergeable,reviewDecision,author,statusCheckRollup,reviews,reviewRequests,labels,assignees,milestone,additions,deletions,commits";
     return execute({
       cwd: input.cwd,
       args: ["pr", "view", String(input.prNumber), `--json=${jsonFields}`],
@@ -691,6 +691,14 @@ export function makeGitHubCliPRMethods(execute: Execute) {
 
         const assignees = (raw.assignees ?? []).map((a: Record<string, any>) => a.login ?? "");
 
+        // Newest commit date on the branch. `gh` returns commits oldest-first,
+        // but a max() is cheap insurance against ordering changes.
+        let lastCommitAt = "";
+        for (const commit of raw.commits ?? []) {
+          const date = commit?.committedDate ?? commit?.authoredDate ?? "";
+          if (typeof date === "string" && date > lastCommitAt) lastCommitAt = date;
+        }
+
         return {
           title: raw.title ?? "",
           body: raw.body ?? "",
@@ -708,6 +716,7 @@ export function makeGitHubCliPRMethods(execute: Execute) {
           milestone: raw.milestone?.title ?? "",
           additions: raw.additions ?? 0,
           deletions: raw.deletions ?? 0,
+          lastCommitAt,
         };
       }),
     );

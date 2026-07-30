@@ -265,6 +265,7 @@ export interface GitHubCliShape {
       milestone: string;
       additions: number;
       deletions: number;
+      lastCommitAt: string;
     },
     GitHubCliError
   >;

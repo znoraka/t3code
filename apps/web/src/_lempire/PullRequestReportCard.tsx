@@ -12,7 +12,12 @@ import {
   scopeProjectRef,
   scopeThreadRef,
 } from "@t3tools/client-runtime/environment";
-import { ExternalLinkIcon, FileChartColumnIcon } from "lucide-react";
+import {
+  AlertTriangleIcon,
+  ExternalLinkIcon,
+  FileChartColumnIcon,
+  HistoryIcon,
+} from "lucide-react";
 import { memo, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
@@ -87,16 +92,39 @@ function fetchMeta(reportUrl: string): Promise<MetaFetchResult> {
   return promise;
 }
 
-/** Newest plandrop report URL across the PR's review-thread messages. */
-function extractReportUrl(messages: ReadonlyArray<{ readonly text: string }>): string | null {
+/**
+ * Newest plandrop report URL across the PR's review-thread messages, with the
+ * time the message carrying it was posted — that timestamp is the review's age
+ * (the thread's own `updatedAt` keeps moving with later chatter).
+ */
+function extractReport(
+  messages: ReadonlyArray<{ readonly text: string; readonly createdAt: string }>,
+): { readonly url: string; readonly postedAt: string } | null {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const message = messages[i];
     if (!message) continue;
     const matches = message.text.match(PLANDROP_URL_RE);
     const last = matches?.at(-1);
-    if (last) return last.replace(/\/$/, "");
+    if (last) return { url: last.replace(/\/$/, ""), postedAt: message.createdAt };
   }
   return null;
+}
+
+/**
+ * True when the branch's newest commit landed after the report was posted, i.e.
+ * the review describes code that no longer exists. The two timestamps come from
+ * different clocks (the review from this server, the commit from whoever
+ * authored it), so a sub-minute gap is treated as skew rather than a new push.
+ */
+export function isReviewStale(
+  lastCommitAt: string | null | undefined,
+  reportPostedAt: string,
+): boolean {
+  if (!lastCommitAt) return false;
+  const pushed = Date.parse(lastCommitAt);
+  const reviewed = Date.parse(reportPostedAt);
+  if (Number.isNaN(pushed) || Number.isNaN(reviewed)) return false;
+  return pushed - reviewed >= 60_000;
 }
 
 const RIBBON_STYLES: Record<VerdictState, string> = {
@@ -140,10 +168,13 @@ function ReportTiles({ sources }: { sources: ReadonlyArray<ReportSource> }) {
 const ReportCardBody = memo(function ReportCardBody({
   reportUrl,
   updatedAt,
+  stalePushedAt,
   onOpenExternal,
 }: {
   reportUrl: string;
   updatedAt: string | null;
+  /** Relative time of the push that outdated this review, or null when fresh. */
+  stalePushedAt: string | null;
   onOpenExternal?: ((url: string) => void) | undefined;
 }) {
   const [meta, setMeta] = useState<MetaFetchResult | "loading">("loading");
@@ -166,11 +197,19 @@ const ReportCardBody = memo(function ReportCardBody({
     else window.open(reportUrl, "_blank", "noopener,noreferrer");
   };
 
+  const isStale = stalePushedAt !== null;
+
   const header = (
     <div className="flex items-center gap-1.5 px-3 py-2 text-[11px] text-muted-foreground">
       <FileChartColumnIcon className="size-3.5 shrink-0" aria-hidden="true" />
       <span className="font-medium">Your review of this PR</span>
       {updatedAt ? <span>· {updatedAt}</span> : null}
+      {isStale ? (
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-300">
+          <HistoryIcon className="size-2.5" aria-hidden="true" />
+          Stale
+        </span>
+      ) : null}
       <span className="ml-auto inline-flex items-center gap-1 text-muted-foreground/70">
         plans.gawaak.ovh
         <ExternalLinkIcon className="size-3" aria-hidden="true" />
@@ -178,36 +217,55 @@ const ReportCardBody = memo(function ReportCardBody({
     </div>
   );
 
+  // Say it in words too — the badge alone doesn't explain why the numbers below
+  // can't be trusted.
+  const staleNotice = isStale ? (
+    <div className="flex items-start gap-1.5 border-t border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-[11px] leading-snug text-amber-700 dark:text-amber-300">
+      <AlertTriangleIcon className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
+      <span>
+        New code was pushed {stalePushedAt} — this review is out of date. Re-run it to see the
+        current state.
+      </span>
+    </div>
+  ) : null;
+
+  const frame = cn(
+    "block w-full max-w-2xl overflow-hidden rounded-xl border text-left transition-colors",
+    isStale
+      ? "border-amber-500/40 hover:border-amber-500/60"
+      : "border-border/70 hover:border-border",
+  );
+
   if (meta === null) {
     return (
-      <button
-        type="button"
-        onClick={open}
-        className="block w-full max-w-2xl rounded-xl border border-border/70 text-left transition-colors hover:border-border"
-      >
+      <button type="button" onClick={open} className={frame}>
         {header}
+        {staleNotice}
       </button>
     );
   }
 
   return (
-    <button
-      type="button"
-      onClick={open}
-      className="block w-full max-w-2xl overflow-hidden rounded-xl border border-border/70 text-left transition-colors hover:border-border"
-    >
+    <button type="button" onClick={open} className={frame}>
       {header}
+      {staleNotice}
       {meta.verdict ? (
         <div
           className={cn(
             "px-3 py-1.5 text-xs font-bold uppercase tracking-wider",
             RIBBON_STYLES[meta.verdict.state],
+            // A stale verdict shouldn't shout as loudly as a current one.
+            isStale && "opacity-60",
           )}
         >
           {meta.verdict.state === "ok" ? "✓" : "✗"} {meta.verdict.label}
         </div>
       ) : null}
-      {meta.sources.length > 0 ? <ReportTiles sources={meta.sources} /> : null}
+      {meta.sources.length > 0 ? (
+        <div className={cn(isStale && "opacity-60")}>
+          <ReportTiles sources={meta.sources} />
+        </div>
+      ) : null}
     </button>
   );
 });
@@ -215,10 +273,13 @@ const ReportCardBody = memo(function ReportCardBody({
 export function PullRequestReportCard({
   environmentId,
   prNumber,
+  lastCommitAt,
   onOpenExternal,
 }: {
   environmentId: EnvironmentId | null;
   prNumber: number;
+  /** ISO date of the branch's newest commit — drives the stale-review notice. */
+  lastCommitAt?: string | null | undefined;
   onOpenExternal?: ((url: string) => void) | undefined;
 }) {
   const prViewStore = usePrViewStore(useShallow((s) => ({ projectKey: s.projectKey })));
@@ -264,14 +325,21 @@ export function PullRequestReportCard({
   );
 
   const messages = useThreadMessages(threadRef);
-  const reportUrl = useMemo(() => extractReportUrl(messages), [messages]);
+  const report = useMemo(() => extractReport(messages), [messages]);
 
-  if (reportUrl === null) return null;
+  const stalePushedAt = useMemo(
+    () =>
+      report && isReviewStale(lastCommitAt, report.postedAt) ? relativeTime(lastCommitAt) : null,
+    [report, lastCommitAt],
+  );
+
+  if (report === null) return null;
 
   return (
     <ReportCardBody
-      reportUrl={reportUrl}
-      updatedAt={latestReviewThread ? relativeTime(latestReviewThread.updatedAt) : null}
+      reportUrl={report.url}
+      updatedAt={relativeTime(report.postedAt)}
+      stalePushedAt={stalePushedAt}
       onOpenExternal={onOpenExternal}
     />
   );

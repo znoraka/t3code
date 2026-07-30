@@ -229,6 +229,10 @@ export const GitPullRequestDetailResult = Schema.Struct({
   milestone: Schema.String,
   additions: NonNegativeInt,
   deletions: NonNegativeInt,
+  /** ISO commit date of the PR's newest commit, "" when unknown. Lets clients
+      tell whether an agent review predates the latest push. Decoding default
+      keeps clients compatible with pre-lastCommitAt servers. */
+  lastCommitAt: Schema.String.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
 });
 export type GitPullRequestDetailResult = typeof GitPullRequestDetailResult.Type;
 
