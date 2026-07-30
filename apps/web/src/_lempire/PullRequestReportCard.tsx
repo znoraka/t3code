@@ -92,39 +92,80 @@ function fetchMeta(reportUrl: string): Promise<MetaFetchResult> {
   return promise;
 }
 
+/** A full agent review never finishes faster than this. */
+const MIN_REVIEW_DURATION_MS = 15 * 60_000;
+
+interface Report {
+  readonly url: string;
+  /** When the report message landed in the thread — the age shown in the header. */
+  readonly postedAt: string;
+  /** Prompt that kicked off this run, when one precedes the report message. */
+  readonly kickoffAt: string | null;
+}
+
 /**
- * Newest plandrop report URL across the PR's review-thread messages, with the
- * time the message carrying it was posted — that timestamp is the review's age
- * (the thread's own `updatedAt` keeps moving with later chatter).
+ * Newest plandrop report URL across the PR's review-thread messages, plus the
+ * timestamps around it. The message's own `createdAt` is the review's age (the
+ * thread's `updatedAt` keeps moving with later chatter); the nearest preceding
+ * user message is where that run started reading code.
  */
 function extractReport(
-  messages: ReadonlyArray<{ readonly text: string; readonly createdAt: string }>,
-): { readonly url: string; readonly postedAt: string } | null {
+  messages: ReadonlyArray<{
+    readonly text: string;
+    readonly role: string;
+    readonly createdAt: string;
+  }>,
+): Report | null {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const message = messages[i];
     if (!message) continue;
     const matches = message.text.match(PLANDROP_URL_RE);
     const last = matches?.at(-1);
-    if (last) return { url: last.replace(/\/$/, ""), postedAt: message.createdAt };
+    if (!last) continue;
+    let kickoffAt: string | null = null;
+    for (let j = i - 1; j >= 0; j -= 1) {
+      const earlier = messages[j];
+      if (earlier?.role === "user") {
+        kickoffAt = earlier.createdAt;
+        break;
+      }
+    }
+    return { url: last.replace(/\/$/, ""), postedAt: message.createdAt, kickoffAt };
   }
   return null;
 }
 
 /**
- * True when the branch's newest commit landed after the report was posted, i.e.
- * the review describes code that no longer exists. The two timestamps come from
- * different clocks (the review from this server, the commit from whoever
+ * Epoch ms of the moment the review started looking at the code — the cutoff a
+ * push has to beat to be covered. A review takes at least
+ * `MIN_REVIEW_DURATION_MS`, so the report's own timestamp is far too late to
+ * compare against: a push mid-review would look reviewed. Prefer the kickoff
+ * prompt, and never assume a run shorter than the floor (a "kickoff" only a
+ * couple of minutes before the report is some follow-up message, not the start).
+ * `NaN` when neither timestamp parses.
+ */
+export function reviewStartedAt(postedAt: string, kickoffAt: string | null): number {
+  const posted = Date.parse(postedAt);
+  if (Number.isNaN(posted)) return Number.NaN;
+  const latestPlausibleStart = posted - MIN_REVIEW_DURATION_MS;
+  const kickoff = kickoffAt === null ? Number.NaN : Date.parse(kickoffAt);
+  return Number.isNaN(kickoff) ? latestPlausibleStart : Math.min(kickoff, latestPlausibleStart);
+}
+
+/**
+ * True when the branch's newest commit landed after the review started reading,
+ * i.e. the report describes code that has since moved. The two timestamps come
+ * from different clocks (the review from this server, the commit from whoever
  * authored it), so a sub-minute gap is treated as skew rather than a new push.
  */
 export function isReviewStale(
   lastCommitAt: string | null | undefined,
-  reportPostedAt: string,
+  reviewStartMs: number,
 ): boolean {
-  if (!lastCommitAt) return false;
+  if (!lastCommitAt || Number.isNaN(reviewStartMs)) return false;
   const pushed = Date.parse(lastCommitAt);
-  const reviewed = Date.parse(reportPostedAt);
-  if (Number.isNaN(pushed) || Number.isNaN(reviewed)) return false;
-  return pushed - reviewed >= 60_000;
+  if (Number.isNaN(pushed)) return false;
+  return pushed - reviewStartMs >= 60_000;
 }
 
 const RIBBON_STYLES: Record<VerdictState, string> = {
@@ -223,8 +264,8 @@ const ReportCardBody = memo(function ReportCardBody({
     <div className="flex items-start gap-1.5 border-t border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-[11px] leading-snug text-amber-700 dark:text-amber-300">
       <AlertTriangleIcon className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
       <span>
-        New code was pushed {stalePushedAt} — this review is out of date. Re-run it to see the
-        current state.
+        New code was pushed {stalePushedAt}, after this review started — it may not cover the
+        current state of the branch. Re-run it to be sure.
       </span>
     </div>
   ) : null;
@@ -327,11 +368,11 @@ export function PullRequestReportCard({
   const messages = useThreadMessages(threadRef);
   const report = useMemo(() => extractReport(messages), [messages]);
 
-  const stalePushedAt = useMemo(
-    () =>
-      report && isReviewStale(lastCommitAt, report.postedAt) ? relativeTime(lastCommitAt) : null,
-    [report, lastCommitAt],
-  );
+  const stalePushedAt = useMemo(() => {
+    if (!report) return null;
+    const startedAt = reviewStartedAt(report.postedAt, report.kickoffAt);
+    return isReviewStale(lastCommitAt, startedAt) ? relativeTime(lastCommitAt) : null;
+  }, [report, lastCommitAt]);
 
   if (report === null) return null;
 
