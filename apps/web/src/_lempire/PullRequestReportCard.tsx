@@ -168,11 +168,15 @@ export function isReviewStale(
   return pushed - reviewStartMs >= 60_000;
 }
 
+// `warn` is "mergeable with reserves" — amber, not a red alarm. Only `crit`
+// (not mergeable) gets the red band and the ✗.
 const RIBBON_STYLES: Record<VerdictState, string> = {
   ok: "bg-emerald-600 text-white",
-  warn: "bg-gradient-to-r from-red-700 to-orange-600 text-white",
+  warn: "bg-amber-500 text-amber-950",
   crit: "bg-red-700 text-white",
 };
+
+const RIBBON_MARKS: Record<VerdictState, string> = { ok: "✓", warn: "⚠", crit: "✗" };
 
 const TILE_STYLES = {
   crit: "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400",
@@ -299,7 +303,7 @@ const ReportCardBody = memo(function ReportCardBody({
             isStale && "opacity-60",
           )}
         >
-          {meta.verdict.state === "ok" ? "✓" : "✗"} {meta.verdict.label}
+          {RIBBON_MARKS[meta.verdict.state]} {meta.verdict.label}
         </div>
       ) : null}
       {meta.sources.length > 0 ? (
