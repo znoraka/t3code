@@ -1,15 +1,10 @@
-import { WS_METHODS, type ContextMenuItem, type LocalApi } from "@t3tools/contracts";
+import { type ContextMenuItem, type LocalApi } from "@t3tools/contracts";
 
-import { callPrimaryRpc } from "./rpc/imperativeEnvironmentRpc";
 import { resetRequestLatencyStateForTests } from "./rpc/requestLatencyState";
 import { showContextMenuFallback } from "./contextMenuFallback";
 import { readBrowserClientSettings, writeBrowserClientSettings } from "./clientPersistenceStorage";
 
 let cachedApi: LocalApi | undefined;
-
-function unavailableLocalBackendError(): Error {
-  return new Error("Local backend API is unavailable before a backend is paired.");
-}
 
 function createBrowserLocalApi(): LocalApi {
   return {
@@ -26,7 +21,6 @@ function createBrowserLocalApi(): LocalApi {
       },
     },
     shell: {
-      openInEditor: () => Promise.reject(unavailableLocalBackendError()),
       openExternal: async (url) => {
         if (window.desktopBridge) {
           const opened = await window.desktopBridge.openExternal(url);
@@ -64,24 +58,6 @@ function createBrowserLocalApi(): LocalApi {
         writeBrowserClientSettings(settings);
       },
     },
-    // [FORK] Route server operations through the primary environment's RPC.
-    // Upstream's stub rejects every call; the fork relies on these working once
-    // a backend is paired (see ./rpc/imperativeEnvironmentRpc).
-    server: {
-      getConfig: () => callPrimaryRpc(WS_METHODS.serverGetConfig, {}),
-      refreshProviders: (input) => callPrimaryRpc(WS_METHODS.serverRefreshProviders, input ?? {}),
-      updateProvider: (input) => callPrimaryRpc(WS_METHODS.serverUpdateProvider, input),
-      upsertKeybinding: (input) => callPrimaryRpc(WS_METHODS.serverUpsertKeybinding, input),
-      removeKeybinding: (input) => callPrimaryRpc(WS_METHODS.serverRemoveKeybinding, input),
-      getSettings: () => callPrimaryRpc(WS_METHODS.serverGetSettings, {}),
-      updateSettings: (patch) => callPrimaryRpc(WS_METHODS.serverUpdateSettings, { patch }),
-      discoverSourceControl: () => callPrimaryRpc(WS_METHODS.serverDiscoverSourceControl, {}),
-      getTraceDiagnostics: () => callPrimaryRpc(WS_METHODS.serverGetTraceDiagnostics, {}),
-      getProcessDiagnostics: () => callPrimaryRpc(WS_METHODS.serverGetProcessDiagnostics, {}),
-      getProcessResourceHistory: (input) =>
-        callPrimaryRpc(WS_METHODS.serverGetProcessResourceHistory, input),
-      signalProcess: (input) => callPrimaryRpc(WS_METHODS.serverSignalProcess, input),
-    },
   };
 }
 
@@ -93,12 +69,7 @@ export function readLocalApi(): LocalApi | undefined {
   if (typeof window === "undefined") return undefined;
   if (cachedApi) return cachedApi;
 
-  if (window.nativeApi) {
-    cachedApi = window.nativeApi;
-    return cachedApi;
-  }
-
-  cachedApi = createBrowserLocalApi();
+  cachedApi = createLocalApi();
   return cachedApi;
 }
 
