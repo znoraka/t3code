@@ -1,4 +1,6 @@
-import { useAuth, useUser } from "@clerk/expo";
+// [FORK] lempire: Clerk-or-local-relay auth hooks
+import { useCloudAuth as useAuth, useCloudUser as useUser } from "../../_lempire/cloudAuth";
+// [FORK] end
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";

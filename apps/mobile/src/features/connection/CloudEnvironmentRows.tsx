@@ -1,4 +1,6 @@
-import { useAuth } from "@clerk/expo";
+// [FORK] lempire: Clerk-or-local-relay auth hooks
+import { useCloudAuth as useAuth } from "../../_lempire/cloudAuth";
+// [FORK] end
 import { SymbolView } from "../../components/AppSymbol";
 import {
   connectionStatusText,

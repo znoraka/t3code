@@ -73,10 +73,33 @@ export function resolveCloudPublicConfig(extra: ExpoExtra = Constants.expoConfig
   } satisfies CloudPublicConfig;
 }
 
+// [FORK] lempire: this fork points at a self-hosted single-user relay that has
+// no Clerk in front of it, so a relay URL alone is enough to consider the cloud
+// features configured. Upstream additionally requires the Clerk keys, which we
+// deliberately do not ship — see isLocalRelayAuth below.
 export function hasCloudPublicConfig(): boolean {
   const config = resolveCloudPublicConfig();
-  return Boolean(config.clerk.publishableKey && config.clerk.jwtTemplate && config.relay.url);
+  if (!config.relay.url) {
+    return false;
+  }
+  return (
+    isLocalRelayAuth(config) || Boolean(config.clerk.publishableKey && config.clerk.jwtTemplate)
+  );
 }
+
+// True when a relay is configured but Clerk is not: the self-hosted relay
+// accepts any bearer token and identifies the single local user itself, so the
+// app skips sign-in entirely and activates the relay session on launch.
+export function isLocalRelayAuth(config: CloudPublicConfig = resolveCloudPublicConfig()): boolean {
+  return Boolean(config.relay.url) && !config.clerk.publishableKey;
+}
+
+// The account id and bearer the local-auth path uses. Both are arbitrary — the
+// relay treats every caller as its one user — but they must be stable so a
+// restart re-attaches to the same registration rather than orphaning it.
+export const LOCAL_RELAY_ACCOUNT_ID = "local";
+export const LOCAL_RELAY_TOKEN = "local-relay";
+// [FORK] end
 
 type Configured<T> = {
   readonly [Key in keyof T]: NonNullable<T[Key]>;
@@ -97,7 +120,16 @@ export function hasTracingPublicConfig(
 }
 
 export function resolveRelayClerkTokenOptions() {
-  const { jwtTemplate } = resolveCloudPublicConfig().clerk;
+  const config = resolveCloudPublicConfig();
+  // [FORK] lempire: with local relay auth there is no Clerk to ask for a
+  // template, and the token provider ignores these options entirely. Callers on
+  // the notification path would otherwise throw here before ever reaching the
+  // relay.
+  if (isLocalRelayAuth(config)) {
+    return relayClerkTokenOptions("local-relay");
+  }
+  // [FORK] end
+  const { jwtTemplate } = config.clerk;
   if (!jwtTemplate) {
     throw new CloudPublicConfigMissingError({ key: "T3CODE_CLERK_JWT_TEMPLATE" });
   }

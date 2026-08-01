@@ -19,7 +19,13 @@ import {
   unregisterAgentAwarenessDeviceForCurrentUser,
 } from "../agent-awareness/remoteRegistration";
 import { clearConnectOnboardingRequest, requestConnectOnboarding } from "./connectOnboarding";
-import { resolveCloudPublicConfig, resolveRelayClerkTokenOptions } from "./publicConfig";
+import {
+  isLocalRelayAuth,
+  LOCAL_RELAY_ACCOUNT_ID,
+  LOCAL_RELAY_TOKEN,
+  resolveCloudPublicConfig,
+  resolveRelayClerkTokenOptions,
+} from "./publicConfig";
 
 function resetManagedRelayTokenCache() {
   return settleAsyncResult(() =>
@@ -173,16 +179,46 @@ function CloudAuthBridge(props: { readonly children: ReactNode }) {
   return props.children;
 }
 
+// [FORK] lempire: the self-hosted relay has no Clerk, so there is no sign-in to
+// wait for and no account that can change. Activating the relay session once on
+// mount is the whole of it — everything downstream (DPoP exchange, device
+// registration, Live Activities) is identical to the Clerk path, since it only
+// ever consumes the token provider this installs.
+function LocalRelayAuthBridge(props: { readonly children: ReactNode }) {
+  useEffect(() => {
+    activateCloudRelayAccount(LOCAL_RELAY_ACCOUNT_ID, () => Promise.resolve(LOCAL_RELAY_TOKEN));
+    return () => {
+      // Unmounting is not a sign-out: keep the persisted registration and any
+      // running activities, exactly as the Clerk bridge does.
+      releaseAgentAwarenessRelayTokenProvider();
+      setManagedRelaySession(appAtomRegistry, null);
+    };
+  }, []);
+
+  return props.children;
+}
+// [FORK] end
+
 export function CloudAuthProvider(props: { readonly children: ReactNode }) {
   const config = resolveCloudPublicConfig();
   const publishableKey = config.clerk.publishableKey;
   const relayUrl = config.relay.url;
+  // [FORK] lempire: local relay auth replaces the Clerk provider entirely.
+  const localRelayAuth = isLocalRelayAuth(config);
 
   useEffect(() => {
+    if (localRelayAuth) {
+      return;
+    }
     if (!publishableKey || !relayUrl) {
       deactivateCloudRelayAccount();
     }
-  }, [publishableKey, relayUrl]);
+  }, [localRelayAuth, publishableKey, relayUrl]);
+
+  if (localRelayAuth) {
+    return <LocalRelayAuthBridge>{props.children}</LocalRelayAuthBridge>;
+  }
+  // [FORK] end
 
   if (!publishableKey || !relayUrl) {
     return props.children;
