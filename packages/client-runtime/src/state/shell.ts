@@ -229,7 +229,7 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
     onNone: () => Stream.never,
     onSome: (service) =>
       service.changes.pipe(
-        Stream.filter((reason) => reason === "application-active"),
+        Stream.filter(ConnectionWakeups.shouldResubscribeAfterWakeup),
         Stream.tap(() => Ref.set(forceAuthoritativeRefresh, true)),
       ),
   });
