@@ -33,7 +33,11 @@ import {
 } from "../agent-awareness/remoteRegistration";
 import { refreshManagedRelayEnvironments } from "../cloud/managedRelayState";
 import { useClerkSettingsSheetDetent } from "../cloud/ClerkSettingsSheetDetent";
-import { hasCloudPublicConfig, resolveRelayClerkTokenOptions } from "../cloud/publicConfig";
+import {
+  hasCloudPublicConfig,
+  resolveCloudPublicConfig,
+  resolveRelayClerkTokenOptions,
+} from "../cloud/publicConfig";
 import { withNativeGlassHeaderItem } from "../layout/native-glass-header-items";
 import { WorkspaceSidebarToolbar } from "../layout/workspace-sidebar-toolbar";
 import { runtime } from "../../lib/runtime";
@@ -649,6 +653,17 @@ function AppSettingsSection() {
         {statusLabel ? (
           <Text className="text-xs text-foreground-muted/70">{statusLabel}</Text>
         ) : null}
+        {/* [FORK] lempire: which bundle is running, and which relay it resolved.
+            Upstream dropped the update id from this row, leaving no way to tell
+            a stale bundle from a config problem — the two failure modes this
+            fork's self-hosted OTA setup actually hits. Diagnosing that from the
+            outside cost an hour; this line answers it at a glance. */}
+        <Text className="text-xs text-foreground-muted/70">
+          {`ota ${(Updates.updateId ?? "embedded").slice(0, 8)} · relay ${
+            resolveCloudPublicConfig().relay.url ?? "none"
+          }`}
+        </Text>
+        {/* [FORK] end */}
       </View>
     </View>
   );
