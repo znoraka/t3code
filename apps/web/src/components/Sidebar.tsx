@@ -147,6 +147,7 @@ import {
   shouldShowArm64IntelBuildWarning,
   shouldToastDesktopUpdateActionResult,
 } from "./desktopUpdate.logic";
+import { showDesktopUpdateDownloadedToast } from "./desktopUpdate.toast";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
 import {
@@ -178,7 +179,6 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-  SidebarSeparator,
   useSidebar,
 } from "./ui/sidebar";
 import { useThreadSelectionStore } from "../threadSelectionStore";
@@ -3540,11 +3540,7 @@ export default function Sidebar() {
         .downloadUpdate()
         .then((result) => {
           if (result.completed) {
-            toastManager.add({
-              type: "success",
-              title: "Update downloaded",
-              description: "Restart the app from the update button to install it.",
-            });
+            showDesktopUpdateDownloadedToast(bridge, result.state);
           }
           if (!shouldToastDesktopUpdateActionResult(result)) return;
           const actionError = getDesktopUpdateActionError(result);
@@ -3671,8 +3667,6 @@ export default function Sidebar() {
               projectsLength={projects.length}
             />
           )}
-
-          <SidebarSeparator />
           <SidebarChromeFooter />
         </>
       )}
