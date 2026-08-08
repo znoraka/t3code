@@ -31,6 +31,16 @@ const decodeThreadSnapshot = Schema.decodeUnknownEffect(
  * WebSocket subscription's first frame. The response is gzip-compressible by
  * the transport and keeps the (potentially multi-KB) snapshot off the socket.
  */
+/**
+ * Optional turn window for a snapshot fetch. Only send a window to servers
+ * that advertise `threadSnapshotPagination`; older servers reject unknown
+ * query parameters.
+ */
+export interface ThreadSnapshotWindow {
+  readonly turnLimit: number;
+  readonly beforeCursor?: string;
+}
+
 export const fetchEnvironmentThreadSnapshot = Effect.fn(
   "clientRuntime.state.fetchEnvironmentThreadSnapshot",
 )(function* (input: {
@@ -38,11 +48,24 @@ export const fetchEnvironmentThreadSnapshot = Effect.fn(
   readonly threadId: ThreadId;
   readonly signer: Option.Option<ManagedRelayDpopSigner["Service"]>;
   readonly timeoutMs?: number;
+  readonly window?: ThreadSnapshotWindow;
 }) {
-  const requestUrl = environmentEndpointUrl(
-    input.prepared.httpBaseUrl,
-    `/api/orchestration/threads/${input.threadId}`,
-  );
+  // [FORK] lempire: raw fetch + off-path decode instead of the typed client
+  // (mobile sync freeze fix). The pagination window rides along as the query
+  // params the typed client would have produced.
+  const windowQuery = new URLSearchParams();
+  if (input.window !== undefined) {
+    windowQuery.set("turnLimit", String(input.window.turnLimit));
+    if (input.window.beforeCursor !== undefined) {
+      windowQuery.set("beforeCursor", input.window.beforeCursor);
+    }
+  }
+  const windowQueryString = windowQuery.toString();
+  const requestUrl =
+    environmentEndpointUrl(
+      input.prepared.httpBaseUrl,
+      `/api/orchestration/threads/${input.threadId}`,
+    ) + (windowQueryString.length > 0 ? `?${windowQueryString}` : "");
   const headers = yield* buildEnvironmentAuthHeaders(
     input.prepared.httpAuthorization,
     "GET",
@@ -77,6 +100,7 @@ export class ThreadSnapshotLoader extends Context.Service<
     readonly load: (
       prepared: PreparedConnection,
       threadId: ThreadId,
+      window?: ThreadSnapshotWindow,
     ) => Effect.Effect<Option.Option<OrchestrationThreadDetailSnapshot>>;
   }
 >()("@t3tools/client-runtime/state/threadSnapshotHttp/ThreadSnapshotLoader") {}
@@ -94,8 +118,13 @@ export const threadSnapshotLoaderLayer: Layer.Layer<
     // connections work without one).
     const signer = yield* Effect.serviceOption(ManagedRelayDpopSigner);
     return ThreadSnapshotLoader.of({
-      load: (prepared: PreparedConnection, threadId: ThreadId) =>
-        fetchEnvironmentThreadSnapshot({ prepared, threadId, signer }).pipe(
+      load: (prepared: PreparedConnection, threadId: ThreadId, window?: ThreadSnapshotWindow) =>
+        fetchEnvironmentThreadSnapshot({
+          prepared,
+          threadId,
+          signer,
+          ...(window !== undefined ? { window } : {}),
+        }).pipe(
           Effect.map(Option.some<OrchestrationThreadDetailSnapshot>),
           Effect.provideService(HttpClient.HttpClient, httpClient),
           // A genuinely missing thread (404) is expected — the socket

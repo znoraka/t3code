@@ -21,6 +21,7 @@ import * as ConnectionWakeups from "../connection/wakeups.ts";
 import { safeErrorLogAttributes } from "../errors/safeLog.ts";
 import { EnvironmentCacheStore } from "../platform/persistence.ts";
 import { subscribeDynamic } from "../rpc/client.ts";
+import type { RpcSession } from "../rpc/session.ts";
 import { ShellSnapshotLoader } from "./shellSnapshotHttp.ts";
 import { applyShellStreamEvent } from "./shellReducer.ts";
 import { makeCooperativeYield } from "./cooperativeYield.ts";
@@ -85,13 +86,8 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
     error: Option.none(),
   });
   const awaitingCompletion = yield* Ref.make(false);
-  // Distinguishes "we have a snapshot the server can resume from" (synced in
-  // this process) from "we restored a possibly-stale one from disk".
-  const synchronizedThisSession = yield* Ref.make(false);
-  // Returning to the foreground is not the same as a transport reconnect: the
-  // socket was likely dead for an unbounded stretch, so resume-by-sequence may
-  // not cover the gap and the authoritative snapshot must be refetched.
-  const forceAuthoritativeRefresh = yield* Ref.make(false);
+  const lastAuthoritativeSession = yield* Ref.make<RpcSession | null>(null);
+  const activeSubscriptionSession = yield* Ref.make<RpcSession | null>(null);
   const persistence = yield* Queue.sliding<OrchestrationShellSnapshot>(1);
 
   // Tracks what actually reached the cache so the finalizer can skip a write
@@ -192,7 +188,6 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
   ) {
     if (item.kind === "synchronized") {
       yield* Ref.set(awaitingCompletion, false);
-      yield* Ref.set(synchronizedThisSession, true);
       yield* SubscriptionRef.update(state, (current) =>
         Option.isSome(current.snapshot)
           ? { ...current, status: "live" as const, error: Option.none() }
@@ -222,16 +217,19 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
       status: waiting ? "synchronizing" : "live",
       error: Option.none(),
     });
+    if (item.kind === "snapshot") {
+      const session = yield* Ref.get(activeSubscriptionSession);
+      if (session !== null) {
+        yield* Ref.set(lastAuthoritativeSession, session);
+      }
+    }
     yield* Queue.offer(persistence, nextSnapshot);
   });
 
   const foregroundResubscriptions = Option.match(wakeups, {
     onNone: () => Stream.never,
     onSome: (service) =>
-      service.changes.pipe(
-        Stream.filter(ConnectionWakeups.shouldResubscribeAfterWakeup),
-        Stream.tap(() => Ref.set(forceAuthoritativeRefresh, true)),
-      ),
+      service.changes.pipe(Stream.filter(ConnectionWakeups.shouldResubscribeAfterWakeup)),
   });
 
   yield* setSynchronizing;
@@ -239,6 +237,7 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
     subscribeDynamic(
       ORCHESTRATION_WS_METHODS.subscribeShell,
       Effect.fn("EnvironmentShellState.makeSubscribeInput")(function* (session) {
+        yield* Ref.set(activeSubscriptionSession, session);
         const supportsCompletionMarker = yield* session.initialConfig.pipe(
           Effect.map((config) => config.shellResumeCompletionMarker === true),
           Effect.orElseSucceed(() => false),
@@ -246,54 +245,53 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
         yield* Ref.set(awaitingCompletion, supportsCompletionMarker);
         yield* setSynchronizing;
 
-        // Once this process has synchronized, the in-memory snapshot is known
-        // good and the server can resume from its sequence — so a reconnect
-        // must not re-download the whole thread list. It used to, on every
-        // reconnect: several megabytes fetched, decoded and re-applied, which
-        // allocated hard enough to hand the JS thread to the garbage collector
-        // for tens of seconds. That is the freeze on an unstable connection.
-        //
-        // A snapshot restored from disk does NOT qualify: it can be arbitrarily
-        // stale, possibly beyond what the server can resume from, so a cold
-        // start still fetches the authoritative snapshot.
-        const current = yield* SubscriptionRef.get(state);
-        const forced = yield* Ref.getAndSet(forceAuthoritativeRefresh, false);
-        const resumable =
-          !forced && (yield* Ref.get(synchronizedThisSession))
-            ? Option.getOrUndefined(current.snapshot)
-            : undefined;
-        if (resumable !== undefined) {
-          return {
-            afterSequence: resumable.snapshotSequence,
-            ...(supportsCompletionMarker ? { requestCompletionMarker: true as const } : {}),
-          };
+        // Foreground resubscriptions on the same live session can resume from
+        // the in-memory cursor. A new session reloads the authoritative HTTP
+        // snapshot so a valid cursor cannot preserve incomplete cached data.
+        const hasAuthoritativeSnapshot = (yield* Ref.get(lastAuthoritativeSession)) === session;
+        let canResume = hasAuthoritativeSnapshot;
+        let current = yield* SubscriptionRef.get(state);
+        if (!hasAuthoritativeSnapshot || Option.isNone(current.snapshot)) {
+          const prepared = yield* SubscriptionRef.get(supervisor.prepared).pipe(
+            Effect.flatMap(
+              Option.match({
+                onSome: Effect.succeed,
+                onNone: () =>
+                  SubscriptionRef.changes(supervisor.prepared).pipe(
+                    Stream.filter(Option.isSome),
+                    Stream.map((value) => value.value),
+                    Stream.runHead,
+                    Effect.map(Option.getOrThrow),
+                  ),
+              }),
+            ),
+          );
+          const httpSnapshot = yield* snapshotLoader.load(prepared);
+          if (Option.isSome(httpSnapshot)) {
+            yield* applyItem({ kind: "snapshot", snapshot: httpSnapshot.value });
+            canResume = true;
+            current = yield* SubscriptionRef.get(state);
+          }
         }
 
-        const prepared = yield* SubscriptionRef.get(supervisor.prepared).pipe(
-          Effect.flatMap(
-            Option.match({
-              onSome: Effect.succeed,
-              onNone: () =>
-                SubscriptionRef.changes(supervisor.prepared).pipe(
-                  Stream.filter(Option.isSome),
-                  Stream.map((value) => value.value),
-                  Stream.runHead,
-                  Effect.map(Option.getOrThrow),
-                ),
-            }),
-          ),
-        );
-        const httpSnapshot = yield* snapshotLoader.load(prepared);
-        if (Option.isSome(httpSnapshot)) {
-          yield* applyItem({ kind: "snapshot", snapshot: httpSnapshot.value });
-          yield* Ref.set(synchronizedThisSession, true);
-          return {
-            afterSequence: httpSnapshot.value.snapshotSequence,
-            ...(supportsCompletionMarker ? { requestCompletionMarker: true as const } : {}),
-          };
+        // If the authoritative refresh failed, omit the cached cursor so the
+        // socket fallback sends a complete snapshot for this new session.
+        if (!canResume || Option.isNone(current.snapshot)) {
+          return supportsCompletionMarker ? { requestCompletionMarker: true as const } : {};
         }
-
-        return supportsCompletionMarker ? { requestCompletionMarker: true as const } : {};
+        if (!supportsCompletionMarker) {
+          // Without a completion marker there is no synchronized signal for a
+          // resumed subscription, so report live immediately, like threads.
+          yield* SubscriptionRef.update(state, (value) => ({
+            ...value,
+            status: "live" as const,
+            error: Option.none(),
+          }));
+        }
+        return {
+          afterSequence: current.snapshot.value.snapshotSequence,
+          ...(supportsCompletionMarker ? { requestCompletionMarker: true as const } : {}),
+        };
       }),
       {
         onExpectedFailure: (cause) => setStreamError(Cause.squash(cause)),
