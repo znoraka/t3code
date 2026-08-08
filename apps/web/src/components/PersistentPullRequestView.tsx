@@ -135,8 +135,14 @@ function PersistentPullRequestViewInner() {
     return (
       pullRequestsQuery.data.reviewRequested.find(matchesNumber) ??
       pullRequestsQuery.data.myPrs.find(matchesNumber) ??
+      pullRequestsQuery.data.merged.find(matchesNumber) ??
       null
     );
+  }, [pullRequestsQuery.data, selectedPrNumber]);
+
+  const selectedPullRequestIsMine = useMemo(() => {
+    if (selectedPrNumber === null || !pullRequestsQuery.data) return false;
+    return pullRequestsQuery.data.myPrs.some((pr) => pr.number === selectedPrNumber);
   }, [pullRequestsQuery.data, selectedPrNumber]);
 
   const projectSelectItems = useMemo(
@@ -368,6 +374,7 @@ function PersistentPullRequestViewInner() {
                 cwd={cwd}
                 prNumber={selectedPrNumber}
                 prSummary={selectedPullRequest}
+                prIsMine={selectedPullRequestIsMine}
                 view={selectedView}
                 onViewChange={handleViewChange}
                 openFilePath={selectedFilePath}

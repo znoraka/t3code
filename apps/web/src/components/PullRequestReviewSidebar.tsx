@@ -4,12 +4,10 @@ import {
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
 import {
-  BotIcon,
   CheckCircle2Icon,
   ChevronDownIcon,
   CircleDashedIcon,
   ClipboardCopyIcon,
-  FlaskConicalIcon,
   FolderGit2Icon,
   GitBranchIcon,
   MessageSquareIcon,
@@ -17,13 +15,17 @@ import {
   XCircleIcon,
 } from "lucide-react";
 import { useCallback, useState } from "react";
-import * as Schema from "effect/Schema";
 
 import { gitPrEnvironment, refreshAllPullRequestData } from "~/state/gitPr";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { useEnvironmentQuery } from "~/state/query";
 import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { cn } from "~/lib/utils";
+import {
+  REVIEW_VARIANT_STORAGE_KEY,
+  REVIEW_VARIANTS,
+  reviewVariantSchema,
+} from "./prReviewVariant";
 import type { PullRequestReviewPromptVariant } from "./PullRequestReviewView";
 import { Button } from "./ui/button";
 import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "./ui/menu";
@@ -40,27 +42,6 @@ interface PullRequestReviewSidebarProps {
   onCheckout?: ((mode: "local" | "worktree") => void) | undefined;
   isCheckoutPending?: "local" | "worktree" | null | undefined;
 }
-
-const REVIEW_VARIANTS: {
-  value: PullRequestReviewPromptVariant;
-  faceLabel: string;
-  menuLabel: string;
-  Icon: typeof BotIcon;
-}[] = [
-  { value: "review", faceLabel: "Review", menuLabel: "Review", Icon: BotIcon },
-  {
-    value: "review-with-tests",
-    faceLabel: "Review + /lem-test-pr",
-    menuLabel: "Review with /lem-test-pr",
-    Icon: FlaskConicalIcon,
-  },
-];
-
-const REVIEW_VARIANT_STORAGE_KEY = "t3code:pr-review-variant";
-const reviewVariantSchema: Schema.Codec<PullRequestReviewPromptVariant> = Schema.Literals([
-  "review",
-  "review-with-tests",
-]);
 
 function mergeableColor(value: string): string {
   if (value === "MERGEABLE") return "text-green-500";

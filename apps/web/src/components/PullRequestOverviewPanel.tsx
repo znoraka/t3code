@@ -1,7 +1,12 @@
-import type { EnvironmentId } from "@t3tools/contracts";
+import type {
+  EnvironmentId,
+  GitPullRequestDetailResult,
+  PullRequestSummary,
+} from "@t3tools/contracts";
 import {
   AlertCircleIcon,
   CheckIcon,
+  ChevronDownIcon,
   CircleDashedIcon,
   ExternalLinkIcon,
   GitBranchIcon,
@@ -11,8 +16,18 @@ import { useMemo } from "react";
 
 import { gitPrEnvironment } from "~/state/gitPr";
 import { useEnvironmentQuery } from "~/state/query";
+import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { cn } from "~/lib/utils";
+import { PullRequestReportCard } from "../_lempire/PullRequestReportCard";
 import ChatMarkdown from "./ChatMarkdown";
+import {
+  REVIEW_VARIANT_STORAGE_KEY,
+  REVIEW_VARIANTS,
+  reviewVariantSchema,
+} from "./prReviewVariant";
+import type { PullRequestReviewPromptVariant } from "./PullRequestReviewView";
+import { Button } from "./ui/button";
+import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "./ui/menu";
 import { Spinner } from "./ui/spinner";
 
 interface PullRequestOverviewPanelProps {
@@ -20,8 +35,14 @@ interface PullRequestOverviewPanelProps {
   cwd: string | null;
   prNumber: number;
   prUrl?: string | null | undefined;
+  prSummary?: PullRequestSummary | null | undefined;
+  prIsMine?: boolean | undefined;
   onSwitchToFiles: () => void;
   onSwitchToConversation: () => void;
+  onReviewWithAgent?: ((variant?: PullRequestReviewPromptVariant) => void) | undefined;
+  isAgentReviewPending?: boolean | undefined;
+  onCheckout?: ((mode: "local" | "worktree") => void) | undefined;
+  onOpenExternal?: ((url: string) => void) | undefined;
 }
 
 function luminance(hex: string): number {
@@ -110,13 +131,184 @@ function ReviewDecisionBadge({ decision }: { decision: string }) {
   );
 }
 
+// [FORK] Verdict banner: one sentence saying why this PR is in front of you,
+// with the agent review as the primary action — reading the code yourself is
+// the quiet secondary path.
+function VerdictBanner({
+  detail,
+  summary,
+  isMine,
+  onReviewWithAgent,
+  isAgentReviewPending,
+  onCheckout,
+  onSwitchToFiles,
+}: {
+  detail: GitPullRequestDetailResult;
+  summary: PullRequestSummary | null;
+  isMine: boolean;
+  onReviewWithAgent?: ((variant?: PullRequestReviewPromptVariant) => void) | undefined;
+  isAgentReviewPending?: boolean | undefined;
+  onCheckout?: ((mode: "local" | "worktree") => void) | undefined;
+  onSwitchToFiles: () => void;
+}) {
+  const [reviewVariant, setReviewVariant] = useLocalStorage(
+    REVIEW_VARIANT_STORAGE_KEY,
+    "review-with-tests" as PullRequestReviewPromptVariant,
+    reviewVariantSchema,
+  );
+  const activeVariant =
+    REVIEW_VARIANTS.find((v) => v.value === reviewVariant) ?? REVIEW_VARIANTS[0]!;
+  const VariantIcon = activeVariant.Icon;
+
+  const isMerged = detail.state === "MERGED";
+  const checksFailing = detail.checks.filter((c) => c.status === "fail").length;
+  const checksPending = detail.checks.filter((c) => c.status === "pending").length;
+  const checksTotal = detail.checks.length;
+
+  const headline = isMerged
+    ? "This pull request was merged"
+    : isMine
+      ? "Your pull request"
+      : summary?.reReviewRequested
+        ? `${detail.author} is ready for your re-review`
+        : summary && !summary.hasMyApproval && !summary.hasMyComment
+          ? `${detail.author} is asking for your review`
+          : summary?.hasMyApproval
+            ? "You approved this pull request"
+            : `Review ${detail.author}’s pull request`;
+
+  const facts: string[] = [];
+  if (checksTotal > 0) {
+    if (checksFailing > 0) facts.push(`${checksFailing} of ${checksTotal} checks failing`);
+    else if (checksPending > 0) facts.push(`${checksPending} checks pending`);
+    else facts.push(`All ${checksTotal} checks pass`);
+  }
+  if (detail.mergeable === "MERGEABLE") facts.push("no conflicts");
+  else if (detail.mergeable === "CONFLICTING") facts.push("merge conflicts");
+  facts.push(`+${detail.additions} −${detail.deletions}`);
+
+  // Once you've approved (or the PR is merged), its problems are no longer
+  // yours — the banner stays neutral even with failing checks or conflicts.
+  const settledForMe = isMerged || (summary?.hasMyApproval === true && !summary.reReviewRequested);
+  const tone = settledForMe
+    ? "border-border/70 bg-muted/40"
+    : checksFailing > 0 || detail.mergeable === "CONFLICTING"
+      ? "border-destructive/30 bg-destructive/5"
+      : "border-emerald-500/30 bg-emerald-500/[0.06]";
+
+  return (
+    <div className="space-y-2">
+      <div className={cn("flex flex-wrap items-center gap-3 rounded-xl border p-3", tone)}>
+        {summary && summary.authorAvatar.length > 0 ? (
+          <img
+            src={summary.authorAvatar}
+            alt={summary.author}
+            loading="lazy"
+            className="size-8 shrink-0 rounded-full"
+          />
+        ) : null}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-foreground">{headline}</p>
+          <p className="text-xs text-muted-foreground">{facts.join(" · ")}</p>
+        </div>
+        {!isMerged && onReviewWithAgent ? (
+          <div className="flex shrink-0 items-stretch">
+            <Button
+              type="button"
+              size="sm"
+              className="rounded-r-none"
+              onClick={() => onReviewWithAgent(reviewVariant)}
+              disabled={isAgentReviewPending}
+            >
+              {isAgentReviewPending ? (
+                <Spinner className="size-3.5" />
+              ) : (
+                <VariantIcon className="size-3.5" aria-hidden="true" />
+              )}
+              {activeVariant.faceLabel}
+            </Button>
+            <Menu>
+              <MenuTrigger
+                render={
+                  <Button
+                    aria-label="Choose review variant"
+                    size="sm"
+                    className="rounded-l-none border-l border-l-black/20 px-1.5"
+                  />
+                }
+              >
+                <ChevronDownIcon className="size-3.5" aria-hidden="true" />
+              </MenuTrigger>
+              <MenuPopup align="end">
+                <MenuRadioGroup
+                  value={reviewVariant}
+                  onValueChange={(value) =>
+                    setReviewVariant(value as PullRequestReviewPromptVariant)
+                  }
+                >
+                  {REVIEW_VARIANTS.map(({ value, menuLabel, Icon }) => (
+                    <MenuRadioItem key={value} value={value}>
+                      <span className="flex items-center gap-2">
+                        <Icon className="size-3.5" aria-hidden="true" />
+                        {menuLabel}
+                      </span>
+                    </MenuRadioItem>
+                  ))}
+                </MenuRadioGroup>
+              </MenuPopup>
+            </Menu>
+          </div>
+        ) : null}
+      </div>
+      {!isMerged ? (
+        <p className="text-xs text-muted-foreground/80">
+          Prefer to look yourself?{" "}
+          <button
+            type="button"
+            onClick={onSwitchToFiles}
+            className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          >
+            Open the diff
+          </button>
+          {onCheckout ? (
+            <>
+              {" · "}
+              <button
+                type="button"
+                onClick={() => onCheckout("local")}
+                className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              >
+                Checkout
+              </button>
+              {" · "}
+              <button
+                type="button"
+                onClick={() => onCheckout("worktree")}
+                className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              >
+                New worktree
+              </button>
+            </>
+          ) : null}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export default function PullRequestOverviewPanel({
   environmentId,
   cwd,
   prNumber,
   prUrl,
+  prSummary,
+  prIsMine,
   onSwitchToFiles,
   onSwitchToConversation,
+  onReviewWithAgent,
+  isAgentReviewPending,
+  onCheckout,
+  onOpenExternal,
 }: PullRequestOverviewPanelProps) {
   const {
     data: detail,
@@ -160,6 +352,23 @@ export default function PullRequestOverviewPanel({
   return (
     <div className="h-full overflow-y-auto">
       <div className="space-y-5 p-4">
+        {/* ── Verdict banner + agent report ──────────────────── */}
+        <VerdictBanner
+          detail={detail}
+          summary={prSummary ?? null}
+          isMine={prIsMine === true}
+          onReviewWithAgent={onReviewWithAgent}
+          isAgentReviewPending={isAgentReviewPending}
+          onCheckout={onCheckout}
+          onSwitchToFiles={onSwitchToFiles}
+        />
+        <PullRequestReportCard
+          environmentId={environmentId}
+          prNumber={prNumber}
+          lastCommitAt={detail.lastCommitAt}
+          onOpenExternal={onOpenExternal}
+        />
+
         {/* ── Header ─────────────────────────────────────────── */}
         <div className="space-y-2">
           <div className="flex items-start gap-2">

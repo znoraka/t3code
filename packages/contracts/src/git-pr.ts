@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 import { NonNegativeInt, PositiveInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
 
 const TrimmedNonEmptyStringSchema = TrimmedNonEmptyString;
@@ -43,6 +43,11 @@ export type GitListPullRequestsInput = typeof GitListPullRequestsInput.Type;
 export const GitListPullRequestsResult = Schema.Struct({
   reviewRequested: Schema.Array(PullRequestSummary),
   myPrs: Schema.Array(PullRequestSummary),
+  /** Recently merged PRs involving me — the sidebar's "Settled" section.
+      Decoding default keeps clients compatible with pre-merged servers. */
+  merged: Schema.Array(PullRequestSummary).pipe(
+    Schema.withDecodingDefault(Effect.succeed([] as const)),
+  ),
   ghAvailable: Schema.Boolean,
   error: Schema.NullOr(Schema.String),
 });
@@ -224,6 +229,10 @@ export const GitPullRequestDetailResult = Schema.Struct({
   milestone: Schema.String,
   additions: NonNegativeInt,
   deletions: NonNegativeInt,
+  /** ISO commit date of the PR's newest commit, "" when unknown. Lets clients
+      tell whether an agent review predates the latest push. Decoding default
+      keeps clients compatible with pre-lastCommitAt servers. */
+  lastCommitAt: Schema.String.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
 });
 export type GitPullRequestDetailResult = typeof GitPullRequestDetailResult.Type;
 

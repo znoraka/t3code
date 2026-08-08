@@ -1,12 +1,14 @@
 import type { EnvironmentId, PullRequestSummary } from "@t3tools/contracts";
 import {
   AlertCircleIcon,
+  AsteriskIcon,
   CheckIcon,
   CircleDashedIcon,
-  MessageCircleIcon,
+  GitMergeIcon,
+  PlusIcon,
   XIcon,
 } from "lucide-react";
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 
 import { gitPrEnvironment } from "~/state/gitPr";
 import { useEnvironmentQuery } from "~/state/query";
@@ -22,6 +24,8 @@ interface PullRequestListPanelProps {
   onOpenExternal?: (url: string) => void;
 }
 
+const SETTLED_INITIAL_COUNT = 5;
+
 function relativeTime(value: string): string {
   if (!value) return "";
   const then = Date.parse(value);
@@ -29,170 +33,165 @@ function relativeTime(value: string): string {
   const diffMs = Date.now() - then;
   const mins = Math.floor(diffMs / 60_000);
   if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60) return `${mins}m`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return `${hours}h`;
   const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
+  if (days < 30) return `${days}d`;
   const months = Math.floor(days / 30);
-  if (months < 12) return `${months}mo ago`;
+  if (months < 12) return `${months}mo`;
   const years = Math.floor(months / 12);
-  return `${years}y ago`;
+  return `${years}y`;
 }
 
-function ChecksBadge({ pr }: { pr: PullRequestSummary }) {
+/** Deterministic per-author hue so the name line reads like the colored
+    project line of the threads list. */
+function authorHue(login: string): number {
+  let hash = 0;
+  for (let i = 0; i < login.length; i += 1) {
+    hash = (hash * 31 + login.charCodeAt(i)) | 0;
+  }
+  return ((hash % 360) + 360) % 360;
+}
+
+/** A PR in the review-requested bucket needs me unless I already approved or
+    commented and no re-review has been requested since. */
+function needsMyReview(pr: PullRequestSummary): boolean {
+  return pr.reReviewRequested || (!pr.hasMyApproval && !pr.hasMyComment);
+}
+
+function ChecksInline({ pr }: { pr: PullRequestSummary }) {
   if (pr.checksTotal === 0) return null;
-  const hasFail = pr.checksFailing > 0;
-  const allPass = pr.checksFailing === 0 && pr.checksPending === 0;
-  const tone = hasFail
-    ? "bg-destructive/10 text-destructive border-destructive/30"
-    : allPass
-      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/25 dark:text-emerald-300"
-      : "bg-amber-500/10 text-amber-600 border-amber-500/25 dark:text-amber-300";
-  const Icon = hasFail ? XIcon : allPass ? CheckIcon : CircleDashedIcon;
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium tabular-nums",
-        tone,
-      )}
-      title={`${pr.checksPassing} passed · ${pr.checksFailing} failing · ${pr.checksPending} pending`}
-    >
-      <Icon className="size-3" aria-hidden="true" />
-      {pr.checksPassing}/{pr.checksTotal}
-    </span>
-  );
-}
-
-function StatusPill({ pr }: { pr: PullRequestSummary }) {
-  if (pr.isDraft) {
+  if (pr.checksFailing > 0) {
     return (
-      <span className="inline-flex items-center rounded-full border border-muted-foreground/30 bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-        Draft
+      <span
+        className="inline-flex items-center gap-0.5 text-destructive tabular-nums"
+        title={`${pr.checksFailing} failing`}
+      >
+        <XIcon className="size-3" aria-hidden="true" />
+        {pr.checksPassing}/{pr.checksTotal}
+      </span>
+    );
+  }
+  if (pr.checksPending > 0) {
+    return (
+      <span
+        className="inline-flex items-center gap-0.5 text-amber-600 tabular-nums dark:text-amber-300"
+        title={`${pr.checksPending} pending`}
+      >
+        <CircleDashedIcon className="size-3" aria-hidden="true" />
+        {pr.checksPassing}/{pr.checksTotal}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center rounded-full border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-300">
-      Open
+    <span
+      className="inline-flex items-center gap-0.5 text-emerald-600 tabular-nums dark:text-emerald-300"
+      title="All checks passing"
+    >
+      <CheckIcon className="size-3" aria-hidden="true" />
+      {pr.checksPassing}
     </span>
   );
 }
 
-const PullRequestCard = memo(function PullRequestCard({
+const PullRequestRow = memo(function PullRequestRow({
+  pr,
+  needsMe,
+  isSelected,
+  onSelect,
+}: {
+  pr: PullRequestSummary;
+  needsMe: boolean;
+  isSelected: boolean;
+  onSelect: (pr: PullRequestSummary) => void;
+}) {
+  const hue = authorHue(pr.author);
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(pr)}
+      className={cn(
+        "block w-full rounded-xl px-3 py-2 text-left transition-colors",
+        isSelected ? "bg-accent" : "hover:bg-muted/60",
+      )}
+    >
+      <div className="flex items-center gap-1.5 text-xs font-semibold">
+        {pr.authorAvatar.length > 0 ? (
+          <img
+            src={pr.authorAvatar}
+            alt=""
+            loading="lazy"
+            className="size-4 shrink-0 rounded-full"
+          />
+        ) : null}
+        <span
+          className="min-w-0 truncate"
+          // color-mix toward the live foreground keeps one palette readable in
+          // both themes, same technique as the sidebar's project accents.
+          style={{ color: `color-mix(in oklab, hsl(${hue} 65% 55%) 72%, var(--foreground))` }}
+        >
+          {pr.author}
+        </span>
+        <time className="ml-auto shrink-0 text-[11px] font-normal text-muted-foreground/70">
+          {relativeTime(pr.updatedAt)}
+        </time>
+      </div>
+      <div className="mt-0.5 truncate text-[13px] font-medium text-foreground">{pr.title}</div>
+      <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground/80">
+        <span className="min-w-0 truncate">{pr.headRefName}</span>
+        <span className="ml-auto flex shrink-0 items-center gap-1.5">
+          {pr.isDraft ? <span className="text-muted-foreground">Draft</span> : null}
+          <ChecksInline pr={pr} />
+          {needsMe ? (
+            <AsteriskIcon className="size-3 text-[#d98a70]" aria-label="Needs your review" />
+          ) : pr.hasMyApproval ? (
+            <CheckIcon
+              className="size-3 text-blue-500 dark:text-blue-400"
+              aria-label="Approved by you"
+            />
+          ) : null}
+        </span>
+      </div>
+    </button>
+  );
+});
+
+const SettledRow = memo(function SettledRow({
   pr,
   isSelected,
   onSelect,
-  onOpenExternal,
 }: {
   pr: PullRequestSummary;
   isSelected: boolean;
   onSelect: (pr: PullRequestSummary) => void;
-  onOpenExternal?: (url: string) => void;
 }) {
   return (
     <button
       type="button"
       onClick={() => onSelect(pr)}
       className={cn(
-        "group flex w-full flex-col gap-1.5 rounded-lg border px-3 py-2 text-left transition-colors",
-        isSelected
-          ? "border-primary/40 bg-primary/5"
-          : "border-border/70 bg-background hover:border-border hover:bg-muted/40",
+        "flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs text-muted-foreground transition-colors",
+        isSelected ? "bg-accent text-accent-foreground" : "hover:bg-muted/60",
       )}
     >
-      <div className="flex items-start justify-between gap-2">
-        <span className="min-w-0 truncate text-sm font-medium text-foreground">{pr.title}</span>
-        {pr.authorAvatar.length > 0 ? (
-          <img
-            src={pr.authorAvatar}
-            alt={pr.author}
-            loading="lazy"
-            className="size-5 shrink-0 rounded-full border border-border/60"
-          />
-        ) : null}
-      </div>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <StatusPill pr={pr} />
-        <ChecksBadge pr={pr} />
-        {pr.reReviewRequested ? (
-          <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-300">
-            <AlertCircleIcon className="size-3" aria-hidden="true" />
-            Re-review requested
-          </span>
-        ) : pr.hasMyApproval ? (
-          <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/25 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-300">
-            <CheckIcon className="size-3" aria-hidden="true" />
-            Approved
-          </span>
-        ) : null}
-        {pr.hasMyComment ? (
-          <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-300">
-            <MessageCircleIcon className="size-3" aria-hidden="true" />
-            Commented
-          </span>
-        ) : null}
-      </div>
-      <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-        <span className="min-w-0 truncate">
-          #{pr.number} · {pr.author} · {relativeTime(pr.updatedAt)}
-        </span>
-        {onOpenExternal ? (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onOpenExternal(pr.url);
-            }}
-            className="shrink-0 text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-          >
-            GitHub
-          </button>
-        ) : null}
-      </div>
+      <GitMergeIcon className="size-3.5 shrink-0 text-purple-500 dark:text-purple-400" />
+      <span className="min-w-0 truncate">
+        #{pr.number} · {pr.title}
+      </span>
+      <time className="ml-auto shrink-0 text-[11px] text-muted-foreground/70">
+        {relativeTime(pr.updatedAt)}
+      </time>
     </button>
   );
 });
 
-function Section({
-  label,
-  prs,
-  emptyLabel,
-  selectedPrNumber,
-  onSelect,
-  onOpenExternal,
-}: {
-  label: string;
-  prs: ReadonlyArray<PullRequestSummary>;
-  emptyLabel: string;
-  selectedPrNumber: number | null;
-  onSelect: (pr: PullRequestSummary) => void;
-  onOpenExternal?: (url: string) => void;
-}) {
+function SectionDivider({ label }: { label: string }) {
   return (
-    <section className="space-y-2">
-      <div className="flex items-center justify-between px-1">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          {label}
-        </h3>
-        <span className="text-[11px] text-muted-foreground/70 tabular-nums">{prs.length}</span>
-      </div>
-      {prs.length === 0 ? (
-        <p className="px-1 text-xs text-muted-foreground/70">{emptyLabel}</p>
-      ) : (
-        <div className="space-y-1.5">
-          {prs.map((pr) => (
-            <PullRequestCard
-              key={pr.number}
-              pr={pr}
-              isSelected={selectedPrNumber === pr.number}
-              onSelect={onSelect}
-              {...(onOpenExternal ? { onOpenExternal } : {})}
-            />
-          ))}
-        </div>
-      )}
-    </section>
+    <div className="flex items-center gap-2.5 px-3 pb-1 pt-4 text-[11px] text-muted-foreground/80">
+      <span className="shrink-0">{label}</span>
+      <span className="h-px flex-1 bg-border/70" aria-hidden="true" />
+    </div>
   );
 }
 
@@ -201,7 +200,7 @@ export function PullRequestListPanel({
   cwd,
   selectedPrNumber,
   onSelect,
-  onOpenExternal,
+  onOpenExternal: _onOpenExternal,
 }: PullRequestListPanelProps) {
   const pullRequestsQuery = useEnvironmentQuery(
     environmentId !== null && cwd !== null
@@ -209,12 +208,18 @@ export function PullRequestListPanel({
       : null,
   );
   const data = pullRequestsQuery.data;
+  const [showAllSettled, setShowAllSettled] = useState(false);
 
-  const sortedReview = useMemo(
-    () => (data ? data.reviewRequested.toSorted(byUpdatedAtDesc) : []),
-    [data],
-  );
-  const sortedMine = useMemo(() => (data ? data.myPrs.toSorted(byUpdatedAtDesc) : []), [data]);
+  const sections = useMemo(() => {
+    if (!data) return null;
+    const review = data.reviewRequested.toSorted(byUpdatedAtDesc);
+    return {
+      needsMe: review.filter(needsMyReview),
+      waiting: review.filter((pr) => !needsMyReview(pr)),
+      mine: data.myPrs.toSorted(byUpdatedAtDesc),
+      settled: data.merged.toSorted(byUpdatedAtDesc),
+    };
+  }, [data]);
 
   if (!cwd) {
     return (
@@ -236,7 +241,7 @@ export function PullRequestListPanel({
   // Only surface an error screen when there is no cached data to fall back on.
   // A failed background refresh (e.g. a transient rate limit) keeps the last
   // good data, so we keep showing it rather than blanking the panel.
-  if (!data) {
+  if (!data || !sections) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-xs text-destructive">
         <AlertCircleIcon className="size-4" aria-hidden="true" />
@@ -263,6 +268,11 @@ export function PullRequestListPanel({
     );
   }
 
+  const visibleSettled = showAllSettled
+    ? sections.settled
+    : sections.settled.slice(0, SETTLED_INITIAL_COUNT);
+  const hiddenSettledCount = sections.settled.length - visibleSettled.length;
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex items-center justify-between border-b border-border/70 px-3 py-2">
@@ -286,23 +296,82 @@ export function PullRequestListPanel({
           </span>
         </div>
       ) : null}
-      <div className="flex-1 space-y-4 overflow-y-auto p-3">
-        <Section
-          label="Review Requested"
-          prs={sortedReview}
-          emptyLabel="No PRs waiting for your review."
-          selectedPrNumber={selectedPrNumber}
-          onSelect={onSelect}
-          {...(onOpenExternal ? { onOpenExternal } : {})}
-        />
-        <Section
-          label="My Pull Requests"
-          prs={sortedMine}
-          emptyLabel="You have no open pull requests."
-          selectedPrNumber={selectedPrNumber}
-          onSelect={onSelect}
-          {...(onOpenExternal ? { onOpenExternal } : {})}
-        />
+      <div className="flex-1 overflow-y-auto px-1.5 py-2">
+        {/* Needs you — headerless at the top, like active threads. */}
+        {sections.needsMe.length === 0 &&
+        sections.waiting.length === 0 &&
+        sections.mine.length === 0 &&
+        sections.settled.length === 0 ? (
+          <p className="px-3 py-4 text-xs text-muted-foreground/70">No pull requests.</p>
+        ) : null}
+        <div className="space-y-0.5">
+          {sections.needsMe.map((pr) => (
+            <PullRequestRow
+              key={pr.number}
+              pr={pr}
+              needsMe
+              isSelected={selectedPrNumber === pr.number}
+              onSelect={onSelect}
+            />
+          ))}
+        </div>
+        {sections.mine.length > 0 ? (
+          <>
+            <SectionDivider label="Your pull requests" />
+            <div className="space-y-0.5">
+              {sections.mine.map((pr) => (
+                <PullRequestRow
+                  key={pr.number}
+                  pr={pr}
+                  needsMe={false}
+                  isSelected={selectedPrNumber === pr.number}
+                  onSelect={onSelect}
+                />
+              ))}
+            </div>
+          </>
+        ) : null}
+        {sections.waiting.length > 0 ? (
+          <>
+            <SectionDivider label="Waiting on others" />
+            <div className="space-y-0.5">
+              {sections.waiting.map((pr) => (
+                <PullRequestRow
+                  key={pr.number}
+                  pr={pr}
+                  needsMe={false}
+                  isSelected={selectedPrNumber === pr.number}
+                  onSelect={onSelect}
+                />
+              ))}
+            </div>
+          </>
+        ) : null}
+        {sections.settled.length > 0 ? (
+          <>
+            <SectionDivider label="Settled" />
+            <div className="space-y-0.5">
+              {visibleSettled.map((pr) => (
+                <SettledRow
+                  key={pr.number}
+                  pr={pr}
+                  isSelected={selectedPrNumber === pr.number}
+                  onSelect={onSelect}
+                />
+              ))}
+            </div>
+            {hiddenSettledCount > 0 ? (
+              <button
+                type="button"
+                onClick={() => setShowAllSettled(true)}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs text-muted-foreground/70 transition-colors hover:bg-muted/60 hover:text-muted-foreground"
+              >
+                <PlusIcon className="size-3.5" aria-hidden="true" />
+                Show {hiddenSettledCount} more
+              </button>
+            ) : null}
+          </>
+        ) : null}
       </div>
     </div>
   );

@@ -6,17 +6,25 @@ import { useEffect } from "react";
 import { View } from "react-native";
 
 import { hasCloudPublicConfig } from "../cloud/publicConfig";
+// [FORK] lempire: local-relay builds have no Clerk account UI
+import { isLocalRelayAuthBuild } from "../../_lempire/cloudAuth";
+// [FORK] end
 
 export function SettingsAuthRouteScreen() {
   const navigation = useNavigation();
+  // [FORK] lempire: the self-hosted relay has no accounts, so there is nothing
+  // for Clerk's AuthView/UserProfileView to render — and no ClerkProvider to
+  // render them under. Treat local-relay builds like an unconfigured cloud.
+  const showAccountScreen = hasCloudPublicConfig() && !isLocalRelayAuthBuild;
+  // [FORK] end
 
   useEffect(() => {
-    if (!hasCloudPublicConfig()) {
+    if (!showAccountScreen) {
       navigation.dispatch(StackActions.replace("Settings"));
     }
-  }, [navigation]);
+  }, [navigation, showAccountScreen]);
 
-  return hasCloudPublicConfig() ? <ConfiguredSettingsAuthRouteScreen /> : null;
+  return showAccountScreen ? <ConfiguredSettingsAuthRouteScreen /> : null;
 }
 
 function ConfiguredSettingsAuthRouteScreen() {
