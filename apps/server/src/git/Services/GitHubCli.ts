@@ -9,7 +9,13 @@ import { Context, Schema } from "effect";
 import type { Effect } from "effect";
 
 import type { ProcessRunOutput } from "../../processRunner.ts";
-import type { PullRequestCheck, PullRequestReviewer, PullRequestLabel } from "@t3tools/contracts";
+// [FORK] lempire: the fork's git-pr contracts, not upstream's multi-provider
+// types that share the bare PullRequestCheck/PullRequestLabel names.
+import type {
+  GitPrCheck as PullRequestCheck,
+  PullRequestReviewer,
+  GitPrLabel as PullRequestLabel,
+} from "@t3tools/contracts";
 
 /**
  * GitHubCliError - error raised by the PR-review GitHub CLI adapter.

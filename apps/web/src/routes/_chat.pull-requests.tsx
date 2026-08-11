@@ -9,6 +9,16 @@ export interface PullRequestsSearch {
   readonly prNumber?: number | undefined;
   readonly filePath?: string | undefined;
   readonly view?: PullRequestWorkspaceView | undefined;
+  // [FORK] lempire: upstream's PR page (which this fork replaces with its own
+  // workspace) links here with its own search schema. Accept those params so
+  // upstream call sites keep type-checking; `number` and `selectedProjectId`
+  // are mapped onto the fork's prNumber/projectId so deep links still resolve.
+  readonly involvement?: string | undefined;
+  readonly state?: string | undefined;
+  readonly repository?: string | undefined;
+  readonly number?: number | undefined;
+  readonly selectedProjectId?: string | undefined;
+  // [FORK] end
 }
 
 const VALID_VIEWS = new Set<PullRequestWorkspaceView>([
@@ -18,29 +28,30 @@ const VALID_VIEWS = new Set<PullRequestWorkspaceView>([
   "threads",
 ]);
 
-function parsePullRequestsSearch(search: Record<string, unknown>): PullRequestsSearch {
-  const rawProjectId = search.projectId;
-  const projectId =
-    typeof rawProjectId === "string" && rawProjectId.trim().length > 0
-      ? rawProjectId.trim()
-      : undefined;
-
-  const rawPrNumber = search.prNumber;
-  let prNumber: number | undefined;
-  if (typeof rawPrNumber === "number" && Number.isInteger(rawPrNumber) && rawPrNumber > 0) {
-    prNumber = rawPrNumber;
-  } else if (typeof rawPrNumber === "string") {
-    const parsed = Number.parseInt(rawPrNumber, 10);
-    if (Number.isInteger(parsed) && parsed > 0) {
-      prNumber = parsed;
-    }
+function parsePositiveInt(raw: unknown): number | undefined {
+  if (typeof raw === "number" && Number.isInteger(raw) && raw > 0) return raw;
+  if (typeof raw === "string") {
+    const parsed = Number.parseInt(raw, 10);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
   }
+  return undefined;
+}
 
-  const rawFilePath = search.filePath;
-  const filePath =
-    typeof rawFilePath === "string" && rawFilePath.trim().length > 0
-      ? rawFilePath.trim()
-      : undefined;
+function parseTrimmed(raw: unknown): string | undefined {
+  return typeof raw === "string" && raw.trim().length > 0 ? raw.trim() : undefined;
+}
+
+function parsePullRequestsSearch(search: Record<string, unknown>): PullRequestsSearch {
+  // [FORK] lempire: fall back to upstream's `selectedProjectId`/`number` so PR
+  // links built by upstream call sites still select the right PR here.
+  const projectId = parseTrimmed(search.projectId) ?? parseTrimmed(search.selectedProjectId);
+  const prNumber = parsePositiveInt(search.prNumber) ?? parsePositiveInt(search.number);
+  const involvement = parseTrimmed(search.involvement);
+  const state = parseTrimmed(search.state);
+  const repository = parseTrimmed(search.repository);
+  // [FORK] end
+
+  const filePath = parseTrimmed(search.filePath);
 
   const rawView = search.view;
   const view =
@@ -53,6 +64,9 @@ function parsePullRequestsSearch(search: Record<string, unknown>): PullRequestsS
     ...(prNumber !== undefined ? { prNumber } : {}),
     ...(filePath !== undefined ? { filePath } : {}),
     ...(view !== undefined ? { view } : {}),
+    ...(involvement !== undefined ? { involvement } : {}),
+    ...(state !== undefined ? { state } : {}),
+    ...(repository !== undefined ? { repository } : {}),
   };
 }
 

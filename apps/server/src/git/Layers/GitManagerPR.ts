@@ -3,7 +3,9 @@ import { Effect } from "effect";
 import {
   GitManagerError,
   type GitListPullRequestsResult,
-  type PullRequestCheck,
+  // [FORK] lempire: this layer serves the fork's git-pr contracts, not
+  // upstream's multi-provider PullRequestCheck, which shares the bare name.
+  type GitPrCheck as PullRequestCheck,
   type PullRequestSummary,
 } from "@t3tools/contracts";
 import type { GitHubPullRequestListEntry } from "../Services/GitHubCli.ts";
