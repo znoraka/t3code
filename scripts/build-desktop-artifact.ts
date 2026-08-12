@@ -1541,6 +1541,9 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     artifactName: "T3-Code-${version}-${arch}.${ext}",
     electronLanguages: [...DESKTOP_ELECTRON_LANGUAGES],
     files: [...DESKTOP_FILE_EXCLUSIONS],
+    extraMetadata: {
+      homepage: "https://github.com/pingdotgg/t3code",
+    },
     directories: {
       buildResources: "apps/desktop/resources",
     },
@@ -1598,6 +1601,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
           schemes: ["t3code", "t3code-dev"],
         },
       ],
+      maintainer: "T3 Code <noe@lempire.co>",
       desktop: {
         entry: {
           StartupWMClass: "t3code",
