@@ -414,6 +414,9 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
                   ) : null}
                   {props.activePendingUserInput ? (
                     <PendingUserInputCard
+                      // The card keeps step/collapsed state per request; a new
+                      // request must start at question one, expanded.
+                      key={props.activePendingUserInput.requestId}
                       pendingUserInput={props.activePendingUserInput}
                       drafts={props.activePendingUserInputDrafts}
                       answers={props.activePendingUserInputAnswers}

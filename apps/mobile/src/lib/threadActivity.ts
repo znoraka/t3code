@@ -1424,6 +1424,11 @@ export function derivePendingUserInputs(
   return Arr.sortWith(openByRequestId.values(), (s) => new Date(s.createdAt), Order.Date);
 }
 
+/** Whether a single question already has an answer the submit payload accepts. */
+export function hasPendingUserInputAnswer(draft: PendingUserInputDraftAnswer | undefined): boolean {
+  return resolvePendingUserInputAnswer(draft) !== null;
+}
+
 export function setPendingUserInputCustomAnswer(
   draft: PendingUserInputDraftAnswer | undefined,
   customAnswer: string,
