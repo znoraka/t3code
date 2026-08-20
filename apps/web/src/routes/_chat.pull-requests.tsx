@@ -18,6 +18,7 @@ export interface PullRequestsSearch {
   readonly repository?: string | undefined;
   readonly number?: number | undefined;
   readonly selectedProjectId?: string | undefined;
+  readonly selectedEnvironmentId?: string | undefined;
   // [FORK] end
 }
 
@@ -49,6 +50,7 @@ function parsePullRequestsSearch(search: Record<string, unknown>): PullRequestsS
   const involvement = parseTrimmed(search.involvement);
   const state = parseTrimmed(search.state);
   const repository = parseTrimmed(search.repository);
+  const selectedEnvironmentId = parseTrimmed(search.selectedEnvironmentId);
   // [FORK] end
 
   const filePath = parseTrimmed(search.filePath);
@@ -67,6 +69,7 @@ function parsePullRequestsSearch(search: Record<string, unknown>): PullRequestsS
     ...(involvement !== undefined ? { involvement } : {}),
     ...(state !== undefined ? { state } : {}),
     ...(repository !== undefined ? { repository } : {}),
+    ...(selectedEnvironmentId !== undefined ? { selectedEnvironmentId } : {}),
   };
 }
 
