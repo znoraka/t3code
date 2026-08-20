@@ -12,6 +12,7 @@ import {
   type EnvironmentThreadSearchMatch,
 } from "@t3tools/client-runtime/state/thread-search";
 import { sortPinnedThreadsByOrderKey } from "@t3tools/client-runtime/state/thread-sort";
+import type { ChangeRequestSettleSource } from "@t3tools/client-runtime/state/thread-settled";
 import type {
   EnvironmentId,
   SidebarProjectGroupingMode,
@@ -118,6 +119,7 @@ interface HomeScreenProps {
     thread: EnvironmentThreadShell,
     direction: "up" | "down",
   ) => Promise<boolean>;
+  readonly onRegenerateThreadTitle: (thread: EnvironmentThreadShell) => Promise<boolean>;
   readonly onSelectPendingTask: (pendingTask: PendingNewTask) => void;
   readonly onDeletePendingTask: (pendingTask: PendingNewTask) => void;
   readonly onNewThreadInProject: (project: EnvironmentProject) => void;
@@ -209,6 +211,9 @@ export function HomeScreen(props: HomeScreenProps) {
   >(() => new Map());
   const preferencesResult = useAtomValue(mobilePreferencesAtom);
   const threadListV2Enabled = useThreadListV2Enabled();
+  const autoSettleOnMerge =
+    !AsyncResult.isSuccess(preferencesResult) ||
+    preferencesResult.value.autoSettleOnMerge !== false;
   const savePreferences = useAtomSet(updateMobilePreferencesAtom);
   const openSwipeableRef = useRef<SwipeableMethods | null>(null);
   const listRef = useRef<LegendListRef | null>(null);
@@ -495,20 +500,26 @@ export function HomeScreen(props: HomeScreenProps) {
   // Settled threads stay in the live shell stream (settled ≠ archived), so
   // the partition works directly off live shells — no snapshot merging or
   // optimistic holds.
-  // PR states stream in per-row (rows own the VCS subscriptions); a merged or
-  // closed PR auto-settles its thread on the next partition (mirrors web).
-  const [changeRequestStateByKey, setChangeRequestStateByKey] = useState<
-    ReadonlyMap<string, "open" | "closed" | "merged">
+  // PR states stream in per-row. The next partition applies the configured
+  // merge rule and the always-on close rule, matching web.
+  const [changeRequestByKey, setChangeRequestByKey] = useState<
+    ReadonlyMap<string, ChangeRequestSettleSource>
   >(() => new Map());
   const handleChangeRequestState = useCallback(
-    (threadKey: string, state: "open" | "closed" | "merged" | null) => {
-      setChangeRequestStateByKey((current) => {
-        if ((current.get(threadKey) ?? null) === state) return current;
+    (threadKey: string, changeRequest: ChangeRequestSettleSource | null) => {
+      setChangeRequestByKey((current) => {
+        const existing = current.get(threadKey) ?? null;
+        if (
+          (existing?.state ?? null) === (changeRequest?.state ?? null) &&
+          (existing?.updatedAt ?? null) === (changeRequest?.updatedAt ?? null)
+        ) {
+          return current;
+        }
         const next = new Map(current);
-        if (state === null) {
+        if (changeRequest === null) {
           next.delete(threadKey);
         } else {
-          next.set(threadKey, state);
+          next.set(threadKey, changeRequest);
         }
         return next;
       });
@@ -550,6 +561,12 @@ export function HomeScreen(props: HomeScreenProps) {
       void props.onUnpinThread(thread);
     },
     [props.onUnpinThread],
+  );
+  const handleRegenerateThreadTitle = useCallback(
+    (thread: EnvironmentThreadShell) => {
+      void props.onRegenerateThreadTitle(thread);
+    },
+    [props.onRegenerateThreadTitle],
   );
   const handleDeleteThread = props.onDeleteThread;
   const handleUnsettleThread = props.onUnsettleThread;
@@ -628,6 +645,15 @@ export function HomeScreen(props: HomeScreenProps) {
     }
     return supported;
   }, [serverConfigs]);
+  const titleRegenerationEnvironmentIds = useMemo(() => {
+    const supported = new Set<EnvironmentId>();
+    for (const [environmentId, config] of serverConfigs) {
+      if (config.environment.capabilities.threadTitleRegeneration === true) {
+        supported.add(environmentId);
+      }
+    }
+    return supported;
+  }, [serverConfigs]);
   // Canonical arranged pinned order (reorder-capable threads only) for the
   // Move up/down position flags. Computed from all shells, not the rendered
   // list, so search/scope filtering never disables or misdirects a move.
@@ -661,7 +687,8 @@ export function HomeScreen(props: HomeScreenProps) {
       projectRefs: v2ScopedProjectGroup === null ? null : v2ScopedProjectGroup.projectRefs,
       searchQuery: props.searchQuery,
       matchedThreadKeys,
-      changeRequestStateByKey,
+      changeRequestByKey,
+      autoSettleOnMerge,
       settlementEnvironmentIds,
       snoozeEnvironmentIds,
       settledLimit: settledVisibleCount,
@@ -672,7 +699,8 @@ export function HomeScreen(props: HomeScreenProps) {
       selectedThreadKey: null,
     });
   }, [
-    changeRequestStateByKey,
+    changeRequestByKey,
+    autoSettleOnMerge,
     nowMinute,
     snoozeWakeTick,
     snoozedShelfExpanded,
@@ -826,6 +854,8 @@ export function HomeScreen(props: HomeScreenProps) {
           onSelectThread={props.onSelectThread}
           onDeleteThread={handleDeleteThread}
           onArchiveThread={props.onArchiveThread}
+          onRegenerateThreadTitle={handleRegenerateThreadTitle}
+          titleRegenerationSupported={titleRegenerationEnvironmentIds.has(thread.environmentId)}
           settlementSupported={settlementEnvironmentIds.has(thread.environmentId)}
           onSettleThread={handleSettleThread}
           snoozeSupported={snoozeEnvironmentIds.has(thread.environmentId)}
@@ -858,6 +888,7 @@ export function HomeScreen(props: HomeScreenProps) {
       arrangedPinnedKeys,
       handleMovePinnedThread,
       handlePinThread,
+      handleRegenerateThreadTitle,
       handleSettleThread,
       handleSnoozeThread,
       handleUnpinThread,
@@ -879,6 +910,7 @@ export function HomeScreen(props: HomeScreenProps) {
       snoozeEnvironmentIds,
       threadListV2Items,
       threadSearchMatchByKey,
+      titleRegenerationEnvironmentIds,
       toggleSettledShelf,
       toggleSnoozedShelf,
       v2ProjectTitleByProjectKey,
@@ -986,6 +1018,8 @@ export function HomeScreen(props: HomeScreenProps) {
               searchQuery={props.searchQuery}
               onArchiveThread={props.onArchiveThread}
               onDeleteThread={props.onDeleteThread}
+              onRegenerateThreadTitle={handleRegenerateThreadTitle}
+              titleRegenerationSupported={titleRegenerationEnvironmentIds.has(thread.environmentId)}
               onSelectThread={props.onSelectThread}
               onSwipeableClose={handleSwipeableClose}
               onSwipeableWillOpen={handleSwipeableWillOpen}
@@ -1008,6 +1042,7 @@ export function HomeScreen(props: HomeScreenProps) {
       accentByGroupKey, // [FORK] lempire: machine accent colors
       handleSwipeableClose,
       handleSwipeableWillOpen,
+      handleRegenerateThreadTitle,
       projectCwdByKey,
       props.onArchiveThread,
       props.onDeletePendingTask,
@@ -1018,6 +1053,7 @@ export function HomeScreen(props: HomeScreenProps) {
       props.searchQuery,
       props.savedConnectionsById,
       threadSearchMatchByKey,
+      titleRegenerationEnvironmentIds,
       updateGroupDisplay,
     ],
   );
