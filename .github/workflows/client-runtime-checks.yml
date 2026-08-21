@@ -1,0 +1,45 @@
+# [FORK] lempire: minimal CI that actually runs on this fork. The upstream CI
+# workflows target Blacksmith runners, which are not connected here — their
+# jobs queue forever. This one runs on GitHub-hosted runners and checks only
+# @t3tools/client-runtime (typecheck + tests), the package the fork's
+# connection-resilience changes live in.
+name: Client runtime checks
+
+on:
+  pull_request:
+    paths:
+      - packages/client-runtime/**
+      - .github/workflows/client-runtime-checks.yml
+
+concurrency:
+  group: client-runtime-checks-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Typecheck and test client-runtime
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            /*
+            !/.repos/
+          sparse-checkout-cone-mode: false
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: |
+            args:
+              - --filter=@t3tools/client-runtime...
+
+      - name: Typecheck
+        run: vp run --filter @t3tools/client-runtime typecheck
+
+      - name: Test
+        run: vp run --filter @t3tools/client-runtime test
