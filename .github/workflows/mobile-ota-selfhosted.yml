@@ -1,0 +1,106 @@
+# [FORK] lempire: publish a JS-only OTA update through the self-hosted
+# expo-updates server (expo-updates.gawaak.ovh, repo znoraka/expo-updates-go)
+# instead of EAS Update. The t3code VPS container that runs release agents has
+# a 2.5GiB memory cap — Metro cannot bundle there — so the export runs here.
+#
+# What it does (mirrors running `newversion` locally, see the updates repo's
+# AGENTS.md): install mobile deps → `newversion -project apps/mobile -push`
+# (patch-bumps apps/mobile/package.json, runs `npx expo export`, lays the
+# bundle under updates/t3-code/<runtimeVersion>/<timestamp>/ in the updates
+# repo, commits and pushes — the updates server redeploys from that push) →
+# push the version bump back to this repo's main.
+#
+# Requires the OTA_PUSH_TOKEN secret: a PAT that can push to
+# znoraka/expo-updates-go. The bump pushed with the default GITHUB_TOKEN does
+# not retrigger workflows, so no EAS run is caused by it.
+name: Mobile self-hosted OTA
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Preview the release without building or pushing anything"
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: mobile-ota-selfhosted
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Publish self-hosted OTA
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 25
+    env:
+      APP_VARIANT: production
+      NODE_OPTIONS: --max-old-space-size=8192
+    steps:
+      - name: Checkout app
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            /*
+            !/.repos/
+          sparse-checkout-cone-mode: false
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: |
+            args:
+              - --filter=@t3tools/mobile...
+
+      - name: Checkout update server repo
+        uses: actions/checkout@v6
+        with:
+          repository: znoraka/expo-updates-go
+          token: ${{ secrets.OTA_PUSH_TOKEN }}
+          path: expo-updates-go
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: expo-updates-go/go.mod
+          cache-dependency-path: expo-updates-go/go.sum
+
+      - name: Build newversion
+        working-directory: expo-updates-go
+        run: go build -o newversion ./cmd/newversion
+
+      - name: Dry run
+        if: inputs.dry_run
+        working-directory: expo-updates-go
+        run: ./newversion -project ../apps/mobile -dry-run | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Build and publish OTA bundle
+        if: ${{ !inputs.dry_run }}
+        working-directory: expo-updates-go
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          ./newversion -project ../apps/mobile -push
+          git log -1 --stat | head -20
+
+      - name: Push version bump back to this repo
+        if: ${{ !inputs.dry_run }}
+        run: |
+          version="$(node -p "require('./apps/mobile/package.json').version")"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/mobile/package.json
+          git commit -m "Bump mobile version to $version (OTA deploy)"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          {
+            echo "## Self-hosted OTA published"
+            echo
+            echo "- App version: \`$version\`"
+            echo "- Runtime version: \`$(node -p "require('./apps/mobile/app.json').expo.runtimeVersion")\`"
+            echo "- Served from: https://expo-updates.gawaak.ovh/t3-code/manifest"
+          } >> "$GITHUB_STEP_SUMMARY"
