@@ -12,6 +12,9 @@ import {
   ConnectionTransientError,
   Connectivity,
   Wakeups,
+  // [FORK] lempire: mobile connection resilience
+  enableMobileConnectionResilience,
+  // [FORK] end
 } from "@t3tools/client-runtime/connection";
 import { managedRelayAccountChanges, managedRelaySessionAtom } from "@t3tools/client-runtime/relay";
 import { AuthStandardClientScopes } from "@t3tools/contracts";
@@ -32,6 +35,13 @@ import { clearThreadOutboxEnvironment } from "../state/thread-outbox";
 import { clearComposerDraftsEnvironment } from "../state/use-composer-drafts";
 import { mobileApplicationActiveWakeup } from "./app-state-wakeups";
 import { connectionStorageLayer } from "./storage";
+
+// [FORK] lempire: keepalive heartbeat + wake-probe retries + fast retry ladder.
+// Mobile is the only platform whose sockets get suspended and whose network
+// path (VPN, cellular) punishes both idle connections and tight probe
+// timeouts. See client-runtime connection/_lempire/connectionResilience.ts.
+enableMobileConnectionResilience();
+// [FORK] end
 
 function networkStatus(state: Network.NetworkState): "unknown" | "offline" | "online" {
   if (state.isConnected === false) {
