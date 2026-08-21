@@ -27,7 +27,12 @@ import * as Effect from "effect/Effect";
 
 import { ConnectionTransientError, type ConnectionAttemptError } from "../model.ts";
 
-const HEARTBEAT_INTERVAL = "15 seconds";
+// 5s, not just dead-socket detection: on iOS the Tailscale tunnel itself
+// wedges when flows go idle (measured: a 2s-ping websocket held for 7+
+// minutes while 15s-heartbeat app connections died mid-use). Constant
+// foreground traffic keeps the tunnel alive; the cost is one tiny RPC per
+// connected environment per interval, only while the app is foregrounded.
+const HEARTBEAT_INTERVAL = "5 seconds";
 const HEARTBEAT_PROBE_TIMEOUT = "5 seconds";
 const HEARTBEAT_MAX_MISSES = 2;
 

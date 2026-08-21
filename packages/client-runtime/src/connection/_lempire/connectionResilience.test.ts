@@ -67,7 +67,7 @@ describe("connectionResilience", () => {
           "Test",
         ).pipe(Effect.forkChild);
         yield* TestClock.adjust("61 seconds");
-        expect(yield* Ref.get(calls)).toBe(4);
+        expect(yield* Ref.get(calls)).toBe(12);
         expect(fiber.pollUnsafe()).toBeUndefined();
         yield* Fiber.interrupt(fiber);
       }),
@@ -77,8 +77,8 @@ describe("connectionResilience", () => {
       Effect.gen(function* () {
         enableMobileConnectionResilience();
         const fiber = yield* heartbeatMonitor(Effect.never, "Test").pipe(Effect.forkChild);
-        // Miss 1 lands at 15s + 5s timeout, miss 2 at 40s.
-        yield* TestClock.adjust("40 seconds");
+        // Miss 1 lands at 5s interval + 5s timeout, miss 2 at 20s.
+        yield* TestClock.adjust("20 seconds");
         const exit = yield* Fiber.await(fiber);
         expect(Exit.isFailure(exit)).toBe(true);
       }),
