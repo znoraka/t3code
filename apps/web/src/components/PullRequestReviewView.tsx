@@ -868,10 +868,12 @@ export function buildPullRequestReviewPrompt(input: BuildPullRequestReviewPrompt
   lines.push(
     "7. If I ask you to make changes, ask before editing the working tree — offer to check out the PR branch (locally or in a worktree) first.",
   );
-  lines.push("8. Always upload the results at the end, in HTML format.");
+  lines.push(
+    "8. Always upload the results at the end using the `upload-artifact` skill, in the format the skill prescribes for the artifact type — a data-only `meta.json` report for PR reviews and QA results, HTML for plans and general documents.",
+  );
   if (input.variant === "review-with-tests") {
     lines.push(
-      `9. After completing the review, run /lem-test-pr for pull request #${input.prNumber} and upload the test results. Both the PR review and the test results must appear on the HTML results you upload.`,
+      `9. After completing the review, run /lem-test-pr for pull request #${input.prNumber} and upload the test results. Both the PR review and the test results must appear in the single report you upload.`,
     );
   }
 
