@@ -663,6 +663,40 @@ describe("mobile cloud link environment client", () => {
     }),
   );
 
+  it.effect("suggests re-pairing when the environment session lacks the relay scope", () =>
+    Effect.gen(function* () {
+      const fetchMock = vi.fn((url: string | URL) => {
+        if (String(url).endsWith("/v1/client/environment-link-challenges")) {
+          return Promise.resolve(Response.json(validLinkChallengeResponse()));
+        }
+        return Promise.resolve(
+          Response.json(
+            {
+              _tag: "EnvironmentScopeRequiredError",
+              code: "insufficient_scope",
+              requiredScope: "relay:write",
+              traceId: "trace-test",
+            },
+            { status: 403 },
+          ),
+        );
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const error = yield* withCloudServices(
+        linkEnvironmentToCloud({
+          clerkToken: "clerk-token",
+          connection: savedConnection,
+        }),
+      ).pipe(Effect.flip);
+      expect(error._tag).toBe("CloudEnvironmentLinkError");
+      expect(error.message).toBe(
+        "Could not obtain environment link proof: This request needs the relay:write scope, which this client does not have. Pair the environment again with a link that includes relay access.",
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    }),
+  );
+
   it.effect("preserves typed relay error bodies while linking environments", () =>
     Effect.gen(function* () {
       const fetchMock = vi.fn((url: string | URL) => {

@@ -39,7 +39,13 @@ export class ClientPresentation extends Context.Service<
   ClientPresentation,
   {
     readonly metadata: AuthClientPresentationMetadata;
-    readonly scopes: ReadonlyArray<AuthEnvironmentScope>;
+    /**
+     * Scopes to request when exchanging a pairing credential for a session.
+     * The server rejects the exchange outright if a requested scope is not in
+     * the credential's grant, so an explicit list acts as a cap. `undefined`
+     * accepts the credential's full grant, matching the browser cookie flow.
+     */
+    readonly scopes: ReadonlyArray<AuthEnvironmentScope> | undefined;
   }
 >()("@t3tools/client-runtime/platform/capabilities/ClientPresentation") {}
 
