@@ -33,9 +33,11 @@ vi.mock("expo-constants", () => ({
   },
 }));
 
-vi.mock("expo-device", () => ({
-  osVersion: "18.4.1",
-  modelName: "iPhone 15 Pro",
+vi.mock("expo", () => ({
+  requireOptionalNativeModule: () => ({
+    osVersion: "18.4.1",
+    modelName: "iPhone 15 Pro",
+  }),
 }));
 
 vi.mock("react-native", () => ({

@@ -10,9 +10,12 @@ import { authClientMetadata } from "./authClientMetadata";
 
 const mobilePlatform = vi.hoisted(() => ({ OS: "ios" as "ios" | "android" }));
 const mobileDevice = vi.hoisted(() => ({
-  osVersion: "18.4.1",
-  modelName: "iPhone 15 Pro",
+  osVersion: "18.4.1" as string | null,
+  modelName: "iPhone 15 Pro" as string | null,
 }));
+// [FORK] lempire: authClientMetadata reads ExpoDevice optionally so OTA
+// bundles keep booting on binaries built before expo-device existed.
+const nativeDevice = vi.hoisted(() => ({ current: mobileDevice as unknown }));
 
 vi.mock("./runtime", () => ({
   runtime: {
@@ -24,13 +27,16 @@ vi.mock("react-native", () => ({
   Platform: mobilePlatform,
 }));
 
-vi.mock("expo-device", () => mobileDevice);
+vi.mock("expo", () => ({
+  requireOptionalNativeModule: () => nativeDevice.current,
+}));
 
 describe("mobile remote connection records", () => {
   afterEach(() => {
     mobilePlatform.OS = "ios";
     mobileDevice.osVersion = "18.4.1";
     mobileDevice.modelName = "iPhone 15 Pro";
+    nativeDevice.current = mobileDevice;
   });
 
   it("identifies mobile token exchanges for authorized-client presentation", () => {
@@ -53,6 +59,20 @@ describe("mobile remote connection records", () => {
       os: "Android",
       osMajorVersion: 15,
       deviceModel: "Pixel 9",
+    });
+  });
+
+  it("omits device details when the runtime has no ExpoDevice native module", async () => {
+    nativeDevice.current = null;
+    vi.resetModules();
+
+    const { authClientMetadata: withoutNativeDevice } = await import("./authClientMetadata");
+
+    expect(withoutNativeDevice()).toEqual({
+      label: "T3 Code Mobile",
+      deviceType: "mobile",
+      os: "iOS",
+      surface: "mobile",
     });
   });
 
