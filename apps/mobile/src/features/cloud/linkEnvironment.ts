@@ -9,6 +9,7 @@ import {
   EnvironmentHttpForbiddenError,
   EnvironmentHttpInternalServerError,
   EnvironmentHttpUnauthorizedError,
+  EnvironmentScopeRequiredError,
 } from "@t3tools/contracts";
 import { stripPairingTokenFromUrl } from "@t3tools/shared/remote";
 import {
@@ -71,8 +72,11 @@ const isEnvironmentCloudApiError = Schema.is(
     EnvironmentHttpConflictError,
     EnvironmentHttpInternalServerError,
     EnvironmentCloudEndpointUnavailableError,
+    EnvironmentScopeRequiredError,
   ]),
 );
+
+const isEnvironmentScopeError = Schema.is(EnvironmentScopeRequiredError);
 
 const MANAGED_ENDPOINT_PROVIDER_KIND =
   "cloudflare_tunnel" satisfies RelayManagedEndpointProviderKind;
@@ -81,10 +85,15 @@ function cloudEnvironmentLinkError(message: string) {
   return (cause: unknown) => {
     const environmentError = findEnvironmentCloudApiError(cause);
     const traceId = findErrorTraceId(cause);
+    // A missing scope is fixable by the user: session scopes are baked into
+    // the bearer token at pairing time, so only a fresh pairing can widen them.
+    const detail = environmentError
+      ? isEnvironmentScopeError(environmentError)
+        ? `${environmentError.message} Pair the environment again with a link that includes relay access.`
+        : environmentError.message
+      : null;
     return new CloudEnvironmentLinkError({
-      message: environmentError
-        ? `${message.replace(/[.:]$/, "")}: ${environmentError.message}`
-        : withDevCause(message, cause),
+      message: detail ? `${message.replace(/[.:]$/, "")}: ${detail}` : withDevCause(message, cause),
       cause,
       ...(traceId === null ? {} : { traceId }),
     });

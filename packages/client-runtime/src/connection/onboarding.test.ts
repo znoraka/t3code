@@ -26,6 +26,18 @@ const CLIENT_PRESENTATION_LAYER = Layer.succeed(
   }),
 );
 
+const UNCAPPED_CLIENT_PRESENTATION_LAYER = Layer.succeed(
+  ClientPresentation,
+  ClientPresentation.of({
+    metadata: {
+      label: "T3 Code Test",
+      deviceType: "mobile",
+      os: "Test OS",
+    },
+    scopes: undefined,
+  }),
+);
+
 function pairingHttpLayer(
   calls: Array<{ readonly url: string; readonly init: RequestInit }>,
   options?: { readonly failDescriptor?: boolean },
@@ -115,6 +127,27 @@ describe("connection onboarding", () => {
       expect(tokenParams.get("subject_token")).toBe("pairing-token");
       expect(tokenParams.get("scope")).toBe(AuthStandardClientScopes.join(" "));
       expect(tokenParams.get("client_label")).toBe("T3 Code Test");
+    }),
+  );
+
+  it.effect("omits the scope request when the presentation accepts the full grant", () =>
+    Effect.gen(function* () {
+      const calls: Array<{ readonly url: string; readonly init: RequestInit }> = [];
+      yield* preparePairingRegistration({
+        host: "remote.example.test",
+        pairingCode: "pairing-token",
+      }).pipe(
+        Effect.provide(Layer.mergeAll(UNCAPPED_CLIENT_PRESENTATION_LAYER, pairingHttpLayer(calls))),
+      );
+
+      const tokenRequest = calls.find((call) => call.url.endsWith("/oauth/token"));
+      const tokenBody =
+        tokenRequest?.init.body instanceof Uint8Array
+          ? new TextDecoder().decode(tokenRequest.init.body)
+          : String(tokenRequest?.init.body);
+      const tokenParams = new URLSearchParams(tokenBody);
+      expect(tokenParams.get("subject_token")).toBe("pairing-token");
+      expect(tokenParams.has("scope")).toBe(false);
     }),
   );
 

@@ -17,7 +17,6 @@ import {
   // [FORK] end
 } from "@t3tools/client-runtime/connection";
 import { managedRelayAccountChanges, managedRelaySessionAtom } from "@t3tools/client-runtime/relay";
-import { AuthStandardClientScopes } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -178,7 +177,11 @@ const capabilitiesLayer = Layer.effectContext(
         ClientPresentation,
         ClientPresentation.of({
           metadata: authClientMetadata(Constants.expoConfig?.version),
-          scopes: AuthStandardClientScopes,
+          // Accept the pairing credential's full grant. Capping to the
+          // standard scopes would silently drop relay:write, which the T3
+          // Connect link flow (Live Activity updates) needs on the paired
+          // session.
+          scopes: undefined,
         }),
       ),
       Context.add(
