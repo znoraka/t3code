@@ -1,6 +1,6 @@
 {
   "name": "@t3tools/mobile",
-  "version": "0.0.37",
+  "version": "0.0.38",
   "private": true,
   "main": "index.ts",
   "scripts": {
@@ -26,6 +26,7 @@
     "eas:preview": "eas build --profile preview",
     "eas:preview:dev": "eas build --profile preview:dev",
     "eas:prod": "eas build --profile production",
+    "generate": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/generate-uniwind-themes.mts",
     "ios": "EXPO_NO_GIT_STATUS=1 expo prebuild --clean --platform ios && expo run:ios",
     "ios:dev": "APP_VARIANT=development EXPO_NO_GIT_STATUS=1 expo prebuild --clean --platform ios && expo run:ios",
     "ios:preview": "APP_VARIANT=preview EXPO_NO_GIT_STATUS=1 expo prebuild --clean --platform ios && expo run:ios",
@@ -39,7 +40,6 @@
     "start:preview": "APP_VARIANT=preview expo start",
     "start:prod": "APP_VARIANT=production expo start",
     "sync:pierre-icons": "node modules/t3-markdown-text/scripts/sync-pierre-file-icons.mjs",
-    "generate": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/generate-uniwind-themes.mts",
     "test": "vp test run",
     "typecheck": "tsc --noEmit"
   },
