@@ -11,7 +11,13 @@ import { Platform } from "react-native";
 const ExpoDevice = requireOptionalNativeModule<{
   readonly osVersion?: string | null;
   readonly modelName?: string | null;
+  readonly deviceType?: number | null;
 }>("ExpoDevice");
+
+// Numeric values of expo-device's DeviceType enum, mirrored here so we can
+// interpret the native constant without importing expo-device.
+const DEVICE_TYPE_PHONE = 1;
+const DEVICE_TYPE_TABLET = 2;
 // [FORK] end
 
 export function authClientMetadata(appVersion?: string): AuthClientPresentationMetadata {
@@ -20,7 +26,12 @@ export function authClientMetadata(appVersion?: string): AuthClientPresentationM
 
   return {
     label: "T3 Code Mobile",
-    deviceType: "mobile",
+    deviceType:
+      ExpoDevice?.deviceType === DEVICE_TYPE_TABLET
+        ? "tablet"
+        : ExpoDevice?.deviceType === DEVICE_TYPE_PHONE
+          ? "mobile"
+          : "unknown",
     ...(Platform.OS === "ios" ? { os: "iOS" } : Platform.OS === "android" ? { os: "Android" } : {}),
     ...(Number.isFinite(osMajorVersion) && osMajorVersion > 0 ? { osMajorVersion } : {}),
     ...(deviceModel ? { deviceModel } : {}),

@@ -10,6 +10,7 @@ import { authClientMetadata } from "./authClientMetadata";
 
 const mobilePlatform = vi.hoisted(() => ({ OS: "ios" as "ios" | "android" }));
 const mobileDevice = vi.hoisted(() => ({
+  deviceType: 1 as number | null,
   osVersion: "18.4.1" as string | null,
   modelName: "iPhone 15 Pro" as string | null,
 }));
@@ -34,6 +35,7 @@ vi.mock("expo", () => ({
 describe("mobile remote connection records", () => {
   afterEach(() => {
     mobilePlatform.OS = "ios";
+    mobileDevice.deviceType = 1;
     mobileDevice.osVersion = "18.4.1";
     mobileDevice.modelName = "iPhone 15 Pro";
     nativeDevice.current = mobileDevice;
@@ -62,6 +64,17 @@ describe("mobile remote connection records", () => {
     });
   });
 
+  it("identifies native tablets separately from phones", () => {
+    mobileDevice.deviceType = 2;
+    mobileDevice.modelName = "iPad Pro 13-inch";
+
+    expect(authClientMetadata()).toMatchObject({
+      deviceType: "tablet",
+      os: "iOS",
+      deviceModel: "iPad Pro 13-inch",
+    });
+  });
+
   it("omits device details when the runtime has no ExpoDevice native module", async () => {
     nativeDevice.current = null;
     vi.resetModules();
@@ -70,7 +83,7 @@ describe("mobile remote connection records", () => {
 
     expect(withoutNativeDevice()).toEqual({
       label: "T3 Code Mobile",
-      deviceType: "mobile",
+      deviceType: "unknown",
       os: "iOS",
       surface: "mobile",
     });

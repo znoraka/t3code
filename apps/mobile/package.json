@@ -39,6 +39,7 @@
     "start:preview": "APP_VARIANT=preview expo start",
     "start:prod": "APP_VARIANT=production expo start",
     "sync:pierre-icons": "node modules/t3-markdown-text/scripts/sync-pierre-file-icons.mjs",
+    "generate": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/generate-uniwind-themes.mts",
     "test": "vp test run",
     "typecheck": "tsc --noEmit"
   },

@@ -37,6 +37,7 @@ vi.mock("expo", () => ({
   requireOptionalNativeModule: () => ({
     osVersion: "18.4.1",
     modelName: "iPhone 15 Pro",
+    deviceType: 1,
   }),
 }));
 
