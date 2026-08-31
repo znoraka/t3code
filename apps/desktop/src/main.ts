@@ -37,6 +37,7 @@ import * as DesktopConnectionCatalogStore from "./app/DesktopConnectionCatalogSt
 import * as DesktopClerk from "./app/DesktopClerk.ts";
 import * as DesktopApplicationMenu from "./window/DesktopApplicationMenu.ts";
 import * as DesktopAssets from "./app/DesktopAssets.ts";
+import * as DesktopAdoptedServer from "./backend/DesktopAdoptedServer.ts";
 import * as DesktopBackendConfiguration from "./backend/DesktopBackendConfiguration.ts";
 import * as DesktopBackendPool from "./backend/DesktopBackendPool.ts";
 import * as DesktopLocalEnvironmentAuth from "./backend/DesktopLocalEnvironmentAuth.ts";
@@ -164,6 +165,7 @@ const desktopWindowLayer = DesktopWindow.layer.pipe(
 // DesktopBackendPool.ts header for the full rollout plan.
 const desktopBackendLayer = DesktopBackendPool.layer.pipe(
   Layer.provideMerge(DesktopAppIdentity.layer),
+  Layer.provideMerge(DesktopAdoptedServer.layer),
   Layer.provideMerge(DesktopBackendConfiguration.layer),
   Layer.provideMerge(DesktopWslEnvironment.layer),
   Layer.provideMerge(DesktopWslServerTree.layer),

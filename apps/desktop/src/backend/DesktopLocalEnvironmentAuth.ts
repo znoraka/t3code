@@ -9,6 +9,7 @@ import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 import * as HttpClient from "effect/unstable/http/HttpClient";
 
+import * as DesktopAdoptedServer from "./DesktopAdoptedServer.ts";
 import * as DesktopBackendPool from "./DesktopBackendPool.ts";
 
 export class DesktopLocalEnvironmentAuthBackendNotConfiguredError extends Schema.TaggedErrorClass<DesktopLocalEnvironmentAuthBackendNotConfiguredError>()(
@@ -44,6 +45,7 @@ export class DesktopLocalEnvironmentAuth extends Context.Service<
 
 export const make = Effect.gen(function* () {
   const pool = yield* DesktopBackendPool.DesktopBackendPool;
+  const adoptedServer = yield* DesktopAdoptedServer.DesktopAdoptedServer;
   const httpClient = yield* HttpClient.HttpClient;
   const tokenRef = yield* Ref.make(Option.none<string>());
   const mutex = yield* Semaphore.make(1);
@@ -54,6 +56,14 @@ export const make = Effect.gen(function* () {
         const cached = yield* Ref.get(tokenRef);
         if (Option.isSome(cached)) {
           return cached.value;
+        }
+
+        // An adopted primary never saw this launch's bootstrap token; its
+        // bearer was obtained during adoption discovery instead.
+        const adopted = yield* adoptedServer.decide;
+        if (Option.isSome(adopted)) {
+          yield* Ref.set(tokenRef, Option.some(adopted.value.accessToken));
+          return adopted.value.accessToken;
         }
 
         const instances = yield* pool.list;

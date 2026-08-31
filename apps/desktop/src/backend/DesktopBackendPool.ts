@@ -93,6 +93,7 @@ import * as FileSystem from "effect/FileSystem";
 import { HttpClient } from "effect/unstable/http";
 import { ChildProcessSpawner } from "effect/unstable/process";
 
+import * as DesktopAdoptedServer from "./DesktopAdoptedServer.ts";
 import * as DesktopBackendConfiguration from "./DesktopBackendConfiguration.ts";
 import * as DesktopBackendManager from "./DesktopBackendManager.ts";
 import * as DesktopObservability from "../app/DesktopObservability.ts";
@@ -277,31 +278,46 @@ export const layer = Layer.effect(
       },
     );
 
-    const primary = yield* DesktopBackendManager.makeBackendInstance({
-      id: DesktopBackendManager.PRIMARY_INSTANCE_ID,
-      // Keep this lazy. The pool layer is initialized before startup loads
-      // persisted desktop settings, so resolving the primary label here would
-      // permanently capture DEFAULT_DESKTOP_SETTINGS and mislabel WSL-only
-      // primaries as Windows.
-      label: configuration.resolvePrimaryLabel,
-      configResolve: configuration.resolvePrimary,
-      // Window creation errors propagating out of handleBackendReady must
-      // not block the readiness callback (that would prevent restartAttempt
-      // from being reset), so we absorb them here. The window service only
-      // logs on success, so log the failure here before swallowing it —
-      // otherwise a post-readiness window-open failure vanishes silently and
-      // is near-impossible to diagnose in production.
-      onReady: (httpBaseUrl) =>
-        desktopWindow.handleBackendReady(httpBaseUrl).pipe(
-          Effect.catch((error) =>
-            logBackendPoolWarning("failed to open main window after backend readiness", {
-              error: error.message,
-            }),
-          ),
+    // Window creation errors propagating out of handleBackendReady must
+    // not block the readiness callback (that would prevent restartAttempt
+    // from being reset), so we absorb them here. The window service only
+    // logs on success, so log the failure here before swallowing it —
+    // otherwise a post-readiness window-open failure vanishes silently and
+    // is near-impossible to diagnose in production.
+    const handlePrimaryReady = (httpBaseUrl: URL) =>
+      desktopWindow.handleBackendReady(httpBaseUrl).pipe(
+        Effect.catch((error) =>
+          logBackendPoolWarning("failed to open main window after backend readiness", {
+            error: error.message,
+          }),
         ),
-      onShutdown: () => desktopWindow.handleBackendNotReady,
-      onPreflightFailed: handlePrimaryPreflightFailure,
-    });
+      );
+
+    // A running server on the same T3 home wins over spawning a second one
+    // against the same database; see DesktopAdoptedServer.ts.
+    const adoptedServer = yield* DesktopAdoptedServer.DesktopAdoptedServer;
+    const adopted = yield* adoptedServer.decide;
+
+    const primary = Option.isSome(adopted)
+      ? yield* adoptedServer.makeAdoptedBackendInstance({
+          id: DesktopBackendManager.PRIMARY_INSTANCE_ID,
+          label: configuration.resolvePrimaryLabel,
+          connection: adopted.value,
+          onReady: handlePrimaryReady,
+          onShutdown: () => desktopWindow.handleBackendNotReady,
+        })
+      : yield* DesktopBackendManager.makeBackendInstance({
+          id: DesktopBackendManager.PRIMARY_INSTANCE_ID,
+          // Keep this lazy. The pool layer is initialized before startup loads
+          // persisted desktop settings, so resolving the primary label here would
+          // permanently capture DEFAULT_DESKTOP_SETTINGS and mislabel WSL-only
+          // primaries as Windows.
+          label: configuration.resolvePrimaryLabel,
+          configResolve: configuration.resolvePrimary,
+          onReady: handlePrimaryReady,
+          onShutdown: () => desktopWindow.handleBackendNotReady,
+          onPreflightFailed: handlePrimaryPreflightFailure,
+        });
 
     const instancesRef = yield* SynchronizedRef.make<
       ReadonlyMap<BackendInstanceId, RegisteredInstance>

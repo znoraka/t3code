@@ -15,6 +15,7 @@ import * as DesktopAppIdentity from "./DesktopAppIdentity.ts";
 import * as DesktopClerk from "./DesktopClerk.ts";
 import * as DesktopApplicationMenu from "../window/DesktopApplicationMenu.ts";
 import * as DesktopWindow from "../window/DesktopWindow.ts";
+import * as DesktopAdoptedServer from "../backend/DesktopAdoptedServer.ts";
 import * as DesktopBackendPool from "../backend/DesktopBackendPool.ts";
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 import * as DesktopLifecycle from "./DesktopLifecycle.ts";
@@ -29,7 +30,7 @@ import * as DesktopState from "./DesktopState.ts";
 import * as DesktopUpdates from "../updates/DesktopUpdates.ts";
 import * as DesktopWslBackend from "../wsl/DesktopWslBackend.ts";
 
-const DEFAULT_DESKTOP_BACKEND_PORT = 3773;
+const DEFAULT_DESKTOP_BACKEND_PORT = DesktopAdoptedServer.DEFAULT_DESKTOP_BACKEND_PORT;
 const MAX_TCP_PORT = 65_535;
 const DESKTOP_BACKEND_PORT_PROBE_HOSTS = ["127.0.0.1", "0.0.0.0", "::"] as const;
 
@@ -154,12 +155,21 @@ const bootstrap = Effect.gen(function* () {
     return yield* new DesktopDevelopmentBackendPortRequiredError();
   }
 
-  const backendPortSelection = yield* resolveDesktopBackendPort(environment.configuredBackendPort);
+  // An adopted server owns its port; the free-port scan only runs when the
+  // desktop is going to spawn its own backend. The decision is cached, so the
+  // pool's primary instance (built at layer init) observed the same result.
+  const adoptedServer = yield* DesktopAdoptedServer.DesktopAdoptedServer;
+  const adopted = yield* adoptedServer.decide;
+  const backendPortSelection = Option.isSome(adopted)
+    ? ({ port: adopted.value.port, selectedByScan: false } as const)
+    : yield* resolveDesktopBackendPort(environment.configuredBackendPort);
   const backendPort = backendPortSelection.port;
   yield* logBootstrapInfo(
-    backendPortSelection.selectedByScan
-      ? "selected backend port via sequential scan"
-      : "using configured backend port",
+    Option.isSome(adopted)
+      ? "connecting to an already-running server instead of spawning one"
+      : backendPortSelection.selectedByScan
+        ? "selected backend port via sequential scan"
+        : "using configured backend port",
     {
       port: backendPort,
       ...(backendPortSelection.selectedByScan ? { startPort: DEFAULT_DESKTOP_BACKEND_PORT } : {}),
@@ -167,6 +177,11 @@ const bootstrap = Effect.gen(function* () {
   );
 
   const settings = yield* desktopSettings.get;
+  if (Option.isSome(adopted) && settings.serverExposureMode === "network-accessible") {
+    yield* logBootstrapWarning(
+      "network access settings do not apply to an adopted server; it keeps the bind host it was started with",
+    );
+  }
   if (settings.serverExposureMode !== environment.defaultDesktopSettings.serverExposureMode) {
     yield* logBootstrapInfo("bootstrap restoring persisted server exposure mode", {
       mode: settings.serverExposureMode,

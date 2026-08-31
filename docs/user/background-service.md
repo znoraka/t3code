@@ -64,6 +64,17 @@ A few more macOS notes:
 
 **Windows** is not supported yet.
 
+## Using It with the Desktop App
+
+When the desktop app starts and a T3 Code server is already running against your data directory —
+the background service, or one started by hand with `npx t3` — the desktop connects to that server
+instead of starting a second one. Both would otherwise share the same database. The desktop only
+adopts a server it can verify is using its own data directory; anything else keeps the normal
+behavior of starting a bundled server on the next free port.
+
+Set `T3CODE_DESKTOP_NO_ADOPT=1` before launching the desktop app to always start a separate
+bundled server.
+
 ## Using It with T3 Connect
 
 T3 Connect may offer to install the service during setup so the host stays reachable in the

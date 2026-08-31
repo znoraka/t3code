@@ -18,9 +18,14 @@ import {
   persistServerRuntimeState,
   type PersistedServerRuntimeState,
 } from "../serverRuntimeState.ts";
+import { AuthAdministrativeScopes, AuthStandardClientScopes } from "@t3tools/contracts";
+
+import { INTERNAL_ADMINISTRATIVE_BOOTSTRAP_SUBJECT } from "../auth/EnvironmentAuth.ts";
 import {
   DevServerNotProxiableError,
+  makeExplicitOriginState,
   resolveDirectPairingBaseUrl,
+  resolvePairGrant,
   resolveTailscaleLocalTarget,
 } from "./pair.ts";
 
@@ -80,6 +85,39 @@ describe("pair tailscale local target", () => {
       localPort: 3_773,
       localHost: "192.168.1.42",
     });
+  });
+});
+
+describe("pair grant selection", () => {
+  it("defaults to the standard client grant", () => {
+    expect(resolvePairGrant(false)).toEqual({
+      scopes: AuthStandardClientScopes,
+      subject: "one-time-token",
+    });
+  });
+
+  it("mints the administrative grant shape with --admin", () => {
+    expect(resolvePairGrant(true)).toEqual({
+      scopes: AuthAdministrativeScopes,
+      subject: INTERNAL_ADMINISTRATIVE_BOOTSTRAP_SUBJECT,
+    });
+  });
+});
+
+describe("explicit origin state", () => {
+  it("mirrors the origin's host and port", () => {
+    const state = makeExplicitOriginState(
+      new URL("http://127.0.0.1:3773"),
+      "2026-06-20T00:00:00.000Z",
+    );
+    expect(state.host).toBe("127.0.0.1");
+    expect(state.port).toBe(3_773);
+    expect(state.origin).toBe("http://127.0.0.1:3773");
+  });
+
+  it("fills the protocol default when the origin has no explicit port", () => {
+    expect(makeExplicitOriginState(new URL("http://t3.local"), "t").port).toBe(80);
+    expect(makeExplicitOriginState(new URL("https://t3.local"), "t").port).toBe(443);
   });
 });
 
@@ -169,6 +207,105 @@ describe("t3 pair", () => {
         const credentials = JSON.parse(listed) as ReadonlyArray<{ readonly label?: string }>;
         assert.equal(credentials.length, 1);
         assert.equal(credentials[0]?.label, "t3 pair");
+      }),
+    ).pipe(Effect.provide(NodeServices.layer)),
+  );
+
+  it.effect("prints a machine-readable result with --json", () =>
+    withDescriptorServer((origin) =>
+      Effect.gen(function* () {
+        const baseDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-pair-json-test-"));
+        const port = Number(new URL(origin).port);
+        yield* persistServerRuntimeState({
+          path: NodePath.join(baseDir, "userdata", "server-runtime.json"),
+          state: yield* makePersistedServerRuntimeState({
+            config: { host: "127.0.0.1", devUrl: undefined },
+            port,
+          }),
+        });
+
+        const output = yield* captureStdout(runCli(["pair", "--base-dir", baseDir, "--json"]));
+
+        // @effect-diagnostics-next-line preferSchemaOverJson:off - CLI JSON output is decoded as a presentation DTO.
+        const result = JSON.parse(output) as {
+          readonly origin: string;
+          readonly pairingUrl: string;
+          readonly token: string;
+          readonly expiresAt: string;
+          readonly serverLabel: string;
+        };
+        assert.equal(result.origin, origin);
+        assert.equal(result.serverLabel, "pair-test");
+        assert.match(result.token, /^[A-Z2-9]{12}$/);
+        assert.include(result.pairingUrl, `#token=${result.token}`);
+        assert.isNotNaN(Date.parse(result.expiresAt));
+      }),
+    ).pipe(Effect.provide(NodeServices.layer)),
+  );
+
+  it.effect("mints against an explicit --origin without runtime state", () =>
+    withDescriptorServer((origin) =>
+      Effect.gen(function* () {
+        // No server-runtime.json anywhere: the desktop hits this path because
+        // a second server can overwrite and clear the shared state file.
+        const baseDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-pair-origin-test-"));
+
+        const output = yield* captureStdout(
+          runCli(["pair", "--json", "--origin", origin, "--base-dir", baseDir]),
+        );
+
+        // @effect-diagnostics-next-line preferSchemaOverJson:off - CLI JSON output is decoded as a presentation DTO.
+        const result = JSON.parse(output) as { readonly origin: string; readonly token: string };
+        assert.equal(result.origin, origin);
+
+        // The token must land in the userdata store under --base-dir.
+        const listed = yield* captureStdout(
+          runCli(["auth", "pairing", "list", "--base-dir", baseDir, "--json"]),
+        );
+        // @effect-diagnostics-next-line preferSchemaOverJson:off - CLI JSON output is decoded as a presentation DTO.
+        const credentials = JSON.parse(listed) as ReadonlyArray<{ readonly label?: string }>;
+        assert.equal(credentials.length, 1);
+      }),
+    ).pipe(Effect.provide(NodeServices.layer)),
+  );
+
+  it.effect("refuses an --origin that does not answer with a T3 descriptor", () =>
+    Effect.gen(function* () {
+      const baseDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-pair-badorigin-test-"));
+
+      const error = yield* provideCliTestLayers(
+        runCli(["pair", "--json", "--origin", "http://127.0.0.1:1", "--base-dir", baseDir]).pipe(
+          Effect.flip,
+        ),
+      );
+
+      const rendered = String(
+        typeof error === "object" && error !== null && "cause" in error ? error.cause : error,
+      );
+      assert.include(rendered, "No server is answering");
+    }).pipe(Effect.provide(NodeServices.layer)),
+  );
+
+  it.effect("hides --admin tokens from the connections pairing list", () =>
+    withDescriptorServer((origin) =>
+      Effect.gen(function* () {
+        const baseDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-pair-admin-test-"));
+
+        const output = yield* captureStdout(
+          runCli(["pair", "--json", "--admin", "--origin", origin, "--base-dir", baseDir]),
+        );
+        // @effect-diagnostics-next-line preferSchemaOverJson:off - CLI JSON output is decoded as a presentation DTO.
+        const result = JSON.parse(output) as { readonly token: string };
+        assert.match(result.token, /^[A-Z2-9]{12}$/);
+
+        // The administrative subject is excluded from the user-facing pairing
+        // list, unlike the standard grant minted in the test above.
+        const listed = yield* captureStdout(
+          runCli(["auth", "pairing", "list", "--base-dir", baseDir, "--json"]),
+        );
+        // @effect-diagnostics-next-line preferSchemaOverJson:off - CLI JSON output is decoded as a presentation DTO.
+        const credentials = JSON.parse(listed) as ReadonlyArray<unknown>;
+        assert.equal(credentials.length, 0);
       }),
     ).pipe(Effect.provide(NodeServices.layer)),
   );

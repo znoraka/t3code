@@ -10,9 +10,12 @@
  * HTTPS and pairs through the tailnet URL instead.
  */
 import {
+  AuthAdministrativeScopes,
   AuthStandardClientScopes,
   ExecutionEnvironmentDescriptor,
+  PairingMintResult,
   PortSchema,
+  type AuthEnvironmentScope,
 } from "@t3tools/contracts";
 import { resolveWorktreeT3Home } from "@t3tools/shared/devHome";
 import {
@@ -134,6 +137,20 @@ export class ServePortOccupiedError extends Schema.TaggedErrorClass<ServePortOcc
 export const resolveDirectPairingBaseUrl = (state: PersistedServerRuntimeState): string =>
   state.devUrl ?? resolveHeadlessConnectionString(state.host, state.port);
 
+export class NoServerAtOriginError extends Schema.TaggedErrorClass<NoServerAtOriginError>()(
+  "NoServerAtOriginError",
+  {
+    origin: Schema.String,
+    outcome: Schema.Literals(["unreachable", "not-a-t3-server"]),
+  },
+) {
+  override get message(): string {
+    return this.outcome === "unreachable"
+      ? `No server is answering at ${this.origin}.`
+      : `The server at ${this.origin} is not a T3 Code server.`;
+  }
+}
+
 export class DevServerNotProxiableError extends Schema.TaggedErrorClass<DevServerNotProxiableError>()(
   "DevServerNotProxiableError",
   { devUrl: Schema.String },
@@ -246,6 +263,76 @@ interface DiscoveredPairTarget {
   readonly state: PersistedServerRuntimeState;
   readonly descriptor: ExecutionEnvironmentDescriptor;
 }
+
+/**
+ * `--admin` mints the same grant shape as the server's own startup pairing
+ * URL: administrative scopes under the internal administrative subject, which
+ * `listPairingLinks` hides from the connections UI. The default matches the
+ * standard client grant a phone or browser pairs with.
+ */
+export const resolvePairGrant = (
+  admin: boolean,
+): { readonly scopes: ReadonlyArray<AuthEnvironmentScope>; readonly subject: string } =>
+  admin
+    ? {
+        scopes: AuthAdministrativeScopes,
+        subject: EnvironmentAuth.INTERNAL_ADMINISTRATIVE_BOOTSTRAP_SUBJECT,
+      }
+    : { scopes: AuthStandardClientScopes, subject: "one-time-token" };
+
+/**
+ * Runtime state synthesized from an explicit `--origin`. The pid is this CLI
+ * process (discovery's liveness check is replaced by the descriptor probe),
+ * and host/port mirror the origin so the tailscale target resolution keeps
+ * working.
+ */
+export const makeExplicitOriginState = (
+  origin: URL,
+  startedAt: string,
+): PersistedServerRuntimeState => ({
+  version: 1,
+  pid: process.pid,
+  host: origin.hostname,
+  port:
+    origin.port.length > 0
+      ? Number.parseInt(origin.port, 10)
+      : origin.protocol === "https:"
+        ? 443
+        : 80,
+  origin: origin.origin,
+  startedAt,
+});
+
+/**
+ * Explicit-origin discovery: trust the caller about where the server listens,
+ * but still require a valid environment descriptor so a token is never minted
+ * for something that is not a T3 Code server. The state directory comes from
+ * `--base-dir` (or the default home) and must be the one the running server
+ * reads, or the minted token will not be honored.
+ */
+const discoverExplicitOriginTarget = Effect.fn("pair.discoverExplicitOriginTarget")(
+  function* (input: { readonly origin: URL; readonly explicitBaseDir: string | undefined }) {
+    const baseDir = yield* resolveBaseDir(
+      input.explicitBaseDir !== undefined && input.explicitBaseDir.trim().length > 0
+        ? input.explicitBaseDir
+        : undefined,
+    );
+    const probed = yield* probeEnvironmentDescriptor(input.origin.origin);
+    if (probed._tag !== "descriptor") {
+      return yield* new NoServerAtOriginError({
+        origin: input.origin.origin,
+        outcome: probed._tag,
+      });
+    }
+    const now = yield* DateTime.now;
+    return {
+      baseDir,
+      variant: "userdata",
+      state: makeExplicitOriginState(input.origin, DateTime.formatIso(now)),
+      descriptor: probed.descriptor,
+    } satisfies DiscoveredPairTarget;
+  },
+);
 
 const discoverPairTarget = Effect.fn("pair.discoverPairTarget")(function* (
   explicitBaseDir: string | undefined,
@@ -436,12 +523,14 @@ const mintPairingLink = Effect.fn("pair.mintPairingLink")(function* (input: {
   readonly config: ServerConfig.ServerConfig["Service"];
   readonly ttl: Option.Option<Duration.Duration>;
   readonly label: Option.Option<string>;
+  readonly scopes: ReadonlyArray<AuthEnvironmentScope>;
+  readonly subject: string;
 }) {
   return yield* Effect.gen(function* () {
     const environmentAuth = yield* EnvironmentAuth.EnvironmentAuth;
     return yield* environmentAuth.createPairingLink({
-      scopes: AuthStandardClientScopes,
-      subject: "one-time-token",
+      scopes: input.scopes,
+      subject: input.subject,
       label: Option.getOrElse(input.label, () => "t3 pair"),
       ...(Option.isSome(input.ttl) ? { ttl: input.ttl.value } : {}),
     });
@@ -481,12 +570,37 @@ const tailscaleServePortFlag = Flag.integer("tailscale-serve-port").pipe(
   Flag.withDefault(DEFAULT_TAILSCALE_SERVE_PORT),
 );
 
+const jsonFlag = Flag.boolean("json").pipe(
+  Flag.withDescription("Print a single-line JSON result instead of the QR code."),
+  Flag.withDefault(false),
+);
+
+const adminFlag = Flag.boolean("admin").pipe(
+  Flag.withDescription(
+    "Mint the token with administrative scopes, like the server's startup pairing URL.",
+  ),
+  Flag.withDefault(false),
+);
+
+const originFlag = Flag.string("origin").pipe(
+  Flag.withSchema(Schema.URLFromString),
+  Flag.withDescription(
+    "Origin of the running server (e.g. http://127.0.0.1:3773); skips server-runtime.json discovery. The token is minted into the userdata database under --base-dir (or the default T3 home), which must be the one that server reads.",
+  ),
+  Flag.optional,
+);
+
+const encodePairingMintResult = Schema.encodeEffect(Schema.fromJsonString(PairingMintResult));
+
 export const pairCommand = Command.make("pair", {
   baseDir: baseDirFlag,
   ttl: ttlFlag,
   label: labelFlag,
   tailscale: tailscaleFlag,
   tailscaleServePort: tailscaleServePortFlag,
+  json: jsonFlag,
+  admin: adminFlag,
+  origin: originFlag,
 }).pipe(
   Command.withDescription(
     "Mint a pairing token for a running T3 Code server and print it as a QR code.",
@@ -498,7 +612,12 @@ export const pairCommand = Command.make("pair", {
       // an explicit --log-level still wins.
       const logLevel = Option.getOrElse(cliLogLevel, () => "Warn" as const);
 
-      const target = yield* discoverPairTarget(Option.getOrUndefined(flags.baseDir));
+      const target = Option.isSome(flags.origin)
+        ? yield* discoverExplicitOriginTarget({
+            origin: flags.origin.value,
+            explicitBaseDir: Option.getOrUndefined(flags.baseDir),
+          })
+        : yield* discoverPairTarget(Option.getOrUndefined(flags.baseDir));
 
       const notes: Array<string> = [];
       let pairingBaseUrl: string;
@@ -509,6 +628,10 @@ export const pairCommand = Command.make("pair", {
         });
         pairingBaseUrl = resolved.baseUrl;
         notes.push(...resolved.notes);
+      } else if (Option.isSome(flags.origin)) {
+        // An explicit origin is used verbatim: it may be an HTTPS front the
+        // synthesized host/port state cannot reconstruct.
+        pairingBaseUrl = flags.origin.value.origin;
       } else {
         pairingBaseUrl = resolveDirectPairingBaseUrl(target.state);
         if (isLoopbackHost(new URL(pairingBaseUrl).hostname)) {
@@ -523,9 +646,29 @@ export const pairCommand = Command.make("pair", {
         }
       }
 
+      const grant = resolvePairGrant(flags.admin);
       const config = yield* makePairServerConfig({ target, logLevel });
-      const issued = yield* mintPairingLink({ config, ttl: flags.ttl, label: flags.label });
+      const issued = yield* mintPairingLink({
+        config,
+        ttl: flags.ttl,
+        label: flags.label,
+        scopes: grant.scopes,
+        subject: grant.subject,
+      });
       const pairingUrl = buildPairingUrl(pairingBaseUrl, issued.credential);
+
+      if (flags.json) {
+        yield* Console.log(
+          yield* encodePairingMintResult({
+            origin: target.state.origin,
+            pairingUrl,
+            token: issued.credential,
+            expiresAt: DateTime.formatIso(issued.expiresAt),
+            serverLabel: target.descriptor.label,
+          }),
+        );
+        return;
+      }
 
       yield* Console.log(
         formatPairOutput({

@@ -15,6 +15,7 @@ import * as DesktopTelemetryPublisher from "../telemetry/DesktopTelemetryPublish
 import * as ElectronDialog from "../electron/ElectronDialog.ts";
 import * as DesktopWindow from "../window/DesktopWindow.ts";
 import * as DesktopWslEnvironment from "../wsl/DesktopWslEnvironment.ts";
+import * as DesktopAdoptedServer from "./DesktopAdoptedServer.ts";
 import * as DesktopBackendConfiguration from "./DesktopBackendConfiguration.ts";
 import * as DesktopBackendPool from "./DesktopBackendPool.ts";
 import type { DesktopBackendSnapshot, DesktopBackendStartConfig } from "./DesktopBackendManager.ts";
@@ -79,6 +80,7 @@ function makePoolLayer(
           resolvePrimaryLabel: Ref.get(labelRef),
           resolveWsl: () => Effect.die("unexpected WSL config resolve"),
         } satisfies DesktopBackendConfiguration.DesktopBackendConfiguration["Service"]),
+        DesktopAdoptedServer.layerTest(),
         DesktopAppSettings.layerTest(),
         DesktopWslEnvironment.layerTest(),
         ElectronDialog.layer,

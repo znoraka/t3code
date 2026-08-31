@@ -1,3 +1,4 @@
+import { PersistedServerRuntimeState } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -8,18 +9,9 @@ import { writeFileStringAtomically } from "./atomicWrite.ts";
 import type * as ServerConfig from "./config.ts";
 import { formatHostForUrl, isWildcardHost } from "./startupAccess.ts";
 
-export const PersistedServerRuntimeState = Schema.Struct({
-  version: Schema.Literal(1),
-  pid: Schema.Int,
-  host: Schema.optional(Schema.String),
-  port: Schema.Int,
-  origin: Schema.String,
-  // Present when the server fronts a dev web server (VITE_DEV_SERVER_URL).
-  // Dev is single-origin: browsers must pair through this URL, not `origin`.
-  devUrl: Schema.optional(Schema.String),
-  startedAt: Schema.String,
-});
-export type PersistedServerRuntimeState = typeof PersistedServerRuntimeState.Type;
+// The schema lives in contracts so the desktop app can decode the state file
+// when deciding whether to adopt an already-running server.
+export { PersistedServerRuntimeState } from "@t3tools/contracts";
 
 export class ServerRuntimeStateError extends Schema.TaggedErrorClass<ServerRuntimeStateError>()(
   "ServerRuntimeStateError",
