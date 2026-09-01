@@ -1,7 +1,7 @@
 {
   "expo": {
     "slug": "t3-code",
-    "runtimeVersion": "1.7.0",
+    "runtimeVersion": "1.8.0",
     "updates": {
       "url": "https://expo-updates.gawaak.ovh/t3-code/manifest",
       "enabled": true,
