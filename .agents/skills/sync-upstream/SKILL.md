@@ -236,7 +236,18 @@ repo-wide `vp check`/test suites on top of it (CI owns those).
 
 1. Push the merge (and any runtimeVersion bump) to the fork:
    `git push origin main` — origin only, never upstream.
-2. Final report must state:
+2. Publish a plandrop report of the run via the `upload-artifact` skill (the
+   dev gets the URL by Signal notification, readable from the phone). A
+   self-contained HTML page in the dev's plan style: link
+   `<link rel="stylesheet" href="/css/plan.css">`, set `<html data-mode="dark">`
+   (or light if it suits), no embedded page-chrome CSS; use the stylesheet's
+   components (`.badges/.badge`, `.card`, `.note`, `.callout`) for status.
+   Name it meaningfully, e.g. `sync-upstream-<date>`. Content = the same facts
+   as the final report below, plus a short list of notable upstream changes
+   (summarize `git log --oneline "$PRE_MERGE"..HEAD`, grouped by area — not a
+   raw dump). Include the itms-services link here too when the plandrop .ipa
+   fallback was used. Upload BEFORE any deferred service restart is armed.
+3. Final report must state:
    - upstream range merged (`PRE_MERGE..HEAD`, headline changes)
    - mobile: **OTA shipped** (runtimeVersion + verified manifest `createdAt`,
      "tap Version 5×" instruction) / **native build** (new runtimeVersion,
@@ -244,8 +255,9 @@ repo-wide `vp check`/test suites on top of it (CI owns those).
    - desktop: artifact path, installed location, relaunched
    - server service: rebuilt + restarted (fresh PID), or the scheduled delayed
      restart and what will briefly drop
+   - the plandrop report URL
    - anything skipped or needing the other machine
-3. If the delayed service restart applies, fire it only after the report text
+4. If the delayed service restart applies, fire it only after the report text
    is written — nothing may run after it.
 
 ## Failure modes quick reference
