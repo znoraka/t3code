@@ -122,8 +122,9 @@ in the final report that the OTA must be shipped from the Mac.
 
 ### Native path (macOS only)
 
-On Linux, stop here: report that a **native build is required** and must be run
-from the Mac; do not attempt it.
+iPhone only — never build Android (the dev owns no Android device). On Linux,
+stop here: report that a **native build is required** and must be run from the
+Mac; do not attempt it.
 
 1. Bump `expo.runtimeVersion` in `apps/mobile/app.json` — monotonic, never
    reused (e.g. 1.6.0 → 1.7.0). Commit the bump before building.
@@ -141,13 +142,17 @@ from the Mac; do not attempt it.
      outside the repo, then `export EAS_LOCAL_BUILD_PLUGIN_PATH=$(which eas-cli-local-build-plugin)`.
    - A stale Keychain Apple password fails login **and deletes the Keychain
      entry** — the real password is then needed once (re-saved on success).
-4. Install on the iPhone:
-   - USB: `xcrun devicectl device install app --device <coredevice-uuid> build-<ts>.ipa`,
-     then `devicectl device process launch` to smoke-test.
-   - No USB: ad-hoc OTA install — host the `.ipa` + `manifest.plist` on public
-     HTTPS (plandrop via the `upload-artifact` skill) and have the dev open
-     `itms-services://?action=download-manifest&url=<https manifest url>` in
-     Safari. Works because the device UDID is in the ad-hoc profile.
+4. Install on the iPhone — **try direct install first, plandrop as fallback**:
+   1. Direct: `xcrun devicectl list devices` — if the iPhone shows up as
+      connected/paired (USB or same network), install with
+      `xcrun devicectl device install app --device <coredevice-uuid> build-<ts>.ipa`,
+      then `devicectl device process launch` to smoke-test.
+   2. Phone not reachable (not listed, or install fails after a retry):
+      ad-hoc OTA install — host the `.ipa` + a `manifest.plist` on public
+      HTTPS (plandrop via the `upload-artifact` skill) and have the dev open
+      `itms-services://?action=download-manifest&url=<https manifest url>` in
+      Safari on the phone. Works because the device UDID is in the ad-hoc
+      profile. Put the itms-services link in the final report.
    - New iPhone? It must be registered **before** the build — see "Registering
      a new iPhone" in the maintainer's notes / `eas device:create` (interactive).
 5. The fresh binary embeds the latest JS; no OTA push is needed now. Future
