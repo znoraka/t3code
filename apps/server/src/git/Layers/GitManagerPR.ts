@@ -6,7 +6,7 @@ import {
   // [FORK] lempire: this layer serves the fork's git-pr contracts, not
   // upstream's multi-provider PullRequestCheck, which shares the bare name.
   type GitPrCheck as PullRequestCheck,
-  type PullRequestSummary,
+  type GitPrSummary as PullRequestSummary,
 } from "@t3tools/contracts";
 import type { GitHubPullRequestListEntry } from "../Services/GitHubCli.ts";
 import type { GitHubCliShape } from "../Services/GitHubCli.ts";

@@ -1,7 +1,7 @@
 import type {
   EnvironmentId,
   GitPullRequestDetailResult,
-  PullRequestSummary,
+  GitPrSummary as PullRequestSummary,
 } from "@t3tools/contracts";
 import {
   AlertCircleIcon,

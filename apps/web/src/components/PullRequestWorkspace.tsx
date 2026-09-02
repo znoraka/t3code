@@ -1,4 +1,4 @@
-import type { EnvironmentId, PullRequestSummary } from "@t3tools/contracts";
+import type { EnvironmentId, GitPrSummary as PullRequestSummary } from "@t3tools/contracts";
 import {
   BotIcon,
   ExternalLinkIcon,

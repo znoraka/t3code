@@ -8,7 +8,12 @@ import {
   type EnvironmentThreadStatus,
   mergeEnvironmentThread,
 } from "@t3tools/client-runtime/state/threads";
-import type { ScopedProjectRef, ScopedThreadRef, ServerConfig } from "@t3tools/contracts";
+import type {
+  OrchestrationMessage,
+  ScopedProjectRef,
+  ScopedThreadRef,
+  ServerConfig,
+} from "@t3tools/contracts";
 import type { EnvironmentId } from "@t3tools/contracts";
 import { Atom } from "effect/unstable/reactivity";
 import { useMemo } from "react";
@@ -227,6 +232,24 @@ export function readEnvironmentThreadRefs(
 ): ReadonlyArray<ScopedThreadRef> {
   return appAtomRegistry.get(environmentThreadShells.environmentThreadRefsAtom(environmentId));
 }
+
+// [FORK] lempire: upstream dropped these; the PR workspace and report card use them.
+const EMPTY_MESSAGES_ATOM = Atom.make<ReadonlyArray<OrchestrationMessage>>(Object.freeze([])).pipe(
+  Atom.withLabel("web-thread-messages:empty"),
+);
+
+export function useThreadMessages(
+  ref: ScopedThreadRef | null,
+): ReadonlyArray<OrchestrationMessage> {
+  return useAtomValue(
+    ref === null ? EMPTY_MESSAGES_ATOM : environmentThreadDetails.messagesAtom(ref),
+  );
+}
+
+export function readThreadRefs(): ReadonlyArray<ScopedThreadRef> {
+  return appAtomRegistry.get(environmentThreadShells.threadRefsAtom);
+}
+// [FORK] end
 
 export function readThreadShells(): ReadonlyArray<EnvironmentThreadShell> {
   return appAtomRegistry.get(environmentThreadShells.threadShellsAtom);
