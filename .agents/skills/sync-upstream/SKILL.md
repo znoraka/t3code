@@ -33,10 +33,21 @@ Hard rules (non-negotiable):
 
 1. Run from the repository root, on `main`, with a clean working tree
    (`git status --porcelain` empty; otherwise stop and ask).
-2. Record the pre-merge point — every later decision diffs against it:
+2. **Always pull `origin/main` first** — the fork is synced from more than one
+   machine, and a merge started on a stale `main` gets rejected at push time
+   (Phase 5) after every build has already run:
+   `git fetch origin && git merge --ff-only origin/main`
+   - Fast-forwards cleanly (or already up to date): continue.
+   - `--ff-only` refuses because local `main` has commits origin lacks: run
+     `git merge origin/main`. If that merges without conflicts, continue.
+   - **Any conflict between local commits and `origin/main`: stop and ask**
+     the dev which side wins before doing anything else. Never auto-resolve
+     or force-push over origin — those are the dev's own changes from another
+     machine, and the fork rules in Phase 1 do not apply to them.
+3. Record the pre-merge point — every later decision diffs against it:
    `PRE_MERGE=$(git rev-parse HEAD)`
-3. Note platform: `uname -sm` (Darwin arm64 → macOS flow; Linux → Linux flow).
-4. If a native mobile build looks likely (Phase 2), check disk space now:
+4. Note platform: `uname -sm` (Darwin arm64 → macOS flow; Linux → Linux flow).
+5. If a native mobile build looks likely (Phase 2), check disk space now:
    `df -h /System/Volumes/Data` — the local EAS build needs **~15 GB free**.
    ENOSPC shows up obliquely (pod install rsync errors, `libtool: error
 writing file`, 7z "errno=28"). Reclaim order if short: `corepack
