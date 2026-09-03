@@ -823,59 +823,17 @@ export type PullRequestReviewPromptVariant = "review" | "review-with-tests";
 
 interface BuildPullRequestReviewPromptInput {
   prNumber: number;
-  title?: string | null;
-  headRefName?: string | null;
-  authorLogin?: string | null;
-  url?: string | null;
   variant?: PullRequestReviewPromptVariant;
 }
 
+/**
+ * The agent review runs the personal `test-and-review` skill (user scope,
+ * `~/.claude/skills`). A `$skill` mention is what the composer emits for
+ * every provider; the Claude adapter turns it into the `/skill args`
+ * invocation. The skill fetches the PR context itself, so only the number
+ * and the tests opt-out travel in the prompt.
+ */
 export function buildPullRequestReviewPrompt(input: BuildPullRequestReviewPromptInput): string {
-  const lines: string[] = [];
-  lines.push(`Please review pull request #${input.prNumber}.`);
-  lines.push("");
-  lines.push("Context:");
-  if (input.title && input.title.length > 0) {
-    lines.push(`- Title: ${input.title}`);
-  }
-  if (input.headRefName && input.headRefName.length > 0) {
-    lines.push(`- Branch: ${input.headRefName}`);
-  }
-  if (input.authorLogin && input.authorLogin.length > 0) {
-    lines.push(`- Author: ${input.authorLogin}`);
-  }
-  if (input.url && input.url.length > 0) {
-    lines.push(`- URL: ${input.url}`);
-  }
-  lines.push("");
-  lines.push("Instructions:");
-  lines.push(
-    `1. Fetch the full diff, description, and existing comments with \`gh pr view ${input.prNumber}\` and \`gh pr diff ${input.prNumber}\`.`,
-  );
-  lines.push(
-    "2. Review the changes for correctness, design, edge cases, tests, performance, and security.",
-  );
-  lines.push(
-    "3. Tag each finding with a severity emoji: 🔴 for critical/must-fix, 🟡 for worth-addressing, ✅ for positive/low-priority.",
-  );
-  lines.push(
-    "4. End with a Summary table: | Severity | Count | Items | — with rows for 🔴 Should fix, 🟡 Worth addressing, ✅ Good.",
-  );
-  lines.push("5. Summarize your findings with concrete, file-and-line-referenced feedback.");
-  lines.push(
-    "6. Do NOT post comments, approvals, or change requests to GitHub without explicit confirmation from me first.",
-  );
-  lines.push(
-    "7. If I ask you to make changes, ask before editing the working tree — offer to check out the PR branch (locally or in a worktree) first.",
-  );
-  lines.push(
-    "8. Always upload the results at the end using the `upload-artifact` skill, in the format the skill prescribes for the artifact type — a data-only `meta.json` report for PR reviews and QA results, HTML for plans and general documents.",
-  );
-  if (input.variant === "review-with-tests") {
-    lines.push(
-      `9. After completing the review, run /lem-test-pr for pull request #${input.prNumber} and upload the test results. Both the PR review and the test results must appear in the single report you upload.`,
-    );
-  }
-
-  return lines.join("\n");
+  const prompt = `$test-and-review ${input.prNumber}`;
+  return input.variant === "review-with-tests" ? prompt : `${prompt} --review-only`;
 }

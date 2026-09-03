@@ -192,10 +192,6 @@ function PersistentPullRequestViewInner() {
       try {
         const prompt = buildPullRequestReviewPrompt({
           prNumber: selectedPrNumber,
-          title: selectedPullRequest?.title ?? null,
-          headRefName: selectedPullRequest?.headRefName ?? null,
-          authorLogin: selectedPullRequest?.author ?? null,
-          url: selectedPullRequest?.url ?? null,
           ...(variant ? { variant } : {}),
         });
         const api = ensureEnvironmentApi(activeProject.environmentId);
@@ -256,14 +252,7 @@ function PersistentPullRequestViewInner() {
   const handleCopyReviewPrompt = useCallback(
     async (variant: PullRequestReviewPromptVariant) => {
       if (selectedPrNumber === null) return;
-      const prompt = buildPullRequestReviewPrompt({
-        prNumber: selectedPrNumber,
-        title: selectedPullRequest?.title ?? null,
-        headRefName: selectedPullRequest?.headRefName ?? null,
-        authorLogin: selectedPullRequest?.author ?? null,
-        url: selectedPullRequest?.url ?? null,
-        variant,
-      });
+      const prompt = buildPullRequestReviewPrompt({ prNumber: selectedPrNumber, variant });
       try {
         await navigator.clipboard.writeText(prompt);
         toastManager.add({
@@ -282,7 +271,7 @@ function PersistentPullRequestViewInner() {
         });
       }
     },
-    [selectedPrNumber, selectedPullRequest],
+    [selectedPrNumber],
   );
 
   // Checkout / worktree
