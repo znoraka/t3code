@@ -361,6 +361,7 @@ function WorkspaceGroupRow({
         <ProjectFavicon
           environmentId={group.project.environmentId}
           cwd={group.project.workspaceRoot}
+          projectName={group.project.title}
         />
         <span className="text-xs font-semibold tracking-widest text-muted-foreground uppercase font-mono">
           {group.project.title}
