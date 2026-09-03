@@ -614,20 +614,16 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       // it fails the lease when the session silently stops answering probes.
       Effect.raceFirst(
         monitorConnectedLease(active.lease).pipe(
-          Effect.mapError(
-            (error): TracedAttemptFailure => ({
-              error,
-              attemptSpan: active.attemptSpan,
-            }),
-          ),
+          Effect.mapError((error): TracedAttemptFailure => ({
+            error,
+            attemptSpan: active.attemptSpan,
+          })),
         ),
         ConnectionResilience.heartbeatMonitor(active.lease.session.probe, target.label).pipe(
-          Effect.mapError(
-            (error): TracedAttemptFailure => ({
-              error,
-              attemptSpan: active.attemptSpan,
-            }),
-          ),
+          Effect.mapError((error): TracedAttemptFailure => ({
+            error,
+            attemptSpan: active.attemptSpan,
+          })),
         ),
       ),
       // [FORK] end
