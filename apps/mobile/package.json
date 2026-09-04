@@ -1,6 +1,6 @@
 {
   "name": "@t3tools/mobile",
-  "version": "0.0.38",
+  "version": "0.0.39",
   "private": true,
   "main": "index.ts",
   "scripts": {
@@ -136,16 +136,16 @@
     "react-native-nitro-markdown": "file:deps/react-native-nitro-markdown-0.5.0.tgz"
   },
   "expo": {
-    "install": {
-      "exclude": [
-        "react-native-keyboard-controller"
-      ]
-    },
     "autolinking": {
       "buildFromSource": [
         "react-native-screens",
         "@react-native-menu/menu",
         "expo-audio"
+      ]
+    },
+    "install": {
+      "exclude": [
+        "react-native-keyboard-controller"
       ]
     }
   },
