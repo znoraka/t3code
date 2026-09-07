@@ -804,8 +804,8 @@ function AppSettingsSection() {
         type="monochrome"
         weight="regular"
       />
-      <Text className="flex-1 text-lg text-foreground">Version</Text>
-      <View className="items-end">
+      <Text className="shrink-0 text-lg text-foreground">Version</Text>
+      <View className="min-w-0 flex-1 items-end">
         <Text className="text-lg text-foreground-muted">{versionLabel}</Text>
         {statusLabel ? (
           <Text className="text-xs text-foreground-muted/70">{statusLabel}</Text>
@@ -815,10 +815,10 @@ function AppSettingsSection() {
             a stale bundle from a config problem — the two failure modes this
             fork's self-hosted OTA setup actually hits. Diagnosing that from the
             outside cost an hour; this line answers it at a glance. */}
-        <Text className="text-xs text-foreground-muted/70">
-          {`ota ${(Updates.updateId ?? "embedded").slice(0, 8)} · relay ${
-            resolveCloudPublicConfig().relay.url ?? "none"
-          }`}
+        <Text className="text-xs text-foreground-muted/70" numberOfLines={1}>
+          {`ota ${(Updates.updateId ?? "embedded").slice(0, 8)} · relay ${relayHostLabel(
+            resolveCloudPublicConfig().relay.url,
+          )}`}
         </Text>
         {/* [FORK] end */}
       </View>
@@ -843,6 +843,18 @@ function AppSettingsSection() {
       )}
     </SettingsSection>
   );
+}
+
+// The relay line shares the row with the "Version" label, so it shows the host
+// only; the scheme adds nothing and the full URL pushed the label to one
+// character per line.
+function relayHostLabel(url: string | null | undefined): string {
+  if (!url) return "none";
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
 }
 
 function capitalize(value: string): string {
