@@ -1,29 +1,34 @@
-// [FORK] lempire: agent-review report card in the PR overview.
+// [FORK] lempire: agent-review card at the top of upstream's PR summary tab.
 //
-// The /lem-test-pr review flow publishes its report to plandrop
-// (plans.gawaak.ovh) and drops the URL in the review thread. This card finds
-// the newest such URL among the PR's agent threads, fetches the companion
-// `meta.json` (the report's source of truth — see the plandrop meta.json
-// plan), and renders a native verdict ribbon + crit/warn/good tiles. Reports
-// published before meta.json existed fall back to a plain link card.
-import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
-import {
-  scopedProjectKey,
-  scopeProjectRef,
-  scopeThreadRef,
-} from "@t3tools/client-runtime/environment";
+// The /test-and-review flow publishes its report to plandrop (plans.gawaak.ovh)
+// and drops the URL in the review thread. This card finds the PR's review
+// threads through their pull-request link, takes the newest plandrop URL among
+// their messages, fetches the companion `meta.json`, and renders a verdict
+// ribbon + crit/warn/good tiles, flagged stale when a commit landed after the
+// review started. Reports published before meta.json existed fall back to a
+// plain link card. Renders nothing for a PR with no review thread.
+import type {
+  EnvironmentId,
+  PullRequestDetailView,
+  ScopedThreadRef,
+  ThreadId,
+} from "@t3tools/contracts";
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { useNavigate } from "@tanstack/react-router";
 import {
   AlertTriangleIcon,
+  BotIcon,
   ExternalLinkIcon,
   FileChartColumnIcon,
   HistoryIcon,
 } from "lucide-react";
-import { memo, useEffect, useMemo, useState } from "react";
-import { useShallow } from "zustand/react/shallow";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
-import { useProjects, useThreadMessages, useThreadShells } from "../state/entities";
-import { usePrViewStore } from "../prViewStore";
-import { cn } from "../lib/utils";
+import { cn } from "../../lib/utils";
+import { matchesLinkedPullRequestUrl } from "../../lib/openPullRequestLink";
+import { useThreadMessages, useThreadShells } from "../../state/entities";
+import { buildThreadRouteParams } from "../../threadRoutes";
+import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 
 const PLANDROP_URL_RE = /https:\/\/plans\.gawaak\.ovh\/p\/[\w-]+\/[\w-]+\/?/g;
 
@@ -315,78 +320,157 @@ const ReportCardBody = memo(function ReportCardBody({
   );
 });
 
-export function PullRequestReportCard({
-  environmentId,
-  prNumber,
-  lastCommitAt,
-  onOpenExternal,
+function threadStatus(thread: EnvironmentThreadShell): { label: string; className: string } {
+  if (thread.session?.status === "running") return { label: "Running", className: "text-blue-500" };
+  if (thread.session?.status === "error") return { label: "Error", className: "text-destructive" };
+  if (thread.hasPendingApprovals || thread.hasPendingUserInput) {
+    return { label: "Waiting", className: "text-amber-500" };
+  }
+  return { label: "Idle", className: "text-muted-foreground" };
+}
+
+function latestCommitAt(detail: PullRequestDetailView): string | null {
+  let latest: string | null = null;
+  for (const commit of detail.commits) {
+    if (latest === null || commit.committedDate > latest) latest = commit.committedDate;
+  }
+  return latest;
+}
+
+/** Linked threads whose messages are scanned for a report; fix threads on the PR branch match too. */
+const REPORT_PROBE_LIMIT = 5;
+
+/**
+ * Subscribes to one thread's messages and hands its newest report up. A
+ * component rather than a loop because each thread needs its own atom hook.
+ */
+function ThreadReportProbe({
+  threadRef,
+  onReport,
 }: {
-  environmentId: EnvironmentId | null;
-  prNumber: number;
-  /** ISO date of the branch's newest commit — drives the stale-review notice. */
-  lastCommitAt?: string | null | undefined;
-  onOpenExternal?: ((url: string) => void) | undefined;
+  threadRef: ScopedThreadRef;
+  onReport: (threadId: ThreadId, report: Report | null) => void;
 }) {
-  const prViewStore = usePrViewStore(useShallow((s) => ({ projectKey: s.projectKey })));
-  const projects = useProjects();
-
-  const activeProject = useMemo(() => {
-    if (prViewStore.projectKey) {
-      const match = projects.find(
-        (p) => scopedProjectKey(scopeProjectRef(p.environmentId, p.id)) === prViewStore.projectKey,
-      );
-      if (match) return match;
-    }
-    return projects[0] ?? null;
-  }, [projects, prViewStore.projectKey]);
-
-  const allThreads = useThreadShells();
-
-  // Same association rule as the Threads pane: review threads carry
-  // "PR #<number>" in their title. Newest thread wins.
-  const latestReviewThread = useMemo(() => {
-    if (!environmentId || !activeProject) return null;
-    const pattern = `PR #${prNumber}`;
-    const candidates = allThreads.filter(
-      (thread) =>
-        thread.environmentId === environmentId &&
-        thread.projectId === activeProject.id &&
-        thread.archivedAt === null &&
-        thread.title.includes(pattern),
-    );
-    return (
-      [...candidates].sort((a, b) =>
-        (b.updatedAt ?? b.createdAt).localeCompare(a.updatedAt ?? a.createdAt),
-      )[0] ?? null
-    );
-  }, [allThreads, environmentId, activeProject, prNumber]);
-
-  const threadRef = useMemo<ScopedThreadRef | null>(
-    () =>
-      latestReviewThread
-        ? scopeThreadRef(latestReviewThread.environmentId, latestReviewThread.id)
-        : null,
-    [latestReviewThread],
-  );
-
   const messages = useThreadMessages(threadRef);
   const report = useMemo(() => extractReport(messages), [messages]);
+  useEffect(() => {
+    onReport(threadRef.threadId, report);
+  }, [onReport, report, threadRef.threadId]);
+  return null;
+}
 
+export function AgentReviewCard({
+  environmentId,
+  detail,
+  activityPending,
+  onOpenExternal,
+}: {
+  environmentId: EnvironmentId;
+  detail: PullRequestDetailView;
+  /** Commits ride on the activity half of the detail; no stale verdict until it has loaded. */
+  activityPending: boolean;
+  onOpenExternal?: ((url: string) => void) | undefined;
+}) {
+  const allThreads = useThreadShells();
+  const navigate = useNavigate();
+
+  // Review threads are the ones linked to this PR (explicitly, or through the
+  // branch they run on), newest first.
+  const reviewThreads = useMemo(() => {
+    const candidates = allThreads.filter((thread) => {
+      if (thread.environmentId !== environmentId || thread.archivedAt !== null) return false;
+      const linked = thread.linkedPullRequest ?? thread.branchPullRequest;
+      return linked != null && matchesLinkedPullRequestUrl(linked, detail.url);
+    });
+    return candidates.sort((a, b) =>
+      (b.updatedAt ?? b.createdAt).localeCompare(a.updatedAt ?? a.createdAt),
+    );
+  }, [allThreads, environmentId, detail.url]);
+
+  const probedRefs = useMemo(
+    () =>
+      reviewThreads
+        .slice(0, REPORT_PROBE_LIMIT)
+        .map((thread) => scopeThreadRef(thread.environmentId, thread.id)),
+    [reviewThreads],
+  );
+
+  const [reports, setReports] = useState<ReadonlyMap<ThreadId, Report>>(new Map());
+  const onReport = useCallback((threadId: ThreadId, report: Report | null) => {
+    setReports((current) => {
+      if (report === null ? !current.has(threadId) : current.get(threadId) === report) {
+        return current;
+      }
+      const next = new Map(current);
+      if (report === null) next.delete(threadId);
+      else next.set(threadId, report);
+      return next;
+    });
+  }, []);
+
+  // Newest report across the probed threads, not the newest thread: a fix
+  // thread on the PR branch is usually younger than the review that found it.
+  const report = useMemo(() => {
+    let newest: Report | null = null;
+    for (const candidate of reports.values()) {
+      if (newest === null || candidate.postedAt > newest.postedAt) newest = candidate;
+    }
+    return newest;
+  }, [reports]);
+
+  const lastCommitAt = activityPending ? null : latestCommitAt(detail);
   const stalePushedAt = useMemo(() => {
     if (!report) return null;
     const startedAt = reviewStartedAt(report.postedAt, report.kickoffAt);
     return isReviewStale(lastCommitAt, startedAt) ? relativeTime(lastCommitAt) : null;
   }, [report, lastCommitAt]);
 
-  if (report === null) return null;
+  if (reviewThreads.length === 0) return null;
 
   return (
-    <ReportCardBody
-      reportUrl={report.url}
-      updatedAt={relativeTime(report.postedAt)}
-      stalePushedAt={stalePushedAt}
-      onOpenExternal={onOpenExternal}
-    />
+    <section className="flex flex-col gap-2 border-b border-border/70 px-4 py-3">
+      {probedRefs.map((threadRef) => (
+        <ThreadReportProbe key={threadRef.threadId} threadRef={threadRef} onReport={onReport} />
+      ))}
+      {report !== null ? (
+        <ReportCardBody
+          reportUrl={report.url}
+          updatedAt={relativeTime(report.postedAt)}
+          stalePushedAt={stalePushedAt}
+          onOpenExternal={onOpenExternal}
+        />
+      ) : null}
+      <ul className="flex flex-col gap-1">
+        {reviewThreads.map((thread) => {
+          const status = threadStatus(thread);
+          return (
+            <li key={thread.id}>
+              <button
+                type="button"
+                onClick={() =>
+                  void navigate({
+                    to: "/$environmentId/$threadId",
+                    params: buildThreadRouteParams(scopeThreadRef(thread.environmentId, thread.id)),
+                  })
+                }
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors hover:bg-muted/50"
+              >
+                <BotIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate font-medium text-foreground">
+                  {thread.title}
+                </span>
+                <span className={cn("shrink-0 text-[11px] font-medium", status.className)}>
+                  {status.label}
+                </span>
+                <span className="shrink-0 text-[11px] text-muted-foreground">
+                  {relativeTime(thread.updatedAt ?? thread.createdAt)}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

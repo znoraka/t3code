@@ -46,6 +46,7 @@ import {
 } from "../logicalProject";
 import { useUiStateStore } from "../uiStateStore";
 import { useNotificationSounds } from "../hooks/useNotificationSounds";
+import { PendingLinksBootstrap } from "../_lempire/agentReview/PendingLinksBootstrap";
 import { syncBrowserChromeTheme } from "../hooks/useTheme";
 import { configureClientTracing } from "../observability/clientTracing";
 import { resolveInitialServerAuthGateState } from "../environments/primary";
@@ -181,6 +182,7 @@ function RootRouteView() {
         >
           {primaryEnvironmentAuthenticated ? <AuthenticatedTracingBootstrap /> : null}
           {primaryEnvironmentAuthenticated ? <NotificationSoundsBootstrap /> : null}
+          {primaryEnvironmentAuthenticated ? <PendingLinksBootstrap /> : null}
           {primaryEnvironmentAuthenticated ? <DesktopAppActivationCoordinator /> : null}
           <RelayClientInstallDialog />
           <ConnectOnboardingDialog />

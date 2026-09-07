@@ -443,9 +443,7 @@ function parseEnvironmentRpcKey<Input>(key: string): {
   };
 }
 
-// [FORK] lempire: exported for the web app's imperative RPC bridge
-// (apps/web/src/rpc/imperativeEnvironmentRpc.ts); upstream keeps it private.
-export function runInEnvironment<A, E, R>(
+function runInEnvironment<A, E, R>(
   environmentId: EnvironmentIdType,
   effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<

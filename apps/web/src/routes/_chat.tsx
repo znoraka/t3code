@@ -1,4 +1,4 @@
-import { Outlet, createFileRoute, redirect, useLocation } from "@tanstack/react-router";
+import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
 import { useAtomValue } from "@effect/atom-react";
 import { useEffect, useMemo } from "react";
 
@@ -10,7 +10,6 @@ import { usePrimaryEnvironmentId } from "../state/environments";
 import { selectProjectGroupingSettings } from "../logicalProject";
 import { buildSidebarProjectSnapshots } from "../sidebarProjectGrouping";
 import { dispatchPreviewAction } from "../components/preview/previewActionBus";
-import { PersistentPullRequestView } from "../components/PersistentPullRequestView";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import { startNewThreadFromContext } from "../lib/chatThreadActions";
 import { isPreviewFocused } from "../lib/previewFocus";
@@ -176,17 +175,10 @@ function ChatRouteGlobalShortcuts() {
 }
 
 function ChatRouteLayout() {
-  const isOnPullRequests = useLocation({
-    select: (loc) => loc.pathname === "/pull-requests",
-  });
-
   return (
     <>
       <ChatRouteGlobalShortcuts />
-      <div style={{ display: isOnPullRequests ? "none" : "contents" }}>
-        <Outlet />
-      </div>
-      <PersistentPullRequestView visible={isOnPullRequests} />
+      <Outlet />
     </>
   );
 }

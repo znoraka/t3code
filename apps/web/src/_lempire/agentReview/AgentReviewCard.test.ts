@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { isReviewStale, reviewStartedAt } from "./PullRequestReportCard";
+import { isReviewStale, reviewStartedAt } from "./AgentReviewCard";
 
 const at = (iso: string) => Date.parse(iso);
 

@@ -25,6 +25,9 @@ import { useAtomCommand } from "~/state/use-atom-command";
 import { pullRequestEnvironment } from "~/state/pullRequests";
 import { cn } from "~/lib/utils";
 import { useOpenLink } from "~/browser/useOpenLink";
+// [FORK] lempire: agent-review card
+import { AgentReviewCard } from "~/_lempire/agentReview/AgentReviewCard";
+// [FORK] end
 import { formatRelativeTimeLabel } from "~/timestampFormat";
 
 import { Button } from "../ui/button";
@@ -596,6 +599,13 @@ export function PullRequestSummaryTab({
 
   return (
     <div className="h-full overflow-y-auto" data-pull-request-summary-scroll>
+      {/* [FORK] lempire: agent-review report + review threads; empty for unreviewed PRs */}
+      <AgentReviewCard
+        environmentId={environmentId}
+        detail={detail}
+        activityPending={activityPending}
+      />
+      {/* [FORK] end */}
       <section className="px-4 py-3">
         <div>
           <MetaRow icon={<UsersIcon className="size-3.5" />} label="Reviewers">

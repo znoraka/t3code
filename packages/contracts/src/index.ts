@@ -25,24 +25,6 @@ export * from "./git.ts";
 export * from "./vcs.ts";
 export * from "./sourceControl.ts";
 export * from "./pullRequest.ts";
-// [FORK] lempire: upstream's multi-provider pullRequest.ts and the fork's
-// git-pr.ts both export these four names with incompatible shapes. The
-// explicit re-exports below resolve the wildcard ambiguity: upstream's
-// versions keep the bare names (its provider layer is the larger consumer),
-// and the fork's PR workspace imports the GitPr* aliases instead.
-export {
-  PullRequestCheck,
-  PullRequestLabel,
-  PullRequestMergeMethod,
-  PullRequestSummary,
-} from "./pullRequest.ts";
-export {
-  PullRequestCheck as GitPrCheck,
-  PullRequestLabel as GitPrLabel,
-  PullRequestMergeMethod as GitPrMergeMethod,
-  PullRequestSummary as GitPrSummary,
-} from "./git-pr.ts";
-// [FORK] end
 export * from "./orchestration.ts";
 export * from "./t3ProjectFile.ts";
 export * from "./editor.ts";

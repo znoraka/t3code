@@ -16,6 +16,10 @@ import {
   ArrowLeftIcon,
   ArrowUpRightIcon,
   BookOpenIcon,
+  // [FORK] lempire: agent review
+  BotIcon,
+  ClipboardCopyIcon,
+  // [FORK] end
   CircleDotIcon,
   ChevronDownIcon,
   ExternalLinkIcon,
@@ -53,6 +57,10 @@ import {
 
 import { type DraftId, useComposerDraftStore } from "~/composerDraftStore";
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
+// [FORK] lempire: "Review with agent" action
+import { REVIEW_VARIANTS } from "~/_lempire/agentReview/reviewVariant";
+import { useReviewVariant, useStartAgentReview } from "~/_lempire/agentReview/useStartAgentReview";
+// [FORK] end
 import { useCopyToClipboard, writeTextToClipboard } from "~/hooks/useCopyToClipboard";
 import { changeRequestRepositoryUrl, gitHubPullRequestBrowserUrl } from "~/lib/openPullRequestLink";
 import { usePreparePullRequestThreadAction } from "~/lib/sourceControlActions";
@@ -796,6 +804,19 @@ export function PullRequestDetailPanel({
   const acting =
     pickableEnvironments.find((entry) => entry.environmentId === chosenEnvironmentId) ?? null;
   const actingEnvironmentId = acting?.environmentId ?? environmentId;
+  // [FORK] lempire: agent review opens a draft in the acting environment, like "Ask a question".
+  const [reviewVariant, setReviewVariant] = useReviewVariant();
+  const agentReview = useStartAgentReview({ environmentId: actingEnvironmentId, detail });
+  const startAgentReview = async () => {
+    if (handoff !== null) return;
+    setHandoff("agent-review");
+    try {
+      await agentReview.start(reviewVariant);
+    } finally {
+      setHandoff(null);
+    }
+  };
+  // [FORK] end
   const prepareThread = usePreparePullRequestThreadAction({
     environmentId: actingEnvironmentId,
     cwd: acting?.workspaceRoot ?? detail?.workspaceRoot ?? null,
@@ -1702,6 +1723,52 @@ export function PullRequestDetailPanel({
                       </span>
                     </span>
                   </MenuItem>
+                  {/* [FORK] lempire: agent review */}
+                  {detail.state === "merged" ? null : (
+                    <>
+                      <MenuItem disabled={handoff !== null} onClick={() => void startAgentReview()}>
+                        <BotIcon className="mt-0.5 size-3.5 shrink-0 self-start" />
+                        <span className="flex min-w-0 flex-col">
+                          <span>
+                            {handoff === "agent-review" ? "Opening..." : "Review with agent"}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            Opens a thread with the review prompt ready to send.
+                          </span>
+                        </span>
+                      </MenuItem>
+                      <MenuRadioGroup
+                        value={reviewVariant}
+                        onValueChange={(value) => {
+                          const next = REVIEW_VARIANTS.find((variant) => variant.value === value);
+                          if (next) setReviewVariant(next.value);
+                        }}
+                      >
+                        {REVIEW_VARIANTS.map((variant) => (
+                          <MenuRadioItem key={variant.value} value={variant.value}>
+                            <span className="flex min-w-0 flex-col">
+                              <span>{variant.label}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {variant.description}
+                              </span>
+                            </span>
+                          </MenuRadioItem>
+                        ))}
+                      </MenuRadioGroup>
+                      <MenuItem
+                        onClick={() => {
+                          void agentReview.copyPrompt(reviewVariant).then((copied) => {
+                            if (copied)
+                              toastManager.add({ title: "Review prompt copied", type: "success" });
+                          });
+                        }}
+                      >
+                        <ClipboardCopyIcon className="size-3.5" />
+                        Copy review prompt
+                      </MenuItem>
+                    </>
+                  )}
+                  {/* [FORK] end */}
                   <MenuItem disabled={handoff !== null} onClick={startFixFindings}>
                     <HammerIcon className="size-3.5" />
                     {handoff === "findings" ? "Preparing..." : handoffLabels.fixFindings}

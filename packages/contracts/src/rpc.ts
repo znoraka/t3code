@@ -234,23 +234,6 @@ import {
   SourceControlRepositoryLookupInput,
 } from "./sourceControl.ts";
 import { VcsError } from "./vcs.ts";
-import {
-  WsGitListPullRequestsRpc,
-  WsGitGetPullRequestDiffRpc,
-  WsGitGetPullRequestFileDiffRpc,
-  WsGitGetPullRequestReviewCommentsRpc,
-  WsGitGetPullRequestIssueCommentsRpc,
-  WsGitGetPullRequestBodyRpc,
-  WsGitPostPullRequestReviewCommentRpc,
-  WsGitPostPullRequestIssueCommentRpc,
-  WsGitGetPullRequestViewedFilesRpc,
-  WsGitSetPullRequestFileViewedRpc,
-  WsGitSubmitPullRequestReviewRpc,
-  WsGitMergePullRequestRpc,
-  WsGitGetPullRequestDetailRpc,
-  WsGitEditPullRequestRpc,
-  WsGitGetRepositoryCollaboratorsRpc,
-} from "./rpc-pr.ts";
 
 export const WS_METHODS = {
   // Project registry methods
@@ -301,23 +284,6 @@ export const WS_METHODS = {
   gitRunStackedAction: "git.runStackedAction",
   gitResolvePullRequest: "git.resolvePullRequest",
   gitPreparePullRequestThread: "git.preparePullRequestThread",
-
-  // Git PR methods
-  gitListPullRequests: "git.listPullRequests",
-  gitGetPullRequestDiff: "git.getPullRequestDiff",
-  gitGetPullRequestFileDiff: "git.getPullRequestFileDiff",
-  gitGetPullRequestReviewComments: "git.getPullRequestReviewComments",
-  gitGetPullRequestIssueComments: "git.getPullRequestIssueComments",
-  gitGetPullRequestBody: "git.getPullRequestBody",
-  gitPostPullRequestReviewComment: "git.postPullRequestReviewComment",
-  gitPostPullRequestIssueComment: "git.postPullRequestIssueComment",
-  gitGetPullRequestViewedFiles: "git.getPullRequestViewedFiles",
-  gitSetPullRequestFileViewed: "git.setPullRequestFileViewed",
-  gitSubmitPullRequestReview: "git.submitPullRequestReview",
-  gitMergePullRequest: "git.mergePullRequest",
-  gitGetPullRequestDetail: "git.getPullRequestDetail",
-  gitEditPullRequest: "git.editPullRequest",
-  gitGetRepositoryCollaborators: "git.getRepositoryCollaborators",
 
   // Review methods
   reviewGetDiffPreview: "review.getDiffPreview",
@@ -1337,19 +1303,4 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationGetArchivedShellSnapshotRpc,
   WsOrchestrationSubscribeShellRpc,
   WsOrchestrationSubscribeThreadRpc,
-  WsGitListPullRequestsRpc,
-  WsGitGetPullRequestDiffRpc,
-  WsGitGetPullRequestFileDiffRpc,
-  WsGitGetPullRequestReviewCommentsRpc,
-  WsGitGetPullRequestIssueCommentsRpc,
-  WsGitGetPullRequestBodyRpc,
-  WsGitPostPullRequestReviewCommentRpc,
-  WsGitPostPullRequestIssueCommentRpc,
-  WsGitGetPullRequestViewedFilesRpc,
-  WsGitSetPullRequestFileViewedRpc,
-  WsGitSubmitPullRequestReviewRpc,
-  WsGitMergePullRequestRpc,
-  WsGitGetPullRequestDetailRpc,
-  WsGitEditPullRequestRpc,
-  WsGitGetRepositoryCollaboratorsRpc,
 );

@@ -31,31 +31,6 @@ import {
   ModelSelection,
   SourceControlProviderError,
   type SourceControlWritingStyleSettings,
-  // [FORK] lempire: contracts for the PR workspace (list/diff/comments/review).
-  type GitListPullRequestsInput,
-  type GitListPullRequestsResult,
-  type GitPullRequestDiffInput,
-  type GitPullRequestDiffResult,
-  type GitPullRequestFileDiffInput,
-  type GitPullRequestFileDiffResult,
-  type GitPullRequestCommentsInput,
-  type GitPullRequestReviewCommentsResult,
-  type GitPullRequestIssueCommentsResult,
-  type GitPullRequestBodyInput,
-  type GitPullRequestBodyResult,
-  type GitPostPullRequestReviewCommentInput,
-  type GitPostPullRequestIssueCommentInput,
-  type GitPullRequestViewedFilesInput,
-  type GitPullRequestViewedFilesResult,
-  type GitSetPullRequestFileViewedInput,
-  type GitSubmitPullRequestReviewInput,
-  type GitMergePullRequestInput,
-  type GitPullRequestDetailInput,
-  type GitPullRequestDetailResult,
-  type GitEditPullRequestInput,
-  type GitRepositoryCollaboratorsInput,
-  type GitRepositoryCollaboratorsResult,
-  // [FORK] end
 } from "@t3tools/contracts";
 import {
   detectSourceControlProviderFromGitRemoteUrl,
@@ -86,12 +61,6 @@ import type { GitManagerServiceError } from "@t3tools/contracts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as SourceControlProviderRegistry from "../sourceControl/SourceControlProviderRegistry.ts";
 import { detectPrTemplate } from "../sourceControl/PrTemplateDetection.ts";
-// [FORK] lempire: PR workspace method mixins.
-import { GitHubCli as SourceControlGitHubCli } from "../sourceControl/GitHubCli.ts";
-import { makeGitHubCliPRMethods } from "./Layers/GitHubCliPR.ts";
-import { makeGitManagerPRMethods } from "./Layers/GitManagerPR.ts";
-import { GitHubCliError as PRGitHubCliError } from "./Services/GitHubCli.ts";
-// [FORK] end
 import type { ChangeRequest } from "@t3tools/contracts";
 
 export interface GitActionProgressReporter {
@@ -120,91 +89,39 @@ interface SourceControlTextGenerationSettings {
   readonly style: SourceControlWritingStyleSettings;
 }
 
-// [FORK] lempire: upstream declares this shape inline in Context.Service. The
-// PR workspace mixins in ./Layers/ need to name it, so it lives as an exported
-// interface here and the service is built from it.
-export interface GitManagerShape {
-  readonly status: (
-    input: VcsStatusInput,
-  ) => Effect.Effect<VcsStatusResult, GitManagerServiceError>;
-  readonly localStatus: (
-    input: VcsStatusInput,
-  ) => Effect.Effect<VcsStatusLocalResult, GitManagerServiceError>;
-  readonly remoteStatus: (
-    input: VcsStatusInput,
-    options?: GitRemoteStatusOptions,
-  ) => Effect.Effect<VcsStatusRemoteResult | null, GitManagerServiceError>;
-  /** Resolve the PR for a saved branch without changing the current checkout. */
-  readonly branchPullRequest: (
-    input: { readonly cwd: string; readonly branch: string },
-    options?: { readonly refresh?: boolean },
-  ) => Effect.Effect<GitBranchPullRequest | null, GitManagerServiceError>;
-  readonly invalidateLocalStatus: (cwd: string) => Effect.Effect<void, never>;
-  readonly invalidateRemoteStatus: (cwd: string) => Effect.Effect<void, never>;
-  readonly invalidateStatus: (cwd: string) => Effect.Effect<void, never>;
-  readonly resolvePullRequest: (
-    input: GitPullRequestRefInput,
-  ) => Effect.Effect<GitResolvePullRequestResult, GitManagerServiceError>;
-  readonly preparePullRequestThread: (
-    input: GitPreparePullRequestThreadInput,
-  ) => Effect.Effect<GitPreparePullRequestThreadResult, GitManagerServiceError>;
-  readonly runStackedAction: (
-    input: GitRunStackedActionInput,
-    options?: GitRunStackedActionOptions,
-  ) => Effect.Effect<GitRunStackedActionResult, GitManagerServiceError>;
-
-  // PR review methods
-  readonly listPullRequests: (
-    input: GitListPullRequestsInput,
-  ) => Effect.Effect<GitListPullRequestsResult, GitManagerServiceError>;
-  readonly getPullRequestDiff: (
-    input: GitPullRequestDiffInput,
-  ) => Effect.Effect<GitPullRequestDiffResult, GitManagerServiceError>;
-  readonly getPullRequestFileDiff: (
-    input: GitPullRequestFileDiffInput,
-  ) => Effect.Effect<GitPullRequestFileDiffResult, GitManagerServiceError>;
-  readonly getPullRequestReviewComments: (
-    input: GitPullRequestCommentsInput,
-  ) => Effect.Effect<GitPullRequestReviewCommentsResult, GitManagerServiceError>;
-  readonly getPullRequestIssueComments: (
-    input: GitPullRequestCommentsInput,
-  ) => Effect.Effect<GitPullRequestIssueCommentsResult, GitManagerServiceError>;
-  readonly getPullRequestBody: (
-    input: GitPullRequestBodyInput,
-  ) => Effect.Effect<GitPullRequestBodyResult, GitManagerServiceError>;
-  readonly postPullRequestReviewComment: (
-    input: GitPostPullRequestReviewCommentInput,
-  ) => Effect.Effect<void, GitManagerServiceError>;
-  readonly postPullRequestIssueComment: (
-    input: GitPostPullRequestIssueCommentInput,
-  ) => Effect.Effect<void, GitManagerServiceError>;
-  readonly getPullRequestViewedFiles: (
-    input: GitPullRequestViewedFilesInput,
-  ) => Effect.Effect<GitPullRequestViewedFilesResult, GitManagerServiceError>;
-  readonly setPullRequestFileViewed: (
-    input: GitSetPullRequestFileViewedInput,
-  ) => Effect.Effect<void, GitManagerServiceError>;
-  readonly submitPullRequestReview: (
-    input: GitSubmitPullRequestReviewInput,
-  ) => Effect.Effect<void, GitManagerServiceError>;
-  readonly mergePullRequest: (
-    input: GitMergePullRequestInput,
-  ) => Effect.Effect<void, GitManagerServiceError>;
-  readonly getPullRequestDetail: (
-    input: GitPullRequestDetailInput,
-  ) => Effect.Effect<GitPullRequestDetailResult, GitManagerServiceError>;
-  readonly editPullRequest: (
-    input: GitEditPullRequestInput,
-  ) => Effect.Effect<void, GitManagerServiceError>;
-  readonly getRepositoryCollaborators: (
-    input: GitRepositoryCollaboratorsInput,
-  ) => Effect.Effect<GitRepositoryCollaboratorsResult, GitManagerServiceError>;
-}
-
-export class GitManager extends Context.Service<GitManager, GitManagerShape>()(
-  "t3/git/GitManager",
-) {}
-// [FORK] end
+export class GitManager extends Context.Service<
+  GitManager,
+  {
+    readonly status: (
+      input: VcsStatusInput,
+    ) => Effect.Effect<VcsStatusResult, GitManagerServiceError>;
+    readonly localStatus: (
+      input: VcsStatusInput,
+    ) => Effect.Effect<VcsStatusLocalResult, GitManagerServiceError>;
+    readonly remoteStatus: (
+      input: VcsStatusInput,
+      options?: GitRemoteStatusOptions,
+    ) => Effect.Effect<VcsStatusRemoteResult | null, GitManagerServiceError>;
+    /** Resolve the PR for a saved branch without changing the current checkout. */
+    readonly branchPullRequest: (
+      input: { readonly cwd: string; readonly branch: string },
+      options?: { readonly refresh?: boolean },
+    ) => Effect.Effect<GitBranchPullRequest | null, GitManagerServiceError>;
+    readonly invalidateLocalStatus: (cwd: string) => Effect.Effect<void, never>;
+    readonly invalidateRemoteStatus: (cwd: string) => Effect.Effect<void, never>;
+    readonly invalidateStatus: (cwd: string) => Effect.Effect<void, never>;
+    readonly resolvePullRequest: (
+      input: GitPullRequestRefInput,
+    ) => Effect.Effect<GitResolvePullRequestResult, GitManagerServiceError>;
+    readonly preparePullRequestThread: (
+      input: GitPreparePullRequestThreadInput,
+    ) => Effect.Effect<GitPreparePullRequestThreadResult, GitManagerServiceError>;
+    readonly runStackedAction: (
+      input: GitRunStackedActionInput,
+      options?: GitRunStackedActionOptions,
+    ) => Effect.Effect<GitRunStackedActionResult, GitManagerServiceError>;
+  }
+>()("t3/git/GitManager") {}
 
 const COMMIT_TIMEOUT_MS = 10 * 60_000;
 const MAX_PROGRESS_TEXT_LENGTH = 500;
@@ -735,28 +652,6 @@ function toPullRequestHeadRemoteInfo(pr: {
 export const make = Effect.gen(function* () {
   const gitCore = yield* GitVcsDriver.GitVcsDriver;
   const sourceControlProviders = yield* SourceControlProviderRegistry.SourceControlProviderRegistry;
-  const gitHubCli = yield* SourceControlGitHubCli;
-
-  // Build the GitHub CLI adapter with PR methods for the review feature.
-  // Upstream's `execute` fails with typed errors (GitHubCliUnavailableError,
-  // GitHubCliAuthenticationError, GitHubCliCommandError, …); the PR layer keys
-  // off a single `GitHubCliError` whose `detail` it inspects to tell a stable
-  // "not authenticated" / "not available on PATH" state (prompt `gh auth login`)
-  // apart from transient failures like rate limits (keep last good data). Map
-  // the typed errors into that shape, preserving their human-readable `detail`.
-  const ghExecute = (input: Parameters<typeof gitHubCli.execute>[0]) =>
-    gitHubCli.execute(input).pipe(
-      Effect.mapError(
-        (error) =>
-          new PRGitHubCliError({
-            operation: "execute",
-            detail: error.detail,
-            cause: error,
-          }),
-      ),
-    );
-  const ghCliPRMethods = makeGitHubCliPRMethods(ghExecute as any);
-  const ghCliForPR = { ...gitHubCli, ...ghCliPRMethods } as any;
   const textGeneration = yield* TextGeneration.TextGeneration;
   const providerRegistry = yield* ProviderRegistry.ProviderRegistry;
   const projectSetupScriptRunner = yield* ProjectSetupScriptRunner.ProjectSetupScriptRunner;
@@ -2858,7 +2753,6 @@ export const make = Effect.gen(function* () {
     resolvePullRequest,
     preparePullRequestThread,
     runStackedAction,
-    ...makeGitManagerPRMethods(ghCliForPR),
   });
 });
 

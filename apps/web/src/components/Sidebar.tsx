@@ -68,8 +68,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
-// [FORK] lempire: useLocation — pull-request mode is decided by the pathname
-import { useLocation, useParams, useRouter } from "@tanstack/react-router";
+import { useParams, useRouter } from "@tanstack/react-router";
 
 import {
   isAtomCommandInterrupted,
@@ -200,9 +199,6 @@ import {
   projectAccentNameStyle,
   useEnvironmentAccents,
 } from "../_lempire/projectAccent";
-// [FORK] end
-// [FORK] lempire: pull-request mode
-import { SidebarV2ModeToggle, SidebarV2PullRequestsPane } from "../_lempire/SidebarPullRequests";
 // [FORK] end
 import { ProjectFavicon } from "./ProjectFavicon";
 import { ProviderInstanceIcon } from "./chat/ProviderInstanceIcon";
@@ -2179,9 +2175,6 @@ export default function Sidebar() {
     () => openCommandPalette({ open: "add-project" }),
     [],
   );
-  // [FORK] lempire: pull-request mode
-  const isOnPullRequests = useLocation({ select: (loc) => loc.pathname === "/pull-requests" });
-  // [FORK] end
   const { environments } = useEnvironments();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const clearSelection = useThreadSelectionStore((s) => s.clearSelection);
@@ -4266,19 +4259,6 @@ export default function Sidebar() {
     shortcutLabelForCommand(keybindings, "chat.new") ??
     (projectGroups.length <= 1 ? shortcutLabelForCommand(keybindings, "chat.newLocal") : undefined);
   const newThreadInProjectShortcutLabel = shortcutLabelForCommand(keybindings, "chat.newLocal");
-  // [FORK] lempire: pull-request mode replaces the thread list. An early
-  // return rather than a conditional around the tree below: every hook has
-  // already run, and wrapping the upstream JSX would conflict on every rebase.
-  if (isOnPullRequests) {
-    return (
-      <>
-        <SidebarChromeHeader isElectron={isElectron} />
-        <SidebarV2PullRequestsPane />
-        <SidebarChromeFooter />
-      </>
-    );
-  }
-  // [FORK] end
   return (
     <>
       <SidebarChromeHeader isElectron={isElectron} />
@@ -4378,11 +4358,6 @@ export default function Sidebar() {
                   </TooltipPopup>
                 </Tooltip>
               </div>
-              {/* [FORK] lempire: way into pull-request mode */}
-              <div className="shrink-0">
-                <SidebarV2ModeToggle isOnPullRequests={false} />
-              </div>
-              {/* [FORK] end */}
             </div>
             {projectGroups.length > 0 ? (
               <div className="flex items-center gap-1">

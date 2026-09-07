@@ -247,7 +247,7 @@ export function readEnvironmentThreadRefs(
   return appAtomRegistry.get(environmentThreadShells.environmentThreadRefsAtom(environmentId));
 }
 
-// [FORK] lempire: upstream dropped these; the PR workspace and report card use them.
+// [FORK] lempire: upstream dropped this; the agent-review card scans thread messages.
 const EMPTY_MESSAGES_ATOM = Atom.make<ReadonlyArray<OrchestrationMessage>>(Object.freeze([])).pipe(
   Atom.withLabel("web-thread-messages:empty"),
 );
@@ -258,10 +258,6 @@ export function useThreadMessages(
   return useAtomValue(
     ref === null ? EMPTY_MESSAGES_ATOM : environmentThreadDetails.messagesAtom(ref),
   );
-}
-
-export function readThreadRefs(): ReadonlyArray<ScopedThreadRef> {
-  return appAtomRegistry.get(environmentThreadShells.threadRefsAtom);
 }
 // [FORK] end
 
