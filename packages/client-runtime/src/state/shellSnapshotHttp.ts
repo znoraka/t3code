@@ -1,26 +1,20 @@
-import { OrchestrationShellSnapshot } from "@t3tools/contracts";
+import type { OrchestrationShellSnapshot } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import * as Schema from "effect/Schema";
 import { HttpClient } from "effect/unstable/http";
 
 import { RemoteEnvironmentAuthorization } from "../authorization/service.ts";
 import type { PreparedConnection } from "../connection/model.ts";
 import { environmentEndpointUrl } from "../environment/endpoint.ts";
 import { ManagedRelayDpopSigner } from "../relay/managedRelay.ts";
-import { fetchEnvironmentJsonDocument } from "../rpc/http.ts";
 import { executeAuthenticatedEnvironmentHttpRequest } from "./environmentHttpAuth.ts";
 
 // Bounded so a pathologically slow endpoint cannot block the (cheaper) socket
 // fallback for long. The cached shell renders while this runs.
 const DEFAULT_SHELL_SNAPSHOT_TIMEOUT_MS = 6_000;
-
-const decodeShellSnapshot = Schema.decodeUnknownEffect(
-  Schema.fromJsonString(OrchestrationShellSnapshot),
-);
 
 /**
  * Load the environment shell snapshot (projects + thread shells) over HTTP
@@ -41,10 +35,7 @@ export const fetchEnvironmentShellSnapshot = Effect.fn(
     method: "GET",
     url: (httpBaseUrl) => environmentEndpointUrl(httpBaseUrl, "/api/orchestration/shell"),
     timeoutMs: input.timeoutMs ?? DEFAULT_SHELL_SNAPSHOT_TIMEOUT_MS,
-    // [FORK] lempire: raw fetch + off-path decode instead of the typed client
-    // (mobile sync freeze fix).
-    request: ({ headers, requestUrl }) =>
-      fetchEnvironmentJsonDocument({ requestUrl, decode: decodeShellSnapshot, headers }),
+    request: ({ client, headers }) => client.orchestration.shellSnapshot({ headers }),
   });
 });
 

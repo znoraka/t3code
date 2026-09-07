@@ -2590,9 +2590,6 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       ...DESKTOP_FILE_EXCLUSIONS,
       ...(platform === "mac" ? resolveMacFileExclusions(arch) : []),
     ],
-    extraMetadata: {
-      homepage: "https://github.com/pingdotgg/t3code",
-    },
     directories: {
       buildResources: "apps/desktop/resources",
     },
@@ -2683,7 +2680,6 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
           schemes: ["t3code", "t3code-dev"],
         },
       ],
-      maintainer: "T3 Code <noe@lempire.co>",
       desktop: {
         entry: {
           StartupWMClass: "t3code",

@@ -2,7 +2,7 @@
 # workflows target Blacksmith runners, which are not connected here — their
 # jobs queue forever. This one runs on GitHub-hosted runners and checks only
 # @t3tools/client-runtime (typecheck + tests), the package the fork's
-# connection-resilience changes live in.
+# client-side changes (self-hosted relay pairing scopes) live in.
 name: Client runtime checks
 
 on:

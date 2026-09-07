@@ -20,6 +20,3 @@ export {
 } from "./registry.ts";
 export { EnvironmentSupervisor, type EnvironmentSupervisorOptions } from "./supervisor.ts";
 export * as Wakeups from "./wakeups.ts";
-// [FORK] lempire: mobile connection resilience opt-in
-export { enableMobileConnectionResilience } from "./_lempire/connectionResilience.ts";
-// [FORK] end

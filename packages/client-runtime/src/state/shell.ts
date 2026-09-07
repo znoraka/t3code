@@ -24,7 +24,6 @@ import { subscribeDynamic } from "../rpc/client.ts";
 import type { RpcSession } from "../rpc/session.ts";
 import { ShellSnapshotLoader } from "./shellSnapshotHttp.ts";
 import { applyShellStreamEvent } from "./shellReducer.ts";
-import { makeCooperativeYield } from "./cooperativeYield.ts";
 import type { EnvironmentCatalogState } from "./connections.ts";
 import { followStreamInEnvironment } from "./runtime.ts";
 
@@ -49,19 +48,6 @@ function shellStatusForSnapshot(
 }
 
 const SHELL_SYNCHRONIZATION_ERROR_MESSAGE = "Could not synchronize environment data.";
-
-// The shell cache exists to warm the UI on the next launch; nothing reads it
-// while the app is running. Persisting on every change therefore bought nothing
-// and cost a great deal: encoding the whole thread list allocates a
-// multi-megabyte string, and on mobile that allocation rate drove the garbage
-// collector to consume ~74% of the JS thread, which is what made buttons hang
-// on a slow connection (a burst of small events each triggered a full rewrite).
-//
-// So: collapse bursts, cap how often a busy list can write at all, and rely on
-// the finalizer below to flush the latest state when the environment closes.
-const SHELL_PERSIST_SETTLE = "5 seconds";
-const SHELL_PERSIST_MIN_INTERVAL = "60 seconds";
-const SHELL_PERSIST_FLUSH_TIMEOUT = "2 seconds";
 
 export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")(function* () {
   const supervisor = yield* EnvironmentSupervisor;
@@ -90,10 +76,6 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
   const activeSubscriptionSession = yield* Ref.make<RpcSession | null>(null);
   const persistence = yield* Queue.sliding<OrchestrationShellSnapshot>(1);
 
-  // Tracks what actually reached the cache so the finalizer can skip a write
-  // when the throttled stream already persisted the current state.
-  const persistedSequence = yield* Ref.make<number | null>(null);
-
   const persist = Effect.fn("EnvironmentShellState.persist")(function* (
     snapshot: OrchestrationShellSnapshot,
   ) {
@@ -107,39 +89,12 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
         ),
       ),
     );
-    yield* Ref.set(persistedSequence, snapshot.snapshotSequence);
   });
 
   yield* Stream.fromQueue(persistence).pipe(
-    Stream.debounce(SHELL_PERSIST_SETTLE),
-    // "enforce" drops writes that arrive inside the window rather than queueing
-    // them. Dropping is correct here: the queue is sliding(1), so the next write
-    // carries the newest state anyway, and the finalizer flushes whatever the
-    // throttle discarded.
-    Stream.throttle({
-      cost: () => 1,
-      units: 1,
-      duration: SHELL_PERSIST_MIN_INTERVAL,
-      strategy: "enforce",
-    }),
+    Stream.debounce("500 millis"),
     Stream.runForEach(persist),
     Effect.forkScoped,
-  );
-
-  yield* Effect.addFinalizer(() =>
-    Effect.all([SubscriptionRef.get(state), Ref.get(persistedSequence)]).pipe(
-      Effect.flatMap(([current, persisted]) =>
-        Option.match(current.snapshot, {
-          onNone: () => Effect.void,
-          onSome: (snapshot) =>
-            persisted === snapshot.snapshotSequence ? Effect.void : persist(snapshot),
-        }),
-      ),
-      // A wedged cache write must not hold the environment open. Losing the
-      // final flush only costs a cold list on next launch.
-      Effect.timeoutOption(SHELL_PERSIST_FLUSH_TIMEOUT),
-      Effect.asVoid,
-    ),
   );
 
   const setDisconnected = Ref.set(awaitingCompletion, false).pipe(
@@ -179,9 +134,6 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
         })),
       ),
     );
-
-  // Gives the host a window to dispatch touches during a long sync burst.
-  const cooperativeYield = makeCooperativeYield();
 
   // Apply each received batch with one state write. The RPC client's bounded
   // buffer can split a server chunk, so a bulk action can still need several
@@ -305,9 +257,7 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
         retryExpectedFailureAfter: "250 millis",
         resubscribe: foregroundResubscriptions,
       },
-    ).pipe(
-      Stream.runForEachArray((items) => applyItems(items).pipe(Effect.andThen(cooperativeYield))),
-    ),
+    ).pipe(Stream.runForEachArray(applyItems)),
   );
   yield* SubscriptionRef.changes(supervisor.state).pipe(
     Stream.runForEach((connectionState) => {

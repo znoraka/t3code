@@ -28,16 +28,11 @@ import * as RpcSession from "../rpc/session.ts";
 import { safeErrorLogAttributes } from "../errors/safeLog.ts";
 import { NETWORK_BLOCKING_HINT } from "../errors/network.ts";
 import * as ConnectionWakeups from "./wakeups.ts";
-// [FORK] lempire: keepalive heartbeat, retried wake probe, faster retry ladder
-import * as ConnectionResilience from "./_lempire/connectionResilience.ts";
-// [FORK] end
 
 const RETRY_DELAYS_MS = [3_000, 4_000, 8_000, 16_000] as const;
 const CONNECTION_ESTABLISHMENT_TIMEOUT = "15 seconds";
 const CONNECTION_PROBE_TIMEOUT = "15 seconds";
-// [FORK] lempire: MOBILE_CONNECTION_PROBE_TIMEOUT moved into
-// ./_lempire/connectionResilience.ts (see wakeProbe).
-// [FORK] end
+const MOBILE_CONNECTION_PROBE_TIMEOUT = "3 seconds";
 const BACKOFF_RESET_AFTER_MS = 30_000;
 
 interface SupervisorIntent {
@@ -107,10 +102,7 @@ export interface EnvironmentSupervisorOptions {
 }
 
 function retryDelayMs(failureCount: number): number {
-  // [FORK] lempire: shorter delays when mobile connection resilience is enabled
-  const delays = ConnectionResilience.retryDelaysOverride() ?? RETRY_DELAYS_MS;
-  return delays[Math.min(failureCount, delays.length - 1)] ?? 16_000;
-  // [FORK] end
+  return RETRY_DELAYS_MS[Math.min(failureCount, RETRY_DELAYS_MS.length - 1)] ?? 16_000;
 }
 
 function annotateTarget(target: ConnectionTarget) {
@@ -426,25 +418,22 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
             return true;
           }
           if (next.reason === "application-active" || next.reason === "application-active-probe") {
-            // [FORK] lempire: the mobile wake probe goes through wakeProbe,
-            // which retries transient failures instead of a single 3s shot.
-            const probe = yield* (
-              next.reason === "application-active-probe"
-                ? ConnectionResilience.wakeProbe(lease.session.probe, target.label)
-                : lease.session.probe.pipe(
-                    Effect.timeoutOrElse({
-                      duration: CONNECTION_PROBE_TIMEOUT,
-                      orElse: () =>
-                        Effect.fail(
-                          new ConnectionTransientError({
-                            reason: "timeout",
-                            detail: `${target.label} did not respond to a connection health check.`,
-                          }),
-                        ),
+            const probe = yield* lease.session.probe.pipe(
+              Effect.timeoutOrElse({
+                duration:
+                  next.reason === "application-active-probe"
+                    ? MOBILE_CONNECTION_PROBE_TIMEOUT
+                    : CONNECTION_PROBE_TIMEOUT,
+                orElse: () =>
+                  Effect.fail(
+                    new ConnectionTransientError({
+                      reason: "timeout",
+                      detail: `${target.label} did not respond to a connection health check.`,
                     }),
-                  )
-            ).pipe(Effect.forkChild);
-            // [FORK] end
+                  ),
+              }),
+              Effect.forkChild,
+            );
             for (;;) {
               const probeEvent = yield* Effect.raceFirst(
                 Fiber.await(probe).pipe(
@@ -597,23 +586,12 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           attemptSpan: active.attemptSpan,
         })),
       ),
-      // [FORK] lempire: race the keepalive heartbeat with the signal monitor —
-      // it fails the lease when the session silently stops answering probes.
-      Effect.raceFirst(
-        monitorConnectedLease(active.lease).pipe(
-          Effect.mapError((error): TracedAttemptFailure => ({
-            error,
-            attemptSpan: active.attemptSpan,
-          })),
-        ),
-        ConnectionResilience.heartbeatMonitor(active.lease.session.probe, target.label).pipe(
-          Effect.mapError((error): TracedAttemptFailure => ({
-            error,
-            attemptSpan: active.attemptSpan,
-          })),
-        ),
+      monitorConnectedLease(active.lease).pipe(
+        Effect.mapError((error): TracedAttemptFailure => ({
+          error,
+          attemptSpan: active.attemptSpan,
+        })),
       ),
-      // [FORK] end
     ).pipe(exitUnlessInterrupted);
     const connectedForMs = (yield* Clock.currentTimeMillis) - connectedAt;
     if (Exit.isSuccess(connectedExit)) {

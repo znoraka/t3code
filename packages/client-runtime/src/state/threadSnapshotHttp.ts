@@ -1,27 +1,22 @@
-import { OrchestrationThreadDetailSnapshot, type ThreadId } from "@t3tools/contracts";
+import type { OrchestrationThreadDetailSnapshot, ThreadId } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import * as Schema from "effect/Schema";
 import { HttpClient } from "effect/unstable/http";
 
 import { RemoteEnvironmentAuthorization } from "../authorization/service.ts";
 import type { PreparedConnection } from "../connection/model.ts";
 import { environmentEndpointUrl } from "../environment/endpoint.ts";
 import { ManagedRelayDpopSigner } from "../relay/managedRelay.ts";
-import { fetchEnvironmentJsonDocument, type RemoteEnvironmentRequestError } from "../rpc/http.ts";
+import type { RemoteEnvironmentRequestError } from "../rpc/http.ts";
 import { executeAuthenticatedEnvironmentHttpRequest } from "./environmentHttpAuth.ts";
 
 // Bounded so a pathologically slow endpoint cannot block the (cheaper) socket
 // fallback for long. The cached thread renders while this runs, so the wait only
 // delays the transition to live data on the first open, not the initial paint.
 const DEFAULT_THREAD_SNAPSHOT_TIMEOUT_MS = 6_000;
-
-const decodeThreadSnapshot = Schema.decodeUnknownEffect(
-  Schema.fromJsonString(OrchestrationThreadDetailSnapshot),
-);
 
 /**
  * Load a thread's detail snapshot over HTTP instead of embedding it in the
@@ -48,28 +43,24 @@ export const fetchEnvironmentThreadSnapshot = Effect.fn(
   readonly timeoutMs?: number;
   readonly window?: ThreadSnapshotWindow;
 }) {
-  // [FORK] lempire: raw fetch + off-path decode instead of the typed client
-  // (mobile sync freeze fix). The pagination window rides along as the query
-  // params the typed client would have produced.
-  const windowQuery = new URLSearchParams();
-  if (input.window !== undefined) {
-    windowQuery.set("turnLimit", String(input.window.turnLimit));
-    if (input.window.beforeCursor !== undefined) {
-      windowQuery.set("beforeCursor", input.window.beforeCursor);
-    }
-  }
-  const windowQueryString = windowQuery.toString();
   return yield* executeAuthenticatedEnvironmentHttpRequest({
     ...input,
     method: "GET",
     url: (httpBaseUrl) =>
-      environmentEndpointUrl(httpBaseUrl, `/api/orchestration/threads/${input.threadId}`) +
-      (windowQueryString.length > 0 ? `?${windowQueryString}` : ""),
+      environmentEndpointUrl(httpBaseUrl, `/api/orchestration/threads/${input.threadId}`),
     timeoutMs: input.timeoutMs ?? DEFAULT_THREAD_SNAPSHOT_TIMEOUT_MS,
-    request: ({ headers, requestUrl }) =>
-      fetchEnvironmentJsonDocument({ requestUrl, decode: decodeThreadSnapshot, headers }),
+    request: ({ client, headers }) =>
+      client.orchestration.threadSnapshot({
+        params: { threadId: input.threadId },
+        payload: {
+          ...(input.window !== undefined ? { turnLimit: input.window.turnLimit } : {}),
+          ...(input.window?.beforeCursor !== undefined
+            ? { beforeCursor: input.window.beforeCursor }
+            : {}),
+        },
+        headers,
+      }),
   });
-  // [FORK] end
 });
 
 export type FetchEnvironmentThreadSnapshotError = RemoteEnvironmentRequestError;
