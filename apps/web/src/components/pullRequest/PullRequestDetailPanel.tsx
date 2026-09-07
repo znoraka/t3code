@@ -806,6 +806,8 @@ export function PullRequestDetailPanel({
   const actingEnvironmentId = acting?.environmentId ?? environmentId;
   // [FORK] lempire: agent review opens a draft in the acting environment, like "Ask a question".
   const [reviewVariant, setReviewVariant] = useReviewVariant();
+  const activeReviewVariant =
+    REVIEW_VARIANTS.find((variant) => variant.value === reviewVariant) ?? REVIEW_VARIANTS[0]!;
   const agentReview = useStartAgentReview({ environmentId: actingEnvironmentId, detail });
   const startAgentReview = async () => {
     if (handoff !== null) return;
@@ -1726,35 +1728,57 @@ export function PullRequestDetailPanel({
                   {/* [FORK] lempire: agent review */}
                   {detail.state === "merged" ? null : (
                     <>
-                      <MenuItem disabled={handoff !== null} onClick={() => void startAgentReview()}>
+                      {/* The mode pill lives inside the action row. Clicks on it stop
+                          before the item's handler so the menu stays open and nothing
+                          starts; Left/Right on the focused row switch mode for keyboards. */}
+                      <MenuItem
+                        disabled={handoff !== null}
+                        onClick={() => void startAgentReview()}
+                        onKeyDown={(event) => {
+                          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                          event.preventDefault();
+                          const index = REVIEW_VARIANTS.findIndex((v) => v.value === reviewVariant);
+                          const step = event.key === "ArrowRight" ? 1 : -1;
+                          const next =
+                            REVIEW_VARIANTS[
+                              (index + step + REVIEW_VARIANTS.length) % REVIEW_VARIANTS.length
+                            ];
+                          if (next) setReviewVariant(next.value);
+                        }}
+                      >
                         <BotIcon className="mt-0.5 size-3.5 shrink-0 self-start" />
-                        <span className="flex min-w-0 flex-col">
+                        <span className="flex min-w-0 flex-1 flex-col">
                           <span>
                             {handoff === "agent-review" ? "Opening..." : "Review with agent"}
                           </span>
                           <span className="text-xs text-muted-foreground">
-                            Opens a thread with the review prompt ready to send.
+                            {activeReviewVariant.description}
                           </span>
                         </span>
+                        <ToggleGroup
+                          size="segmented"
+                          variant="segmented"
+                          value={[reviewVariant]}
+                          onValueChange={(next) => {
+                            const chosen = REVIEW_VARIANTS.find((v) => v.value === next[0]);
+                            if (chosen) setReviewVariant(chosen.value);
+                          }}
+                          onClick={(event) => event.stopPropagation()}
+                          className="shrink-0 self-center"
+                          aria-label="Review mode"
+                        >
+                          {REVIEW_VARIANTS.map((variant) => (
+                            <Toggle
+                              key={variant.value}
+                              value={variant.value}
+                              tabIndex={-1}
+                              className="h-6 px-2 text-xs"
+                            >
+                              {variant.label}
+                            </Toggle>
+                          ))}
+                        </ToggleGroup>
                       </MenuItem>
-                      <MenuRadioGroup
-                        value={reviewVariant}
-                        onValueChange={(value) => {
-                          const next = REVIEW_VARIANTS.find((variant) => variant.value === value);
-                          if (next) setReviewVariant(next.value);
-                        }}
-                      >
-                        {REVIEW_VARIANTS.map((variant) => (
-                          <MenuRadioItem key={variant.value} value={variant.value}>
-                            <span className="flex min-w-0 flex-col">
-                              <span>{variant.label}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {variant.description}
-                              </span>
-                            </span>
-                          </MenuRadioItem>
-                        ))}
-                      </MenuRadioGroup>
                       <MenuItem
                         onClick={() => {
                           void agentReview.copyPrompt(reviewVariant).then((copied) => {

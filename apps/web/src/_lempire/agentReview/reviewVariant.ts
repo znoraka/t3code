@@ -2,28 +2,26 @@
 //
 // The prompt hands the PR to the `test-and-review` skill, which fetches the PR
 // itself through `gh`; nothing else needs to travel in the message.
-import { BotIcon, FlaskConicalIcon } from "lucide-react";
 import * as Schema from "effect/Schema";
 
 export type ReviewVariant = "review" | "review-with-tests";
 
+// `label` is the segment text inside the "Review with agent" row; `description`
+// replaces the row's subtitle while that segment is selected.
 export const REVIEW_VARIANTS: ReadonlyArray<{
   value: ReviewVariant;
   label: string;
   description: string;
-  Icon: typeof BotIcon;
 }> = [
   {
     value: "review-with-tests",
-    label: "Review and test",
-    description: "Code review plus a /lem-test-pr run, published as one report.",
-    Icon: FlaskConicalIcon,
+    label: "With tests",
+    description: "Code review plus a test run, published as one report.",
   },
   {
     value: "review",
     label: "Review only",
     description: "Code review without the test step.",
-    Icon: BotIcon,
   },
 ];
 
