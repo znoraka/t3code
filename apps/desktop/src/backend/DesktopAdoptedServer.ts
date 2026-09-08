@@ -446,15 +446,13 @@ export const make = Effect.gen(function* () {
     });
 
     const snapshot = Ref.get(stateRef).pipe(
-      Effect.map(
-        (current): DesktopBackendManager.DesktopBackendSnapshot => ({
-          desiredRunning: current.desiredRunning,
-          ready: current.ready,
-          activePid: Option.none(),
-          restartAttempt: 0,
-          restartScheduled: false,
-        }),
-      ),
+      Effect.map((current): DesktopBackendManager.DesktopBackendSnapshot => ({
+        desiredRunning: current.desiredRunning,
+        ready: current.ready,
+        activePid: Option.none(),
+        restartAttempt: 0,
+        restartScheduled: false,
+      })),
     );
 
     const waitForReady = (timeout: Duration.Duration): Effect.Effect<boolean> =>
