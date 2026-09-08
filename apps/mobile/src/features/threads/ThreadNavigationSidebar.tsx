@@ -81,6 +81,7 @@ import {
   ThreadListV2SettledShelfHeader,
   ThreadListV2SnoozedShelfHeader,
 } from "./thread-list-v2-items";
+import { resolveThreadProviderInstance } from "./thread-provider-instance";
 import {
   buildThreadListV2Items,
   getThreadListV2OrderedSection,
@@ -915,15 +916,7 @@ function ThreadNavigationSidebarPane(
               projectTitle={projectTitleByProjectKey.get(scopeKey)}
               /* [FORK] lempire: name tinted by machine */
               accentColor={accentByEnvironmentId.get(thread.environmentId) ?? null}
-              providerDriver={
-                serverConfigs
-                  .get(thread.environmentId)
-                  ?.providers.find(
-                    (provider) =>
-                      provider.instanceId ===
-                      (thread.session?.providerInstanceId ?? thread.modelSelection.instanceId),
-                  )?.driver ?? null
-              }
+              providerInstance={resolveThreadProviderInstance(serverConfigs, thread)}
               environmentLabel={
                 Object.keys(savedConnectionsById).length > 1
                   ? (savedConnectionsById[thread.environmentId]?.environmentLabel ?? null)

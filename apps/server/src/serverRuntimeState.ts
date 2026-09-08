@@ -13,7 +13,7 @@ import { formatHostForUrl, isWildcardHost } from "./startupAccess.ts";
 // when deciding whether to adopt an already-running server.
 export { PersistedServerRuntimeState } from "@t3tools/contracts";
 
-export class ServerRuntimeStateError extends Schema.TaggedErrorClass<ServerRuntimeStateError>()(
+export class ServerRuntimeStateError extends Schema.TaggedError<ServerRuntimeStateError>()(
   "ServerRuntimeStateError",
   {
     operation: Schema.Literals(["persist", "read", "decode", "clear"]),

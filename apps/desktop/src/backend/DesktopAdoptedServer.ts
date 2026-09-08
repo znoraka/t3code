@@ -101,7 +101,7 @@ export class DesktopAdoptedServer extends Context.Service<
   }
 >()("@t3tools/desktop/backend/DesktopAdoptedServer") {}
 
-class AdoptedServerMintError extends Schema.TaggedErrorClass<AdoptedServerMintError>()(
+class AdoptedServerMintError extends Schema.TaggedError<AdoptedServerMintError>()(
   "AdoptedServerMintError",
   { reason: Schema.String },
 ) {
