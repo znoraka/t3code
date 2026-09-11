@@ -136,6 +136,17 @@ export default defineConfig({
         rules: { "t3code/no-mobile-uniwind-theme-escape-hatches": "error" },
       },
       {
+        // Everything the mobile bundle can import runs on Hermes.
+        files: [
+          "apps/mobile/src/**",
+          "apps/mobile/modules/**",
+          "packages/client-runtime/src/**",
+          "packages/contracts/src/**",
+          "packages/shared/src/**",
+        ],
+        rules: { "t3code/no-array-to-sorted": "error" },
+      },
+      {
         // Reviewed native and third-party interop boundaries that cannot consume a className.
         files: [
           "apps/mobile/src/features/archive/ArchivedThreadsScreen.tsx",

@@ -1,6 +1,7 @@
 import { definePlugin } from "@oxlint/plugins";
 
 import namespaceNodeImports from "./rules/namespace-node-imports.ts";
+import noArrayToSorted from "./rules/no-array-to-sorted.ts";
 import noGlobalProcessRuntime from "./rules/no-global-process-runtime.ts";
 import noInlineSchemaCompile from "./rules/no-inline-schema-compile.ts";
 import noManualEffectRuntimeInTests from "./rules/no-manual-effect-runtime-in-tests.ts";
@@ -13,6 +14,7 @@ export default definePlugin({
   },
   rules: {
     "namespace-node-imports": namespaceNodeImports,
+    "no-array-to-sorted": noArrayToSorted,
     "no-global-process-runtime": noGlobalProcessRuntime,
     "no-inline-schema-compile": noInlineSchemaCompile,
     "no-manual-effect-runtime-in-tests": noManualEffectRuntimeInTests,

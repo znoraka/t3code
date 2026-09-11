@@ -845,7 +845,8 @@ function retainMessagesAfterRevert(
           !retainedMessageIds.has(message.id) &&
           (message.turnId === null || retainedTurnIds.has(message.turnId)),
       )
-      .toSorted(
+      // filter() already returned a copy; Hermes has no Array.prototype.toSorted.
+      .sort(
         (left, right) =>
           compareDateTimeStrings(left.createdAt, right.createdAt) ||
           left.id.localeCompare(right.id),
