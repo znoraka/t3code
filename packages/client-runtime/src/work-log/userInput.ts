@@ -27,9 +27,9 @@ function questionFingerprint(
   questions: ReadonlyArray<unknown>,
 ): string | undefined {
   const texts = questions.map((question) => (typeof question === "string" ? question.trim() : ""));
-  // Hermes (the mobile JS engine) has no Array.prototype.toSorted; sort a copy.
+  // Sort the fresh array in place because Hermes does not provide toSorted.
   return texts.length > 0 && texts.every(Boolean)
-    ? JSON.stringify([turnId, [...texts].sort()])
+    ? JSON.stringify([turnId, texts.sort()])
     : undefined;
 }
 

@@ -5,6 +5,7 @@ import { scopedThreadKey, scopeProjectRef } from "@t3tools/client-runtime/enviro
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import {
   type EnvironmentId,
+  DEFAULT_SERVER_SETTINGS,
   type PullRequestAction,
   type PullRequestMergeMethod,
   type PullRequestListEntry,
@@ -13,6 +14,7 @@ import {
   resolveEnvironmentMachineKind,
   type ScopedThreadRef,
 } from "@t3tools/contracts";
+import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import {
   ArrowDownUpIcon,
   ArrowLeftIcon,
@@ -63,8 +65,8 @@ import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { REVIEW_VARIANTS } from "~/_lempire/agentReview/reviewVariant";
 import { useReviewVariant, useStartAgentReview } from "~/_lempire/agentReview/useStartAgentReview";
 // [FORK] end
-import { useClientSettings } from "~/hooks/useSettings";
 import { useCopyToClipboard, writeTextToClipboard } from "~/hooks/useCopyToClipboard";
+import { useClientSettings } from "~/hooks/useSettings";
 import {
   deriveLogicalProjectKeyFromSettings,
   derivePhysicalProjectKey,
@@ -593,10 +595,19 @@ export function PullRequestDetailPanel({
   }, [condensed]);
   const lastSelectedMergeMethod = useUiStateStore((state) => state.pullRequestMergeMethod);
   const setLastSelectedMergeMethod = useUiStateStore((state) => state.setPullRequestMergeMethod);
-  const mergeMethodOverrides = useClientSettings(
+  // Server-side and per project, like every other project setting. The
+  // client-local per-project map from before still answers when the server
+  // has no value, so a choice made on an older release keeps applying until
+  // it is set (or reset) in Settings.
+  const legacyMergeMethodOverrides = useClientSettings(
     (settings) => settings.pullRequestMergeMethodOverrides,
   );
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
+  const projectDefaultMergeMethod =
+    resolveProjectSettings(
+      environmentConfigs.get(environmentId)?.settings ?? DEFAULT_SERVER_SETTINGS,
+      reference.projectId,
+    ).settings.pullRequestMergeMethod ?? undefined;
   const [mergeMethodSelection, setMergeMethodSelection] = useState<{
     readonly pullRequestKey: string;
     readonly method: PullRequestMergeMethod;
@@ -842,9 +853,10 @@ export function PullRequestDetailPanel({
     )?.repositoryIdentity;
     return gitHubPullRequestBrowserUrl(identity, reference.repository, reference.number);
   }, [environmentId, projects, reference.number, reference.projectId, reference.repository]);
-  // Project settings store the override under the sidebar group's key, which a duplicate row
+  // Project settings stored the override under the sidebar group's key, which a duplicate row
   // borrows from its siblings, so the project alone does not always name the same key.
-  const projectDefaultMergeMethod = useMemo(() => {
+  const legacyProjectDefaultMergeMethod = useMemo(() => {
+    if (projectDefaultMergeMethod !== undefined) return undefined;
     const project = projects.find(
       (candidate) =>
         candidate.environmentId === environmentId && candidate.id === reference.projectId,
@@ -857,11 +869,12 @@ export function PullRequestDetailPanel({
         primaryEnvironmentId,
       }).get(derivePhysicalProjectKey(project)) ??
       deriveLogicalProjectKeyFromSettings(project, projectGroupingSettings);
-    return mergeMethodOverrides[projectKey];
+    return legacyMergeMethodOverrides[projectKey];
   }, [
     environmentId,
-    mergeMethodOverrides,
+    legacyMergeMethodOverrides,
     primaryEnvironmentId,
+    projectDefaultMergeMethod,
     projectGroupingSettings,
     projects,
     reference.projectId,
@@ -1350,7 +1363,7 @@ export function PullRequestDetailPanel({
   const selectedMergeMethod = resolvePullRequestMergeMethod(
     allowedMergeMethods,
     currentMergeMethod,
-    projectDefaultMergeMethod,
+    projectDefaultMergeMethod ?? legacyProjectDefaultMergeMethod,
     lastSelectedMergeMethod,
   );
   const selectedMergeMethodLabel = PULL_REQUEST_MERGE_METHOD_LABELS[selectedMergeMethod];
