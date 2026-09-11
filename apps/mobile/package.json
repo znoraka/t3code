@@ -1,6 +1,6 @@
 {
   "name": "@t3tools/mobile",
-  "version": "0.0.44",
+  "version": "0.0.45",
   "private": true,
   "main": "index.ts",
   "scripts": {
