@@ -136,7 +136,9 @@ export default defineConfig({
         rules: { "t3code/no-mobile-uniwind-theme-escape-hatches": "error" },
       },
       {
-        // Everything the mobile bundle can import runs on Hermes.
+        // Code that runs on Hermes. It has no ES2023 change-array-by-copy methods, and
+        // tsconfig targets ESNext, so only lint stands between a call and a fatal launch.
+        // Tests run on Node and are exempt. The fork's vendored native modules bundle too.
         files: [
           "apps/mobile/src/**",
           "apps/mobile/modules/**",
@@ -144,7 +146,8 @@ export default defineConfig({
           "packages/contracts/src/**",
           "packages/shared/src/**",
         ],
-        rules: { "t3code/no-array-to-sorted": "error" },
+        excludeFiles: ["**/*.test.ts", "**/*.test.tsx"],
+        rules: { "t3code/no-hermes-unsupported-array-methods": "error" },
       },
       {
         // Reviewed native and third-party interop boundaries that cannot consume a className.
@@ -153,6 +156,7 @@ export default defineConfig({
           "apps/mobile/src/features/connection/ConnectionsNewRouteScreen.tsx",
           "apps/mobile/src/features/files/FileMarkdownPreview.tsx",
           "apps/mobile/src/features/files/SourceFileSurface.tsx",
+          "apps/mobile/src/features/files/AttachmentFileScreen.tsx",
           "apps/mobile/src/features/files/ThreadFilesRouteScreen.tsx",
           "apps/mobile/src/features/files/thread-file-navigator-pane.tsx",
           "apps/mobile/src/features/home/HomeHeader.tsx",
@@ -164,6 +168,7 @@ export default defineConfig({
           "apps/mobile/src/features/threads/NewTaskDraftScreen.tsx",
           "apps/mobile/src/features/threads/ThreadComposer.tsx",
           "apps/mobile/src/features/threads/ThreadFeed.tsx",
+          "apps/mobile/src/features/review/ReviewCommentCard.tsx",
           "apps/mobile/src/features/threads/ThreadSettingsSheet.tsx",
           "apps/mobile/src/features/threads/git/GitOverviewSheet.tsx",
           "apps/mobile/src/features/threads/thread-list-items.tsx",
