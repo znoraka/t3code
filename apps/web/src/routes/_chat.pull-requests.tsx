@@ -1,6 +1,6 @@
 import { RefreshIcon } from "~/components/ui/refresh-icon";
 import { Spinner } from "~/components/ui/spinner";
-import { pullRequestHostOf, resolveEnvironmentMachineKind } from "@t3tools/contracts";
+import { pullRequestHostOf } from "@t3tools/contracts";
 import type {
   EnvironmentId,
   ProjectId,
@@ -15,7 +15,6 @@ import type {
 import { useAtomValue } from "@effect/atom-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
-  ArrowDownUpIcon,
   CalendarArrowDownIcon,
   CalendarArrowUpIcon,
   ChevronDownIcon,
@@ -46,7 +45,6 @@ import {
 import {
   filterPullRequestsByInvolvement,
   findScopedProject,
-  collectPullRequestListFacets,
   groupPullRequestsByInvolvement,
   matchesPullRequestFilters,
   matchesPullRequestQuery,
@@ -86,18 +84,22 @@ import {
   writePullRequestListPreferences,
 } from "../components/pullRequest/pullRequestListPreferences";
 import { assignProjectsToEnvironments } from "../components/pullRequest/pullRequestProjectAssignment.logic";
-import { pullRequestFilterProjects } from "../components/pullRequest/pullRequestProjectFilter.logic";
-import { environmentMachineIcon } from "../components/EnvironmentMachineIcon";
 import { PullRequestDetailPanel } from "../components/pullRequest/PullRequestDetailPanel";
 import {
-  PullRequestFiltersMenu,
   PullRequestFilterOptionIcon,
   PullRequestSearchInput,
   pullRequestHostLabel,
-  pullRequestProjectKey,
   type PullRequestExpectedHost,
   type PullRequestFilterOption,
 } from "../components/pullRequest/PullRequestListFilters";
+import {
+  bucketPullRequestGroups,
+  pullRequestSelectionKey,
+} from "../_lempire/pullRequestBuckets/pullRequestBuckets";
+import {
+  PullRequestSectionDivider,
+  SettledPullRequests,
+} from "../_lempire/pullRequestBuckets/SettledPullRequests";
 import { PullRequestListEmptyState } from "../components/pullRequest/PullRequestListEmptyState";
 import { PullRequestListGhost } from "../components/pullRequest/PullRequestGhosts";
 import {
@@ -210,6 +212,9 @@ const MATCHED_ELSEWHERE_SCORE = 10;
  * costs one round trip where a hundred costs two.
  */
 const PAGE_SIZE = 99;
+/** Fork: merged rows per repository behind the settled bucket, enough for a week of landings. */
+const SETTLED_PAGE_SIZE = 10;
+const NO_SETTLED_ENTRIES: ReadonlyArray<EnvironmentPullRequestEntry> = [];
 /** The largest page the listing accepts; past it the request is refused outright. */
 const MAX_PAGE_SIZE = 500;
 /** Stable empty map so the memos below do not see a new object on every render. */
@@ -294,7 +299,8 @@ export const Route = createFileRoute("/_chat/pull-requests")({
 
 function PullRequestsRouteView() {
   const search = Route.useSearch();
-  const sort = search.sort ?? "ready";
+  // Fork: the buckets are the order; inside each one, newest update first.
+  const sort = search.sort ?? "updated";
   const statsPolicy: PullRequestStatsPolicy =
     sort === "ready" || sort === "largest" || sort === "smallest" ? "eager" : "visible";
   const navigate = useNavigate({ from: Route.fullPath });
@@ -368,10 +374,6 @@ function PullRequestsRouteView() {
   const scopedProject = useMemo(
     () => findScopedProject(projects, scopedEnvironmentId, scopedProjectId),
     [projects, scopedEnvironmentId, scopedProjectId],
-  );
-  const scopedProjects = useMemo(
-    () => pullRequestFilterProjects(projects, environmentLabels, scopedProject),
-    [environmentLabels, projects, scopedProject],
   );
 
   // A link from a thread or the sidebar only knows the repository, so the owning project is
@@ -526,7 +528,6 @@ function PullRequestsRouteView() {
   // it is sent. Until it lands, the rows already on screen are narrowed locally: the answer is
   // late but the page is not.
   const typedQuery = (search.q ?? "").trim();
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const sentQuery = useDebouncedValue(typedQuery, SEARCH_DEBOUNCE_MS);
   const querySettled = typedQuery === sentQuery;
   // What was typed, split into the qualifiers the hosts can act on and the words that are left.
@@ -739,21 +740,6 @@ function PullRequestsRouteView() {
     ],
   );
   const baselineQuery = usePullRequestList(baselineTargets);
-  const facetTargets = useMemo(() => {
-    if (!filtersOpen) return NO_LIST_TARGETS;
-    return environmentQueries.map(({ environmentId, projectIds }) => ({
-      environmentId,
-      input: {
-        state: "all",
-        involvement: search.involvement,
-        limit: PAGE_SIZE,
-        ...(scopedProjectId ? { projectId: scopedProjectId } : {}),
-        ...(projectIds ? { projectIds } : {}),
-        ...(search.host ? { host: search.host } : {}),
-      } satisfies PullRequestListInput,
-    }));
-  }, [environmentQueries, filtersOpen, scopedProjectId, search.host, search.involvement]);
-  const facetQuery = usePullRequestList(facetTargets);
   // The priority groups' own reads. The feed below is paginated by recency, so an older authored
   // or review-requested row can be missing from its first page; partitioned from these
   // server-filtered reads instead, the priority view is complete up front and a continuation can
@@ -800,6 +786,30 @@ function PullRequestsRouteView() {
   ]);
   const authoredQuery = usePullRequestList(partitionTargets.authored);
   const reviewingQuery = usePullRequestList(partitionTargets.reviewing);
+  // Fork: the settled bucket is the default open view's own tail of merged work. Any other
+  // state, tab, filter or search is a different question and does not get one.
+  const settledTargets = useMemo(() => {
+    if (!partitionsWanted || search.state !== "open" || menuFiltered) return NO_LIST_TARGETS;
+    return environmentQueries.map(({ environmentId, projectIds }) => ({
+      environmentId,
+      input: {
+        state: "merged",
+        limit: SETTLED_PAGE_SIZE,
+        ...(scopedProjectId ? { projectId: scopedProjectId } : {}),
+        ...(projectIds ? { projectIds } : {}),
+        ...(search.host ? { host: search.host } : {}),
+      } satisfies PullRequestListInput,
+    }));
+  }, [
+    environmentQueries,
+    menuFiltered,
+    partitionsWanted,
+    scopedProjectId,
+    search.host,
+    search.state,
+  ]);
+  const settledQuery = usePullRequestList(settledTargets);
+  const settledEntries = settledQuery.data?.entries ?? NO_SETTLED_ENTRIES;
   // The header's refresh punches through the server's cache before re-reading; the error and
   // empty states retry plainly, because a failure is never cached.
   const invalidate = useAtomCommand(pullRequestEnvironment.invalidate, { reportFailure: false });
@@ -1087,7 +1097,7 @@ function PullRequestsRouteView() {
       includeRelated
         ? [
             ...baselineTargets,
-            ...facetTargets,
+            ...settledTargets,
             ...partitionTargets.authored,
             ...partitionTargets.reviewing,
           ]
@@ -1144,18 +1154,6 @@ function PullRequestsRouteView() {
   );
 
   const viewers = baselineQuery.data?.viewers ?? listData?.viewers ?? EMPTY_VIEWERS;
-  const listErrors = baselineQuery.data?.errors ?? listData?.errors ?? [];
-  const facets = useMemo(
-    () =>
-      collectPullRequestListFacets(
-        [
-          ...(facetQuery.data?.entries ?? []),
-          ...(baselineQuery.data?.entries ?? listData?.entries ?? []),
-        ],
-        search.state,
-      ),
-    [baselineQuery.data?.entries, facetQuery.data?.entries, listData?.entries, search.state],
-  );
 
   /** The hosts that narrowed the listing themselves, so their answer is not narrowed again. */
   const searchingHosts = useMemo(
@@ -1429,6 +1427,11 @@ function PullRequestsRouteView() {
         entry.additions + entry.deletions > 0 || statsByRow.has(pullRequestDiffStatKey(entry)),
     );
   }, [groups, sort, statsByRow, typedParsed.text]);
+  // Fork: upstream's involvement groups, in the fork's reading order and words.
+  const bucketedGroups = useMemo(
+    () => bucketPullRequestGroups(displayGroups, search.involvement === "all"),
+    [displayGroups, search.involvement],
+  );
   const listedPullRequestsBySurface = useMemo(
     () =>
       new Map(
@@ -1531,21 +1534,6 @@ function PullRequestsRouteView() {
     return [...byHost.values()];
   }, [projects]);
 
-  /** Reported per project rather than as a count, so the reader can see which one it was. */
-  const unavailableProjects = useMemo(
-    () =>
-      new Map(
-        listErrors.map(
-          (error) =>
-            [
-              pullRequestProjectKey({ id: error.projectId, environmentId: error.environmentId }),
-              error.message,
-            ] as const,
-        ),
-      ),
-    [listErrors],
-  );
-
   // Stable so the memoized rows can skip re-rendering when the list around them changes.
   const selectEntry = useCallback(
     (entry: PullRequestRowTarget) => {
@@ -1562,6 +1550,7 @@ function PullRequestsRouteView() {
     },
     [rightPanelRef, updateSearch],
   );
+  const selectedEntryKey = selected ? pullRequestSelectionKey(selected) : null;
 
   const searchInput = (
     <PullRequestSearchInput
@@ -1643,14 +1632,10 @@ function PullRequestsRouteView() {
           onLoadMore={loadMore}
         />
       ) : (
-        <div className="space-y-3">
-          {displayGroups.map((group) => (
+        <div className="space-y-1">
+          {bucketedGroups.map((group) => (
             <div key={group.key} className="space-y-0.5">
-              {group.label ? (
-                <h2 className="px-3 pb-0.5 text-xs font-medium text-muted-foreground/70">
-                  {group.label}
-                </h2>
-              ) : null}
+              {group.label ? <PullRequestSectionDivider label={group.label} /> : null}
               {group.entries.map((entry) => {
                 const entryKey = pullRequestEntryKey(entry);
                 return (
@@ -1683,6 +1668,11 @@ function PullRequestsRouteView() {
               })}
             </div>
           ))}
+          <SettledPullRequests
+            entries={settledEntries}
+            selectedKey={selectedEntryKey}
+            onSelect={selectEntry}
+          />
         </div>
       )}
 
@@ -1737,68 +1727,6 @@ function PullRequestsRouteView() {
       };
     }),
   ];
-  // The same shape the host pills take, so the two groups read as one control. Each server
-  // wears the machine it runs on.
-  const serverMenuOptions: ReadonlyArray<PullRequestFilterOption<string>> = [
-    { value: "", label: "All servers", Icon: LayersIcon },
-    ...capableEnvironments.map((environment) => ({
-      value: environment.environmentId,
-      label: environment.label,
-      Icon: environmentMachineIcon(resolveEnvironmentMachineKind(environment.serverConfig)),
-    })),
-  ];
-  const sortMenu = (
-    <CompactFilterMenu
-      label="Sort pull requests"
-      triggerIcon={<ArrowDownUpIcon aria-hidden className="size-4" />}
-      triggerLabel="Sort"
-      outlined
-      value={sort}
-      options={SORT_OPTIONS}
-      onChange={(next) => updateListScope({ sort: next })}
-    />
-  );
-  const filtersMenu = (
-    <PullRequestFiltersMenu
-      onOpenChange={setFiltersOpen}
-      state={search.state}
-      stateOptions={STATE_TABS}
-      onState={(state) => updateListScope({ state })}
-      involvement={search.involvement}
-      involvementOptions={INVOLVEMENT_TABS}
-      onInvolvement={(involvement) => updateListScope({ involvement })}
-      filters={menuFilters}
-      onFilters={(next) =>
-        updateListScope({
-          draft: next.draft,
-          review: next.review,
-          checks: next.checks,
-          author: next.author,
-          labels: next.labels?.flatMap((group) => group),
-        })
-      }
-      authorOptions={facets.authors}
-      labelOptions={facets.labels}
-      host={search.host}
-      hostOptions={hostMenuOptions}
-      onHost={(host) => updateListScope({ host })}
-      server={scopedEnvironmentId ?? undefined}
-      serverOptions={serverMenuOptions}
-      // Narrowing to one server drops a project scope belonging to another, which would
-      // otherwise narrow the list to nothing with no visible filter to explain it.
-      onServer={(server) => updateListScope({ environmentId: server, projectId: undefined })}
-      projects={scopedProjects}
-      projectId={scopedProjectId}
-      projectEnvironmentId={scopedProject?.environmentId}
-      unavailable={unavailableProjects}
-      // The environment comes along with the project it belongs to, so a duplicate id on
-      // another server never gets narrowed to by mistake; picking "All projects" leaves the
-      // server scope as it was rather than clearing it.
-      onProject={(projectId, environmentId) =>
-        updateListScope(environmentId === undefined ? { projectId } : { projectId, environmentId })
-      }
-    />
-  );
   const columnProps = {
     refreshing,
     onRefresh: () => void refreshFromHost(),
@@ -1811,8 +1739,6 @@ function PullRequestsRouteView() {
     onState: (state: PullRequestListState) => updateListScope({ state }),
     onHost: (host: string | undefined) => updateListScope({ host }),
     searchInput,
-    sortMenu,
-    filtersMenu,
     rightPanelControl:
       // Footprint reserve while the panel is closed: the toggle itself stays
       // mounted at the fixed titlebar inset in both states so it cannot move
@@ -2213,8 +2139,6 @@ function PullRequestsColumn({
   onState,
   onHost,
   searchInput,
-  sortMenu,
-  filtersMenu,
   rightPanelControl,
   titlebarControls,
   rightPanelOpen,
@@ -2232,8 +2156,6 @@ function PullRequestsColumn({
   onState: (state: PullRequestListState) => void;
   onHost: (host: string | undefined) => void;
   searchInput: ReactNode;
-  sortMenu: ReactNode;
-  filtersMenu: ReactNode;
   rightPanelControl: ReactNode;
   titlebarControls: ReactNode;
   rightPanelOpen: boolean;
@@ -2383,8 +2305,6 @@ function PullRequestsColumn({
               <div className="min-w-0 basis-full @lg/pr-list:basis-0 @lg/pr-list:flex-1">
                 {searchInput}
               </div>
-              {sortMenu}
-              {filtersMenu}
               <CompactFilterMenu
                 label="Filter by provider"
                 outlined
