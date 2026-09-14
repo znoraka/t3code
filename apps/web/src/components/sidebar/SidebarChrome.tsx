@@ -31,7 +31,9 @@ import {
 } from "../ui/sidebar";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { readPullRequestListPreferences } from "../pullRequest/pullRequestListPreferences";
-import { bucketedListEntry } from "~/_lempire/pullRequestBuckets/pullRequestBuckets";
+// [FORK] lempire: pull-request mode remembers the chat path being left
+import { usePrViewStore } from "~/_lempire/pullRequests/prViewStore";
+// [FORK] end
 import { SidebarProviderUpdatePill } from "./SidebarProviderUpdatePill";
 import { SidebarUpdateArchitectureWarning, SidebarUpdatePill } from "./SidebarUpdatePill";
 
@@ -159,13 +161,19 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
       setOpenMobile(false);
     }
   }, [isMobile, setOpenMobile]);
+  const currentPathname = useLocation({ select: (location) => location.pathname });
   const handlePullRequestsClick = useCallback(() => {
     closeMobileSidebar();
+    // [FORK] lempire: so the sidebar's "Back to chat" returns to the thread being left
+    if (currentPathname !== "/pull-requests") {
+      usePrViewStore.getState().setLastChatPath(currentPathname);
+    }
+    // [FORK] end
     void navigate({
       to: "/pull-requests",
-      search: bucketedListEntry(readPullRequestListPreferences()),
+      search: readPullRequestListPreferences(),
     });
-  }, [closeMobileSidebar, navigate]);
+  }, [closeMobileSidebar, currentPathname, navigate]);
   const handleSettingsClick = useCallback(() => {
     closeMobileSidebar();
     void navigate({ to: "/settings" });

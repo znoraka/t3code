@@ -878,6 +878,9 @@ function involvementArgs(input: {
     ? []
     : [
         ...(input.involvement === "reviewing" ? [`review-requested:${input.viewer}`] : []),
+        ...(input.involvement === "involved"
+          ? [`involves:${input.viewer}`, `-author:${input.viewer}`]
+          : []),
         ...(input.state === "closed" ? ["is:unmerged"] : []),
         ...(query.length === 0 ? [] : [searchPhrase(query)]),
         // The instant the last slice ended on, and everything before it. Inclusive, because rows
@@ -909,6 +912,7 @@ function matchesUnsortedListing(
 ): boolean {
   const matchesState = input.state === "all" || item.state === input.state;
   const viewer = input.viewer.toLowerCase();
+  // A listing row cannot say who commented on it, so "involved" narrows the way "reviewing" does.
   const matchesInvolvement =
     input.involvement === "all" ||
     (input.involvement === "authored"
@@ -956,6 +960,9 @@ function searchQuery(input: {
     ...(input.state === "merged" ? ["is:merged"] : []),
     ...(input.involvement === "authored" ? [`author:${input.viewer}`] : []),
     ...(input.involvement === "reviewing" ? [`review-requested:${input.viewer}`] : []),
+    ...(input.involvement === "involved"
+      ? [`involves:${input.viewer}`, `-author:${input.viewer}`]
+      : []),
     ...(query.length === 0 ? [] : [searchPhrase(query)]),
     // Inclusive, and de-duplicated by the caller, for the reason the per-repository read gives.
     ...(input.cursor === undefined ? [] : [`updated:<=${input.cursor.updatedBefore}`]),

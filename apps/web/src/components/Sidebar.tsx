@@ -72,7 +72,8 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
-import { useParams, useRouter } from "@tanstack/react-router";
+// [FORK] lempire: useLocation — pull-request mode is decided by the pathname
+import { useLocation, useParams, useRouter } from "@tanstack/react-router";
 
 import { useRightPanelStore } from "../rightPanelStore";
 import {
@@ -238,6 +239,9 @@ import {
 } from "./ui/combobox";
 import { SidebarContent, SidebarGroup, useSidebar } from "./ui/sidebar";
 import { SidebarChromeFooter, SidebarChromeHeader } from "./sidebar/SidebarChrome";
+// [FORK] lempire: pull-request mode
+import { SidebarV2PullRequestsPane } from "../_lempire/pullRequests/SidebarPullRequests";
+// [FORK] end
 import { SidebarHeaderIconButton, SidebarThreadHeader } from "./sidebar/SidebarThreadHeader";
 import { Popover, PopoverPopup, PopoverTrigger } from "./ui/popover";
 import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
@@ -2124,6 +2128,9 @@ const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props: {
 
 export default function Sidebar() {
   const projects = useProjects();
+  // [FORK] lempire: pull-request mode
+  const isOnPullRequests = useLocation({ select: (loc) => loc.pathname === "/pull-requests" });
+  // [FORK] end
   const projectOrder = useUiStateStore((store) => store.projectOrder);
   const threads = useThreadShells();
   const router = useRouter();
@@ -4336,6 +4343,19 @@ export default function Sidebar() {
     shortcutLabelForCommand(keybindings, "chat.new") ??
     (projectGroups.length <= 1 ? shortcutLabelForCommand(keybindings, "chat.newLocal") : undefined);
   const newThreadInProjectShortcutLabel = shortcutLabelForCommand(keybindings, "chat.newLocal");
+  // [FORK] lempire: pull-request mode replaces the thread list. An early return rather than a
+  // conditional around the tree below: every hook has already run, and wrapping the upstream
+  // JSX would conflict on every rebase.
+  if (isOnPullRequests) {
+    return (
+      <>
+        <SidebarChromeHeader isElectron={isElectron} />
+        <SidebarV2PullRequestsPane />
+        <SidebarChromeFooter />
+      </>
+    );
+  }
+  // [FORK] end
   return (
     <>
       <SidebarChromeHeader isElectron={isElectron} />

@@ -12,7 +12,11 @@ import {
 } from "./baseSchemas.ts";
 import { SourceControlProviderKind } from "./sourceControl.ts";
 
-export const PullRequestInvolvement = Schema.Literals(["all", "reviewing", "authored"]);
+/**
+ * "involved" is fork-only: every pull request the viewer took part in without authoring — asked
+ * for a review, reviewed, commented, mentioned. Hosts that cannot express it answer "reviewing".
+ */
+export const PullRequestInvolvement = Schema.Literals(["all", "reviewing", "authored", "involved"]);
 export type PullRequestInvolvement = typeof PullRequestInvolvement.Type;
 
 export const PullRequestState = Schema.Literals(["open", "closed", "merged"]);

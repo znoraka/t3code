@@ -704,6 +704,26 @@ layer("GitHubPullRequestCli.layer", (it) => {
     }),
   );
 
+  // Fork: the sidebar's "Waiting on others" bucket.
+  it.effect("asks for everything the viewer is involved in but did not author", () =>
+    Effect.gen(function* () {
+      mockedExecute.mockReturnValue(Effect.succeed(output("[]")));
+      const cli = yield* GitHubPullRequestCli.GitHubPullRequestCli;
+
+      yield* cli.listPullRequests({
+        cwd: "/w",
+        repository: "acme/web",
+        host: "github.com",
+        state: "open",
+        involvement: "involved",
+        viewer: "bilal",
+        limit: 10,
+      });
+
+      expect(searchOfCall(0)).toBe("involves:bilal -author:bilal sort:updated-desc");
+    }),
+  );
+
   it.effect("carries every repository and every qualifier into one search", () =>
     Effect.gen(function* () {
       mockedExecute.mockReturnValue(Effect.succeed(searchPage([])));

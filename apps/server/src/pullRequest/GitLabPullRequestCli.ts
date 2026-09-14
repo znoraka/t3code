@@ -431,6 +431,7 @@ function involvementParams(input: {
     case "authored":
       return [["author_username", input.viewer]];
     case "reviewing":
+    case "involved":
       return [["reviewer_username", input.viewer]];
     case "all":
       return [];

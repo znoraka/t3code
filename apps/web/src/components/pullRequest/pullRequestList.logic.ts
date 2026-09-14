@@ -333,6 +333,10 @@ export function filterPullRequestsByInvolvement<Entry extends ScopedEntry>(
   if (involvement === "authored") {
     return entries.filter((entry) => isAuthoredByViewer(entry, viewers));
   }
+  // Fork: a row cannot say who commented on it, so locally "involved" only drops the viewer's own.
+  if (involvement === "involved") {
+    return entries.filter((entry) => !isAuthoredByViewer(entry, viewers));
+  }
   return entries;
 }
 
