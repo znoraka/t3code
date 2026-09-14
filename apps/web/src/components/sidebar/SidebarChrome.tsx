@@ -188,12 +188,19 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
 
   const handleBackClick = useCallback(() => {
     closeMobileSidebar();
+    // [FORK] lempire: leaving pull-request mode goes back to the chat that was left, not one
+    // pull request selection back through history.
+    if (currentFooterPage === "pull-requests") {
+      void navigate({ to: usePrViewStore.getState().lastChatPath ?? "/" });
+      return;
+    }
+    // [FORK] end
     if (canGoBack) {
       window.history.back();
       return;
     }
     void navigate({ to: "/" });
-  }, [canGoBack, closeMobileSidebar, navigate]);
+  }, [canGoBack, closeMobileSidebar, currentFooterPage, navigate]);
 
   return (
     <SidebarMenu className="flex-row items-center">
