@@ -4,6 +4,7 @@ import type {
   PullRequestGroup,
   PullRequestGroupKey,
 } from "~/components/pullRequest/pullRequestList.logic";
+import type { PullRequestListPreferences } from "~/components/pullRequest/pullRequestListPreferences";
 
 /** Merged rows shown before the reader has to ask for the rest. */
 export const SETTLED_INITIAL_COUNT = 5;
@@ -57,4 +58,21 @@ export function sliceSettledPullRequests<Entry extends PullRequestListEntry>(
   const ordered = entries.toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   const visible = expanded ? ordered : ordered.slice(0, SETTLED_INITIAL_COUNT);
   return { visible, hiddenCount: ordered.length - visible.length };
+}
+
+/**
+ * What the sidebar link carries over from the last visit. The fork's toolbar has no sort or
+ * filters menu, so a remembered involvement tab, state, project or server scope, or facet filter
+ * would drive the list with nothing on screen to show or clear it — and an involvement other
+ * than "all" bypasses the buckets entirely. Only the host, which the provider picker still
+ * shows, comes back; everything else opens on the bucketed default.
+ */
+export function bucketedListEntry(
+  preferences: PullRequestListPreferences,
+): PullRequestListPreferences {
+  return {
+    involvement: "all",
+    state: "open",
+    ...(preferences.host ? { host: preferences.host } : {}),
+  };
 }

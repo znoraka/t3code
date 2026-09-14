@@ -5,6 +5,7 @@ import type { PullRequestGroup } from "~/components/pullRequest/pullRequestList.
 
 import {
   bucketPullRequestGroups,
+  bucketedListEntry,
   pullRequestSelectionKey,
   SETTLED_INITIAL_COUNT,
   sliceSettledPullRequests,
@@ -83,5 +84,28 @@ describe("pullRequestSelectionKey", () => {
       number: 12758,
     });
     expect(row).toBe(selection);
+  });
+});
+
+describe("bucketedListEntry", () => {
+  it("forgets a remembered tab, scope and facet filters but keeps the host", () => {
+    expect(
+      bucketedListEntry({
+        involvement: "authored",
+        state: "merged",
+        environmentId: "env-1" as never,
+        projectId: "project-1" as never,
+        host: "github.com",
+        author: "znoraka",
+        sort: "newest",
+      }),
+    ).toEqual({ involvement: "all", state: "open", host: "github.com" });
+  });
+
+  it("opens on the bucketed default with nothing remembered", () => {
+    expect(bucketedListEntry({ involvement: "all", state: "open" })).toEqual({
+      involvement: "all",
+      state: "open",
+    });
   });
 });
