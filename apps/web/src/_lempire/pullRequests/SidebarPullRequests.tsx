@@ -186,7 +186,12 @@ const PullRequestRow = memo(function PullRequestRow({
           {relativeTime(pr.updatedAt)}
         </time>
       </div>
-      <div className="mt-0.5 truncate text-[13px] font-medium text-foreground">{pr.title}</div>
+      {/* The number sits outside the truncation so it survives long titles, which is the whole
+          point of showing it: it is how a pull request is named out loud. */}
+      <div className="mt-0.5 flex items-baseline gap-1.5 text-[13px] font-medium">
+        <span className="shrink-0 text-muted-foreground/70 tabular-nums">#{pr.number}</span>
+        <span className="min-w-0 truncate text-foreground">{pr.title}</span>
+      </div>
       <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground/80">
         <span className="min-w-0 truncate">{pr.headBranch}</span>
         <span className="ml-auto flex shrink-0 items-center gap-1.5">
