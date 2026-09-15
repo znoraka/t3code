@@ -5,10 +5,20 @@ import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 
 import { PullRequestDetailPanel } from "~/components/pullRequest/PullRequestDetailPanel";
+import type { ShortcutMatchContext } from "~/keybindings";
 import { SidebarInset } from "~/components/ui/sidebar";
 import { useProjects } from "~/state/entities";
 
 const route = getRouteApi("/_chat/pull-requests");
+
+// The panel is the whole page here: no terminal, no preview, nothing else competing for keys.
+const NO_SURFACES_OPEN = {
+  terminalFocus: false,
+  terminalOpen: false,
+  previewFocus: false,
+  previewOpen: false,
+} satisfies ShortcutMatchContext;
+const getShortcutContext = () => NO_SURFACES_OPEN;
 
 export function PullRequestsPage() {
   const search = route.useSearch();
@@ -49,6 +59,11 @@ export function PullRequestsPage() {
             key={`${selection.environmentId}:${selection.reference.host ?? ""}:${selection.reference.repository}#${selection.reference.number}`}
             environmentId={selection.environmentId}
             reference={selection.reference}
+            // This page has no top bar of its own, so the panel's header row is what sits in
+            // the titlebar strip beside the native window controls.
+            reserveNativeControls
+            shortcutsEnabled
+            getShortcutContext={getShortcutContext}
             onSelectPullRequest={(reference) => {
               void navigate({
                 search: (previous) => {

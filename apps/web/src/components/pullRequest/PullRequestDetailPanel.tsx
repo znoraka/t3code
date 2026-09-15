@@ -484,6 +484,7 @@ export function PullRequestDetailPanel({
   refreshToken: forcedRefreshToken = 0,
   onActed,
   onClose,
+  reserveNativeControls = false,
   context = "page",
   composerDraftTarget,
   onBack,
@@ -516,6 +517,13 @@ export function PullRequestDetailPanel({
   onActed?: () => void;
   /** Page-owned detail columns use this to clear the selected pull request. */
   onClose?: () => void;
+  /**
+   * Set when the panel is mounted flush against the window's top edge, where its header row
+   * shares the strip with Electron's native window controls. Reserves room for them so the
+   * close button does not land on top of the header's own actions. Nothing to reserve outside
+   * that overlay, so the inset resolves to zero everywhere else.
+   */
+  reserveNativeControls?: boolean;
   /**
    * Beside a thread, the checkout affordance disappears: the panel is showing that thread's
    * own pull request, so the branch is already under the reader's feet — and checking it out
@@ -1706,7 +1714,12 @@ export function PullRequestDetailPanel({
             ) : null}
           </div>
         </div>
-        <div className="mr-4 flex h-7 shrink-0 items-center justify-end gap-1">
+        <div
+          className={cn(
+            "mr-4 flex h-7 shrink-0 items-center justify-end gap-1",
+            reserveNativeControls && "wco:mr-[var(--workspace-native-controls-inset)]",
+          )}
+        >
           {detail ? (
             <TooltipProvider delay={150} closeDelay={150} timeout={400}>
               {!nativeStack && supportsStackActions && nativeStackQuery.error ? (
