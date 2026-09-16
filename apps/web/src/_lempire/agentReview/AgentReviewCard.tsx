@@ -189,6 +189,11 @@ const TILE_STYLES = {
   good: "border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
 } as const;
 
+// A count of zero carries no severity, so it drops to plain muted chrome: the
+// colored tiles are exactly the ones holding a number, readable at a glance
+// without parsing the digits.
+const EMPTY_TILE_STYLE = "border-border/60 bg-muted/20 text-muted-foreground/60";
+
 function ReportTiles({ sources }: { sources: ReadonlyArray<ReportSource> }) {
   return (
     <div className="grid grid-cols-3 gap-2 p-3">
@@ -202,7 +207,10 @@ function ReportTiles({ sources }: { sources: ReadonlyArray<ReportSource> }) {
         ).map(([kind, count]) => (
           <div
             key={`${source.name}-${kind}`}
-            className={cn("rounded-lg border px-2 py-1.5 text-center", TILE_STYLES[kind])}
+            className={cn(
+              "rounded-lg border px-2 py-1.5 text-center",
+              count > 0 ? TILE_STYLES[kind] : EMPTY_TILE_STYLE,
+            )}
           >
             <div className="text-lg font-bold tabular-nums">{count}</div>
             <div className="text-[9px] font-semibold uppercase tracking-wider opacity-70">
