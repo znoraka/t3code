@@ -2,11 +2,13 @@
 //
 // The /test-and-review flow publishes its report to plandrop (plans.gawaak.ovh)
 // and drops the URL in the review thread. This card finds the PR's review
-// threads through their pull-request link, takes the newest plandrop URL among
-// their messages, fetches the companion `meta.json`, and renders a verdict
-// ribbon + crit/warn/good tiles, flagged stale when a commit landed after the
-// review started. Reports published before meta.json existed fall back to a
-// plain link card. Renders nothing for a PR with no review thread.
+// threads through their pull-request link, collects the plandrop URLs their
+// messages mention, and renders the newest one that carries a companion
+// `meta.json` as a verdict ribbon + crit/warn/good tiles, flagged stale when a
+// commit landed after the review started. That `meta.json` is what makes a URL a
+// review: plans and other artifacts publish to the same host and land in the
+// same threads, so the URL shape alone proves nothing. Renders nothing for a PR
+// with no review thread.
 import type {
   EnvironmentId,
   PullRequestDetailView,
@@ -47,7 +49,7 @@ interface ReportMeta {
   readonly sources: ReadonlyArray<ReportSource>;
 }
 
-/** `null` = no meta.json (pre-meta report) — render the plain link card. */
+/** `null` = no readable meta.json, so the page is not a review report. */
 type MetaFetchResult = ReportMeta | null;
 
 const metaCache = new Map<string, Promise<MetaFetchResult>>();
@@ -100,6 +102,7 @@ function fetchMeta(reportUrl: string): Promise<MetaFetchResult> {
 /** A full agent review never finishes faster than this. */
 const MIN_REVIEW_DURATION_MS = 15 * 60_000;
 
+/** One plandrop URL seen in a review thread, before `meta.json` vouches for it. */
 interface Report {
   readonly url: string;
   /** When the report message landed in the thread — the age shown in the header. */
@@ -108,25 +111,30 @@ interface Report {
   readonly kickoffAt: string | null;
 }
 
+/** Candidate URLs kept per thread, newest first; `meta.json` decides between them. */
+const MAX_REPORT_CANDIDATES = 5;
+
 /**
- * Newest plandrop report URL across the PR's review-thread messages, plus the
- * timestamps around it. The message's own `createdAt` is the review's age (the
+ * Plandrop URLs in the PR's review-thread messages, newest first, plus the
+ * timestamps around each. The message's own `createdAt` is the review's age (the
  * thread's `updatedAt` keeps moving with later chatter); the nearest preceding
- * user message is where that run started reading code.
+ * user message is where that run started reading code. Several candidates come
+ * back because a thread also publishes plans and briefings to plandrop, and only
+ * fetching `meta.json` tells those apart from a report.
  */
-function extractReport(
+export function extractReports(
   messages: ReadonlyArray<{
     readonly text: string;
     readonly role: string;
     readonly createdAt: string;
   }>,
-): Report | null {
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
+): ReadonlyArray<Report> {
+  const found: Report[] = [];
+  for (let i = messages.length - 1; i >= 0 && found.length < MAX_REPORT_CANDIDATES; i -= 1) {
     const message = messages[i];
     if (!message) continue;
     const matches = message.text.match(PLANDROP_URL_RE);
-    const last = matches?.at(-1);
-    if (!last) continue;
+    if (!matches) continue;
     let kickoffAt: string | null = null;
     for (let j = i - 1; j >= 0; j -= 1) {
       const earlier = messages[j];
@@ -135,9 +143,42 @@ function extractReport(
         break;
       }
     }
-    return { url: last.replace(/\/$/, ""), postedAt: message.createdAt, kickoffAt };
+    // Within one message the trailing URL is the conclusion, so it goes first.
+    for (const match of matches.toReversed()) {
+      found.push({ url: match.replace(/\/$/, ""), postedAt: message.createdAt, kickoffAt });
+      if (found.length === MAX_REPORT_CANDIDATES) break;
+    }
   }
-  return null;
+  return found;
+}
+
+/**
+ * Newest candidate that turns out to have a `meta.json`. Resolved here rather
+ * than in the card so the stale check and the tiles describe the same report.
+ */
+function useResolvedReport(
+  candidates: ReadonlyArray<Report>,
+): { readonly report: Report; readonly meta: ReportMeta } | null {
+  const [resolved, setResolved] = useState<{ report: Report; meta: ReportMeta } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      for (const candidate of candidates) {
+        const meta = await fetchMeta(candidate.url);
+        if (cancelled) return;
+        if (meta !== null) {
+          setResolved({ report: candidate, meta });
+          return;
+        }
+      }
+      // Keep no stale winner around: every candidate lost its meta or went away.
+      if (!cancelled) setResolved(null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [candidates]);
+  return resolved;
 }
 
 /**
@@ -225,31 +266,18 @@ function ReportTiles({ sources }: { sources: ReadonlyArray<ReportSource> }) {
 
 const ReportCardBody = memo(function ReportCardBody({
   reportUrl,
+  meta,
   updatedAt,
   stalePushedAt,
   onOpenExternal,
 }: {
   reportUrl: string;
+  meta: ReportMeta;
   updatedAt: string | null;
   /** Relative time of the push that outdated this review, or null when fresh. */
   stalePushedAt: string | null;
   onOpenExternal?: ((url: string) => void) | undefined;
 }) {
-  const [meta, setMeta] = useState<MetaFetchResult | "loading">("loading");
-
-  useEffect(() => {
-    let cancelled = false;
-    setMeta("loading");
-    void fetchMeta(reportUrl).then((result) => {
-      if (!cancelled) setMeta(result);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [reportUrl]);
-
-  if (meta === "loading") return null;
-
   const open = () => {
     if (onOpenExternal) onOpenExternal(reportUrl);
     else window.open(reportUrl, "_blank", "noopener,noreferrer");
@@ -293,15 +321,6 @@ const ReportCardBody = memo(function ReportCardBody({
       ? "border-amber-500/40 hover:border-amber-500/60"
       : "border-border/70 hover:border-border",
   );
-
-  if (meta === null) {
-    return (
-      <button type="button" onClick={open} className={frame}>
-        {header}
-        {staleNotice}
-      </button>
-    );
-  }
 
   return (
     <button type="button" onClick={open} className={frame}>
@@ -349,21 +368,21 @@ function latestCommitAt(detail: PullRequestDetailView): string | null {
 const REPORT_PROBE_LIMIT = 5;
 
 /**
- * Subscribes to one thread's messages and hands its newest report up. A
+ * Subscribes to one thread's messages and hands its report candidates up. A
  * component rather than a loop because each thread needs its own atom hook.
  */
 function ThreadReportProbe({
   threadRef,
-  onReport,
+  onReports,
 }: {
   threadRef: ScopedThreadRef;
-  onReport: (threadId: ThreadId, report: Report | null) => void;
+  onReports: (threadId: ThreadId, reports: ReadonlyArray<Report>) => void;
 }) {
   const messages = useThreadMessages(threadRef);
-  const report = useMemo(() => extractReport(messages), [messages]);
+  const reports = useMemo(() => extractReports(messages), [messages]);
   useEffect(() => {
-    onReport(threadRef.threadId, report);
-  }, [onReport, report, threadRef.threadId]);
+    onReports(threadRef.threadId, reports);
+  }, [onReports, reports, threadRef.threadId]);
   return null;
 }
 
@@ -403,28 +422,38 @@ export function AgentReviewCard({
     [reviewThreads],
   );
 
-  const [reports, setReports] = useState<ReadonlyMap<ThreadId, Report>>(new Map());
-  const onReport = useCallback((threadId: ThreadId, report: Report | null) => {
+  const [reports, setReports] = useState<ReadonlyMap<ThreadId, ReadonlyArray<Report>>>(new Map());
+  const onReports = useCallback((threadId: ThreadId, found: ReadonlyArray<Report>) => {
     setReports((current) => {
-      if (report === null ? !current.has(threadId) : current.get(threadId) === report) {
-        return current;
-      }
+      const existing = current.get(threadId);
+      if (found.length === 0 ? existing === undefined : existing === found) return current;
       const next = new Map(current);
-      if (report === null) next.delete(threadId);
-      else next.set(threadId, report);
+      if (found.length === 0) next.delete(threadId);
+      else next.set(threadId, found);
       return next;
     });
   }, []);
 
-  // Newest report across the probed threads, not the newest thread: a fix
-  // thread on the PR branch is usually younger than the review that found it.
-  const report = useMemo(() => {
-    let newest: Report | null = null;
-    for (const candidate of reports.values()) {
-      if (newest === null || candidate.postedAt > newest.postedAt) newest = candidate;
+  // Candidates from every probed thread, newest first — not just the newest
+  // thread's: a fix thread on the PR branch is usually younger than the review
+  // that found it.
+  const candidates = useMemo(() => {
+    const ordered = [...reports.values()]
+      .flat()
+      .sort((a, b) => b.postedAt.localeCompare(a.postedAt));
+    const seen = new Set<string>();
+    const unique: Report[] = [];
+    for (const candidate of ordered) {
+      if (seen.has(candidate.url)) continue;
+      seen.add(candidate.url);
+      unique.push(candidate);
+      if (unique.length === MAX_REPORT_CANDIDATES) break;
     }
-    return newest;
+    return unique;
   }, [reports]);
+
+  const resolved = useResolvedReport(candidates);
+  const report = resolved?.report ?? null;
 
   const lastCommitAt = activityPending ? null : latestCommitAt(detail);
   const stalePushedAt = useMemo(() => {
@@ -438,12 +467,13 @@ export function AgentReviewCard({
   return (
     <section className="flex flex-col gap-2 border-b border-border/70 px-4 py-3">
       {probedRefs.map((threadRef) => (
-        <ThreadReportProbe key={threadRef.threadId} threadRef={threadRef} onReport={onReport} />
+        <ThreadReportProbe key={threadRef.threadId} threadRef={threadRef} onReports={onReports} />
       ))}
-      {report !== null ? (
+      {resolved !== null ? (
         <ReportCardBody
-          reportUrl={report.url}
-          updatedAt={relativeTime(report.postedAt)}
+          reportUrl={resolved.report.url}
+          meta={resolved.meta}
+          updatedAt={relativeTime(resolved.report.postedAt)}
           stalePushedAt={stalePushedAt}
           onOpenExternal={onOpenExternal}
         />

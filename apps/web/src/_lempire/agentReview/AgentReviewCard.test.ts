@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { isReviewStale, reviewStartedAt } from "./AgentReviewCard";
+import { extractReports, isReviewStale, reviewStartedAt } from "./AgentReviewCard";
 
 const at = (iso: string) => Date.parse(iso);
 
@@ -49,5 +49,48 @@ describe("isReviewStale", () => {
     expect(isReviewStale("", started)).toBe(false);
     expect(isReviewStale("not-a-date", started)).toBe(false);
     expect(isReviewStale("2026-07-30T11:50:00Z", Number.NaN)).toBe(false);
+  });
+});
+
+describe("extractReports", () => {
+  const message = (text: string, role: string, createdAt: string) => ({ text, role, createdAt });
+  const plan = "https://plans.gawaak.ovh/p/aaa/plan1";
+  const report = "https://plans.gawaak.ovh/p/aaa/report1";
+
+  it("returns every plandrop URL in the thread, newest first", () => {
+    const found = extractReports([
+      message("review this", "user", "2026-07-30T10:00:00Z"),
+      message(`report: ${report}`, "assistant", "2026-07-30T11:00:00Z"),
+      message("now plan the fix", "user", "2026-07-30T12:00:00Z"),
+      message(`plan: ${plan}/`, "assistant", "2026-07-30T13:00:00Z"),
+    ]);
+    expect(found.map((entry) => entry.url)).toEqual([plan, report]);
+  });
+
+  it("keeps each URL's own timestamps so a losing candidate cannot skew staleness", () => {
+    const found = extractReports([
+      message("review this", "user", "2026-07-30T10:00:00Z"),
+      message(`report: ${report}`, "assistant", "2026-07-30T11:00:00Z"),
+      message("now plan the fix", "user", "2026-07-30T12:00:00Z"),
+      message(`plan: ${plan}`, "assistant", "2026-07-30T13:00:00Z"),
+    ]);
+    expect(found[1]).toEqual({
+      url: report,
+      postedAt: "2026-07-30T11:00:00Z",
+      kickoffAt: "2026-07-30T10:00:00Z",
+    });
+  });
+
+  it("orders the trailing URL of a message first", () => {
+    const found = extractReports([
+      message(`draft ${plan} final ${report}`, "assistant", "2026-07-30T11:00:00Z"),
+    ]);
+    expect(found.map((entry) => entry.url)).toEqual([report, plan]);
+  });
+
+  it("finds nothing in a thread without a plandrop URL", () => {
+    expect(extractReports([message("no link here", "assistant", "2026-07-30T11:00:00Z")])).toEqual(
+      [],
+    );
   });
 });
