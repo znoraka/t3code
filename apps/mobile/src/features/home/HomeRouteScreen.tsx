@@ -197,6 +197,8 @@ export function HomeRouteScreen() {
               params: { screen: "Settings" },
             })
           }
+          // [FORK] lempire: pull requests
+          onOpenPullRequests={() => navigation.navigate("PullRequests")}
           onProjectSortOrderChange={setProjectSortOrder}
           onSearchQueryChange={setSearchQuery}
           onStartNewTask={() => navigation.navigate("NewTaskSheet", { screen: "NewTask" })}

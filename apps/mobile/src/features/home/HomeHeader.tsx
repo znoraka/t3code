@@ -44,6 +44,8 @@ export function HomeHeader(props: {
   readonly onThreadSortOrderChange: (sortOrder: SidebarThreadSortOrder) => void;
   readonly onOpenEnvironments: () => void;
   readonly onOpenSettings: () => void;
+  // [FORK] lempire: pull requests
+  readonly onOpenPullRequests: () => void;
   readonly onStartNewTask: () => void;
 }) {
   if (Platform.OS === "android") {
@@ -198,6 +200,7 @@ function AndroidHomeHeader(props: HomeHeaderProps) {
         onFilterAction={handleMenuAction}
         onOpenSettings={props.onOpenSettings}
         onOpenEnvironments={props.onOpenEnvironments}
+        onOpenPullRequests={props.onOpenPullRequests}
       />
     </>
   );
@@ -234,6 +237,16 @@ function IosHomeHeader(props: HomeHeaderProps) {
           unstable_headerRightItems:
             Platform.OS === "ios"
               ? () => [
+                  // [FORK] lempire: pull requests
+                  withNativeGlassHeaderItem({
+                    accessibilityLabel: "Pull requests",
+                    icon: { name: "arrow.triangle.pull", type: "sfSymbol" } as const,
+                    identifier: "home-pull-requests",
+                    label: "",
+                    onPress: props.onOpenPullRequests,
+                    type: "button",
+                  }),
+                  // [FORK] end
                   withNativeGlassHeaderItem({
                     accessibilityLabel: "Open settings",
                     icon: { name: "ellipsis", type: "sfSymbol" } as const,
@@ -369,6 +382,13 @@ function IosHomeHeader(props: HomeHeaderProps) {
             )}
           </NativeHeaderToolbar.Menu>
           <NativeHeaderToolbar.Spacer flexible />
+          {/* [FORK] lempire: pull requests */}
+          <NativeHeaderToolbar.Button
+            accessibilityLabel="Pull requests"
+            icon="arrow.triangle.pull"
+            onPress={props.onOpenPullRequests}
+            separateBackground
+          />
           <NativeHeaderToolbar.Button
             accessibilityLabel="New task"
             icon="square.and.pencil"

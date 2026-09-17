@@ -189,6 +189,8 @@ export default defineConfig({
           "apps/mobile/src/features/files/AttachmentFileScreen.tsx",
           "apps/mobile/src/features/files/ThreadFilesRouteScreen.tsx",
           "apps/mobile/src/features/files/thread-file-navigator-pane.tsx",
+          // [FORK] lempire: author accent colors mixed against the live foreground
+          "apps/mobile/src/_lempire/pullRequests/PullRequestsScreen.tsx",
           "apps/mobile/src/features/home/HomeHeader.tsx",
           "apps/mobile/src/features/review/ReviewSheet.tsx",
           "apps/mobile/src/features/review/useNativeReviewDiffBridge.ts",

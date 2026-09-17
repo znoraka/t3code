@@ -18,7 +18,7 @@ import {
   type ReviewVariant,
   buildReviewPrompt,
   reviewVariantSchema,
-} from "./reviewVariant";
+} from "@t3tools/client-runtime/_lempire/review-variant";
 
 export function useReviewVariant() {
   return useLocalStorage<ReviewVariant, string>(

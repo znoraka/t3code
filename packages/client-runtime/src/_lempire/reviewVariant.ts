@@ -6,8 +6,8 @@ import * as Schema from "effect/Schema";
 
 export type ReviewVariant = "review" | "review-with-tests";
 
-// `label` is the segment text inside the "Review with agent" row; `description`
-// replaces the row's subtitle while that segment is selected.
+// `label` names the choice (a segmented control on web, an action sheet on the
+// phone); `description` is the subtitle shown while that choice is selected.
 export const REVIEW_VARIANTS: ReadonlyArray<{
   value: ReviewVariant;
   label: string;

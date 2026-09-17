@@ -60,7 +60,7 @@ import {
 import { type DraftId, useComposerDraftStore } from "~/composerDraftStore";
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 // [FORK] lempire: "Review with agent" action
-import { REVIEW_VARIANTS } from "~/_lempire/agentReview/reviewVariant";
+import { REVIEW_VARIANTS } from "@t3tools/client-runtime/_lempire/review-variant";
 import { useReviewVariant, useStartAgentReview } from "~/_lempire/agentReview/useStartAgentReview";
 // [FORK] end
 import { useCopyToClipboard, writeTextToClipboard } from "~/hooks/useCopyToClipboard";

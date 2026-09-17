@@ -30,6 +30,8 @@ export function MaterialThreadListToolbar(props: {
   readonly onFilterAction: NonNullable<ComponentProps<typeof ControlPillMenu>["onPressAction"]>;
   readonly onOpenSettings: () => void;
   readonly onOpenEnvironments: () => void;
+  // [FORK] lempire: only the Home header offers pull requests; the sidebar copy omits it.
+  readonly onOpenPullRequests?: () => void;
   readonly sidebar?: boolean;
   readonly onLayout?: (event: LayoutChangeEvent) => void;
   readonly onRequestVisibility?: () => void;
@@ -142,6 +144,14 @@ export function MaterialThreadListToolbar(props: {
                 icon="magnifyingglass"
                 onPress={openSearch}
               />
+              {/* [FORK] lempire: pull requests */}
+              {props.onOpenPullRequests ? (
+                <AndroidHeaderIconButton
+                  accessibilityLabel="Pull requests"
+                  icon="arrow.triangle.pull"
+                  onPress={props.onOpenPullRequests}
+                />
+              ) : null}
               <AndroidHeaderIconButton
                 accessibilityLabel="Open settings"
                 icon="gearshape"

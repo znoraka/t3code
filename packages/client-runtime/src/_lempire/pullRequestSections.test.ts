@@ -2,11 +2,12 @@ import type { PullRequestListEntry } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  authorAccentHex,
   buildPullRequestSections,
   relativeTime,
   SETTLED_INITIAL_COUNT,
   sliceSettled,
-} from "./pullRequestSections";
+} from "./pullRequestSections.ts";
 
 const entry = (number: number, updatedAt: string, host = "github.com") =>
   ({ number, updatedAt, host, repository: "acme/web" }) as unknown as PullRequestListEntry;
@@ -73,5 +74,23 @@ describe("relativeTime", () => {
   it("is empty for nothing or garbage", () => {
     expect(relativeTime("", now)).toBe("");
     expect(relativeTime("nope", now)).toBe("");
+  });
+});
+
+describe("authorAccentHex", () => {
+  it("is a stable hex color per author", () => {
+    expect(authorAccentHex("theo")).toMatch(/^#[0-9a-f]{6}$/);
+    expect(authorAccentHex("theo")).toBe(authorAccentHex("theo"));
+    expect(authorAccentHex("theo")).not.toBe(authorAccentHex("julius"));
+  });
+
+  it("stays at the mid lightness the web row uses, so it reads in both themes", () => {
+    for (const login of ["theo", "julius", "znoraka", "", "a-very-long-github-handle"]) {
+      const [red, green, blue] = [1, 3, 5].map((offset) =>
+        Number.parseInt(authorAccentHex(login).slice(offset, offset + 2), 16),
+      ) as [number, number, number];
+      // hsl lightness 55% puts the channel mid-point at 140 of 255.
+      expect((Math.max(red, green, blue) + Math.min(red, green, blue)) / 2).toBeCloseTo(140, -1);
+    }
   });
 });

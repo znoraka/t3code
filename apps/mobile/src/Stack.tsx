@@ -29,6 +29,11 @@ import {
 } from "./features/keyboard/HardwareKeyboardCommandProvider";
 import { ReviewCommentComposerSheet } from "./features/review/ReviewCommentComposerSheet";
 import { ReviewSheet } from "./features/review/ReviewSheet";
+// [FORK] lempire: pull requests on the phone
+import { PullRequestRouteScreen } from "./_lempire/pullRequests/PullRequestRouteScreen";
+import { PullRequestsRouteScreen } from "./_lempire/pullRequests/PullRequestsRouteScreen";
+import { useApplyPendingReviewLinks } from "./_lempire/pullRequests/pendingReviewLinks";
+// [FORK] end
 import { ThreadTerminalRouteScreen } from "./features/terminal/ThreadTerminalRouteScreen";
 import { GitBranchesSheet } from "./features/threads/git/GitBranchesSheet";
 import { GitCommitSheet } from "./features/threads/git/GitCommitSheet";
@@ -415,6 +420,8 @@ function workspaceLocationFromState(state: NavigationState) {
 function ThreadOutboxDrainWorker() {
   useThreadOutboxDrain();
   useComposerAttachmentUploadWorker();
+  // [FORK] lempire: links a review thread to its pull request once it exists
+  useApplyPendingReviewLinks();
   return null;
 }
 
@@ -524,6 +531,22 @@ export const RootStack = createNativeStackNavigator({
         ...getCompactBrandHeaderOptions(),
       },
     }),
+    // [FORK] lempire: the pull-request triage list and one pull request's review.
+    // The detail route takes no linking path: `repository` carries a slash, and a
+    // deep link to one pull request buys nothing the list does not.
+    PullRequests: createNativeStackScreen({
+      screen: PullRequestsRouteScreen,
+      linking: "pull-requests",
+      options: {
+        ...GLASS_HEADER_OPTIONS,
+        title: "Pull Requests",
+      },
+    }),
+    PullRequest: createNativeStackScreen({
+      screen: PullRequestRouteScreen,
+      options: GLASS_HEADER_OPTIONS,
+    }),
+    // [FORK] end
     Thread: createNativeStackScreen({
       screen: ThreadRouteScreen,
       linking: THREAD_LINKING_PREFIX,

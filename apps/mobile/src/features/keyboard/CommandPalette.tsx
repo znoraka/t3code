@@ -164,6 +164,15 @@ export function CommandPalette(props: {
         searchTerms: ["new task", "chat", "create", "project"],
         run: () => navigation.navigate("NewTaskSheet", { screen: "NewTask" }),
       },
+      // [FORK] lempire: pull requests
+      {
+        key: "pullRequests",
+        kind: "action",
+        title: "Pull requests",
+        searchTerms: ["pr", "review", "merge", "github"],
+        run: () => navigation.navigate("PullRequests"),
+      },
+      // [FORK] end
       {
         key: "addProject",
         kind: "action",

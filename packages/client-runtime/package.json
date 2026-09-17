@@ -167,6 +167,18 @@
       "types": "./src/_lempire/plandropReports.ts",
       "default": "./src/_lempire/plandropReports.ts"
     },
+    "./_lempire/pull-request-sections": {
+      "types": "./src/_lempire/pullRequestSections.ts",
+      "default": "./src/_lempire/pullRequestSections.ts"
+    },
+    "./_lempire/review-of-record": {
+      "types": "./src/_lempire/reviewOfRecord.ts",
+      "default": "./src/_lempire/reviewOfRecord.ts"
+    },
+    "./_lempire/review-variant": {
+      "types": "./src/_lempire/reviewVariant.ts",
+      "default": "./src/_lempire/reviewVariant.ts"
+    },
     "./state/project-grouping": {
       "types": "./src/state/projectGrouping.ts",
       "default": "./src/state/projectGrouping.ts"

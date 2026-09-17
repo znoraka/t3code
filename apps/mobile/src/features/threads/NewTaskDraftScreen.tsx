@@ -63,6 +63,8 @@ import { FilePreviewModal, type FilePreviewSource } from "../../components/FileP
 import { VideoPreviewModal, type VideoPreviewSource } from "../../components/VideoPreviewModal";
 import { ProviderIcon } from "../../components/ProviderIcon";
 import { SymbolView } from "../../components/AppSymbol";
+// [FORK] lempire: pull-request review links
+import { claimPendingReviewLink } from "../../_lempire/pullRequests/pendingReviewLinks";
 import { AppText as Text } from "../../components/AppText";
 import { hasProviderUsageLimits, isUsageLimitsCommand } from "@t3tools/shared/usageLimits";
 import { COMPOSER_LAYOUT_TRANSITION, ComposerSurface } from "./ThreadComposer";
@@ -1278,6 +1280,10 @@ export function NewTaskDraftScreen(props: {
     // Persist before clearing the draft or leaving its editor. This only waits
     // for the local outbox write; server and worktree setup run on the thread.
     flow.setSubmitting(true);
+    // [FORK] lempire: a draft opened by "Review with agent" carries a pull request
+    // link, and this is the one place the draft and its thread id both exist.
+    claimPendingReviewLink(draftKey, message.threadId);
+    // [FORK] end
     try {
       await enqueueThreadOutboxMessage(message);
     } catch (error) {

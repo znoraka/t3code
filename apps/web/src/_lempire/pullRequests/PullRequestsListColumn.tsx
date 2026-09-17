@@ -6,6 +6,13 @@
 // per-environment listing, one read per bucket, so the buckets are the host's own answers rather
 // than a re-partitioned feed.
 
+import {
+  authorHue,
+  buildPullRequestSections,
+  pullRequestRowKey,
+  relativeTime,
+  sliceSettled,
+} from "@t3tools/client-runtime/_lempire/pull-request-sections";
 import { scopeProjectRef, scopedProjectKey } from "@t3tools/client-runtime/environment";
 import type { PullRequestListInput } from "@t3tools/contracts";
 import { useNavigate, useSearch } from "@tanstack/react-router";
@@ -38,13 +45,6 @@ import { useEnvironments } from "~/state/environments";
 import { usePullRequestList } from "~/state/pullRequests";
 
 import { usePrViewStore } from "./prViewStore";
-import {
-  authorHue,
-  buildPullRequestSections,
-  pullRequestRowKey,
-  relativeTime,
-  sliceSettled,
-} from "./pullRequestSections";
 
 /** Rows per open bucket; this is a triage list, not an archive. */
 const OPEN_LIMIT = 40;
