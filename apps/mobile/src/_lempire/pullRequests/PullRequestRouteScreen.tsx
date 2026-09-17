@@ -3,7 +3,7 @@
 // Header, the review of record, the action that starts a new one, and the review
 // threads. No diff, no conversation, no merge: the phone is for deciding whether
 // the agent has looked at this and what it found.
-import { resolveReviewOfRecord } from "@t3tools/client-runtime/_lempire/review-of-record";
+import { resolveReviewLookup } from "@t3tools/client-runtime/_lempire/review-of-record";
 import { REVIEW_VARIANTS } from "@t3tools/client-runtime/_lempire/review-variant";
 import { relativeTime } from "@t3tools/client-runtime/_lempire/pull-request-sections";
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
@@ -24,7 +24,15 @@ import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { AgentReviewCard } from "./AgentReviewCard";
 import { plandropReports, pullRequestActivity, pullRequestDetail } from "./atoms";
 import { summarizeChecks } from "./pullRequestDetailSummary";
+import { useRefreshOnRevisit } from "./useRefreshOnRevisit";
 import { useStartAgentReview } from "./useStartAgentReview";
+
+/**
+ * Matches the detail atoms' stale window. A pull request left open while the
+ * phone is in a pocket is the normal way to read one, and the review of record
+ * is exactly the field that changes while you are away.
+ */
+const DETAIL_REFRESH_INTERVAL_MS = 60_000;
 
 type PullRequestRouteParams = {
   readonly environmentId: string;
@@ -92,15 +100,16 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestR
   );
 
   const detail = detailQuery.data;
-  const review = useMemo(
+  const reviewLookup = useMemo(
     () =>
-      resolveReviewOfRecord({
-        report: reportsQuery.data?.reports[0] ?? null,
+      resolveReviewLookup({
+        result: reportsQuery.data,
+        error: reportsQuery.error,
         commits: activityQuery.data?.commits ?? [],
         // Commits ride on the activity half; claim nothing until it lands.
         activityPending: activityQuery.data === null,
       }),
-    [activityQuery.data, reportsQuery.data],
+    [activityQuery.data, reportsQuery.data, reportsQuery.error],
   );
 
   const allThreads = useThreadShells();
@@ -134,6 +143,8 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestR
     reportsQuery.refresh();
   }, [activityQuery, detailQuery, reportsQuery]);
 
+  const refreshNow = useRefreshOnRevisit(refresh, DETAIL_REFRESH_INTERVAL_MS);
+
   const reviewActions = useMemo(
     () =>
       REVIEW_VARIANTS.map((variant) => ({
@@ -163,7 +174,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestR
         contentInsetAdjustmentBehavior="automatic"
         refreshControl={
           <RefreshControl
-            onRefresh={refresh}
+            onRefresh={refreshNow}
             refreshing={detailQuery.isPending && detail !== null}
             tintColorClassName={String("accent-icon")}
           />
@@ -217,18 +228,37 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestR
               </View>
             </View>
 
-            {review !== null ? (
+            {/* Only an answer that actually arrived can say a pull request is
+                unreviewed; a lookup that failed says so, and offers to retry. */}
+            {reviewLookup.state === "reviewed" ? (
               <View className="mt-4">
                 <AgentReviewCard
-                  generatedAgo={relativeAge(review.report.generatedAt)}
+                  generatedAgo={relativeAge(reviewLookup.review.report.generatedAt)}
                   onOpen={(url) => void tryOpenExternalUrl(url, "pull-request")}
-                  review={review}
-                  stalePushedAgo={relativeAge(review.stalePushedAt)}
+                  review={reviewLookup.review}
+                  stalePushedAgo={relativeAge(reviewLookup.review.stalePushedAt)}
                 />
               </View>
-            ) : reportsQuery.data?.configured === false ? null : (
+            ) : reviewLookup.state === "unavailable" ? (
+              <Pressable
+                accessibilityLabel="Look for a review of this pull request again"
+                accessibilityRole="button"
+                className="mt-4 flex-row items-start gap-1.5 active:opacity-70"
+                onPress={refreshNow}
+              >
+                <SymbolView
+                  name="exclamationmark.triangle"
+                  size={11}
+                  tintColorClassName="accent-adaptive-amber-700-300"
+                  type="monochrome"
+                />
+                <Text className="min-w-0 flex-1 text-xs leading-snug text-adaptive-amber-700-300">
+                  Could not check whether this pull request has been reviewed. Tap to try again.
+                </Text>
+              </Pressable>
+            ) : reviewLookup.state === "unconfigured" ? null : (
               <Text className="mt-4 text-xs text-foreground-tertiary">
-                {reportsQuery.isPending
+                {reviewLookup.state === "looking"
                   ? "Looking for a review of this pull request..."
                   : "No agent review has been published for this pull request yet."}
               </Text>

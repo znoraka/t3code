@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { memo, useMemo } from "react";
 
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../../components/ui/tooltip";
 import { cn } from "../../lib/utils";
 import { matchesLinkedPullRequestUrl } from "../../lib/openPullRequestLink";
 import { useThreadShells } from "../../state/entities";
@@ -177,7 +178,7 @@ export function AgentReviewCard({
 }) {
   const allThreads = useThreadShells();
   const navigate = useNavigate();
-  const review = useReviewOfRecord(environmentId, detail, activityPending);
+  const { lookup, retry } = useReviewOfRecord(environmentId, detail, activityPending);
 
   // Review threads are the ones linked to this PR (explicitly, or through the
   // branch they run on), newest first.
@@ -192,17 +193,42 @@ export function AgentReviewCard({
     );
   }, [allThreads, environmentId, detail.url]);
 
-  if (review === null && reviewThreads.length === 0) return null;
+  // A lookup that failed is worth a line: silence here reads as "nobody has
+  // reviewed this", which is the one thing a failed lookup cannot tell you.
+  const saysSomething = lookup.state === "reviewed" || lookup.state === "unavailable";
+  if (!saysSomething && reviewThreads.length === 0) return null;
 
   return (
     <section className="flex flex-col gap-2 border-b border-border/70 px-4 py-3">
-      {review !== null ? (
+      {lookup.state === "reviewed" ? (
         <ReportCardBody
-          report={review.report}
-          updatedAt={relativeTime(review.report.generatedAt)}
-          stalePushedAt={relativeTime(review.stalePushedAt)}
+          report={lookup.review.report}
+          updatedAt={relativeTime(lookup.review.report.generatedAt)}
+          stalePushedAt={relativeTime(lookup.review.stalePushedAt)}
           onOpenExternal={onOpenExternal}
         />
+      ) : lookup.state === "unavailable" ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={retry}
+                className="flex items-center gap-2 rounded-md px-2 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/50"
+              >
+                <AlertTriangleIcon
+                  className="size-3.5 shrink-0 text-amber-500"
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 flex-1 truncate">
+                  Could not check whether this pull request has been reviewed.
+                </span>
+                <span className="shrink-0 font-medium text-foreground">Retry</span>
+              </button>
+            }
+          />
+          <TooltipPopup side="bottom">{lookup.reason}</TooltipPopup>
+        </Tooltip>
       ) : null}
       <ul className="flex flex-col gap-1">
         {reviewThreads.map((thread) => {

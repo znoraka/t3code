@@ -1,7 +1,12 @@
 import type { PlandropReport } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { isReviewStale, resolveReviewOfRecord, reviewStartedAt } from "./reviewOfRecord.ts";
+import {
+  isReviewStale,
+  resolveReviewLookup,
+  resolveReviewOfRecord,
+  reviewStartedAt,
+} from "./reviewOfRecord.ts";
 
 const at = (iso: string) => Date.parse(iso);
 
@@ -135,5 +140,62 @@ describe("resolveReviewOfRecord", () => {
         stalePushedAt: null,
       },
     );
+  });
+});
+
+describe("resolveReviewLookup", () => {
+  const report = (fields: Partial<PlandropReport> = {}): PlandropReport =>
+    ({
+      url: "https://plans.gawaak.ovh/p/1/2/",
+      sources: [],
+      generatedAt: "2026-07-30T12:00:00Z",
+      ...fields,
+    }) as PlandropReport;
+
+  const lookup = (input: {
+    result?: { configured: boolean; reports: ReadonlyArray<PlandropReport> } | null;
+    error?: string | null;
+  }) =>
+    resolveReviewLookup({
+      result: input.result ?? null,
+      error: input.error ?? null,
+      commits: [],
+      activityPending: false,
+    });
+
+  it("is still looking before the environment has answered", () => {
+    expect(lookup({})).toEqual({ state: "looking" });
+  });
+
+  it("does not call a pull request unreviewed when the lookup failed", () => {
+    expect(lookup({ error: "Environment env-1 is offline." })).toEqual({
+      state: "unavailable",
+      reason: "Environment env-1 is offline.",
+    });
+  });
+
+  it("calls it unreviewed only on an answer with no reports", () => {
+    expect(lookup({ result: { configured: true, reports: [] } })).toEqual({ state: "unreviewed" });
+  });
+
+  it("stays quiet on a host with no plandrop credential", () => {
+    expect(lookup({ result: { configured: false, reports: [] } })).toEqual({
+      state: "unconfigured",
+    });
+  });
+
+  it("carries the newest report as the review of record", () => {
+    const newest = report({ generatedAt: "2026-07-30T14:00:00Z" });
+    expect(lookup({ result: { configured: true, reports: [newest, report()] } })).toEqual({
+      state: "reviewed",
+      review: { report: newest, stalePushedAt: null },
+    });
+  });
+
+  it("keeps showing a report it already has when a refresh fails", () => {
+    const subject = report();
+    expect(
+      lookup({ result: { configured: true, reports: [subject] }, error: "Connection lost." }),
+    ).toEqual({ state: "reviewed", review: { report: subject, stalePushedAt: null } });
   });
 });

@@ -6,7 +6,7 @@
 // commit the review read; a report published before the uploader recorded one
 // falls back to the timestamp estimate below. Shared so the web card and the
 // mobile card cannot hold two opinions about what "stale" means.
-import type { PlandropReport } from "@t3tools/contracts";
+import type { PlandropReport, PlandropReportsResult } from "@t3tools/contracts";
 
 /** A full agent review never finishes faster than this. */
 const MIN_REVIEW_DURATION_MS = 15 * 60_000;
@@ -87,4 +87,46 @@ export function resolveReviewOfRecord(input: {
       ? isReviewStale(head.committedDate, reviewStartedAt(report.generatedAt, null))
       : report.headSha !== head.oid;
   return { report, stalePushedAt: stale ? head.committedDate : null };
+}
+
+/**
+ * What a card can honestly say about a pull request's review. An empty index is
+ * only "nobody has reviewed this" when the environment actually answered: a
+ * lookup still in flight, one the environment could not answer, and one the host
+ * has no credential for each look identical in the data and must not be reported
+ * as an unreviewed pull request.
+ */
+export type ReviewLookup =
+  | { readonly state: "reviewed"; readonly review: PullRequestReview }
+  | { readonly state: "looking" }
+  /** The environment or plandrop could not answer; `reason` is worth showing. */
+  | { readonly state: "unavailable"; readonly reason: string }
+  | { readonly state: "unreviewed" }
+  /** This host holds no plandrop credential, so the card says nothing at all. */
+  | { readonly state: "unconfigured" };
+
+/**
+ * The query's answer, read as something a card can render. A report already in
+ * hand outranks a failed revalidation: the verdict a client is showing does not
+ * disappear because the next refresh could not reach the host.
+ */
+export function resolveReviewLookup(input: {
+  readonly result: PlandropReportsResult | null;
+  /** The query's failure, already formatted for a human, or null. */
+  readonly error: string | null;
+  readonly commits: ReadonlyArray<ReviewedCommit>;
+  readonly activityPending: boolean;
+}): ReviewLookup {
+  const review =
+    input.result === null
+      ? null
+      : resolveReviewOfRecord({
+          report: input.result.reports[0] ?? null,
+          commits: input.commits,
+          activityPending: input.activityPending,
+        });
+  if (review !== null) return { state: "reviewed", review };
+  if (input.error !== null) return { state: "unavailable", reason: input.error };
+  if (input.result === null) return { state: "looking" };
+  return input.result.configured ? { state: "unreviewed" } : { state: "unconfigured" };
 }

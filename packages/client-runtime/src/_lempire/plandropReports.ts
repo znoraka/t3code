@@ -10,8 +10,12 @@ import type { Atom } from "effect/unstable/reactivity";
 import type * as EnvironmentRegistry from "../connection/registry.ts";
 import { createEnvironmentRpcQueryAtomFamily } from "../state/runtime.ts";
 
-/** A verdict does not change unless a review is re-run, so this can sit a while. */
-const REPORTS_STALE_TIME_MS = 5 * 60_000;
+/**
+ * A verdict does not change unless a review is re-run, so this can sit a while.
+ * Exported because a client that comes back to a pull request it left open has
+ * to decide whether to ask again, and that decision is this window.
+ */
+export const REPORTS_STALE_TIME_MS = 5 * 60_000;
 const REPORTS_IDLE_TTL_MS = 30 * 60_000;
 
 export function createPlandropReportsAtomFamily<R, E>(
