@@ -1595,7 +1595,7 @@ export function PullRequestDetailPanel({
                           variant="ghost-muted"
                           onClick={onBack}
                           className="-ml-1.5"
-                          aria-label="Back to this thread's pull requests"
+                          aria-label="Back to pull requests"
                         >
                           <ArrowLeftIcon aria-hidden className="size-3.5" />
                         </Button>
@@ -1671,7 +1671,7 @@ export function PullRequestDetailPanel({
                           tabIndex={condensed ? 0 : -1}
                           onClick={onBack}
                           className="-ml-1.5"
-                          aria-label="Back to this thread's pull requests"
+                          aria-label="Back to pull requests"
                         >
                           <ArrowLeftIcon aria-hidden className="size-3.5" />
                         </Button>

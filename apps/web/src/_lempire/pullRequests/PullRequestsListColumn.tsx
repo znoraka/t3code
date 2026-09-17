@@ -1,27 +1,25 @@
-// [FORK] lempire: the sidebar's pull-request mode.
+// [FORK] lempire: the pull-request triage list, a column of the /pull-requests page.
 //
-// On /pull-requests the sidebar *is* the navigation: the route renders only the selected pull
-// request's detail, so the list of what to pick lives here in place of the thread list, with the
-// old fork's anatomy — rich three-line cards bucketed by what they need from the reader, and a
-// collapsed tail of what has settled. Data comes from upstream's per-environment listing, one
-// read per bucket, so the buckets are the host's own answers rather than a re-partitioned feed.
+// It lives in the page rather than in the sidebar so the thread list stays on screen while you
+// pick a pull request. Anatomy is the old fork's — rich three-line cards bucketed by what they
+// need from the reader, and a collapsed tail of what has settled. Data comes from upstream's
+// per-environment listing, one read per bucket, so the buckets are the host's own answers rather
+// than a re-partitioned feed.
 
 import { scopeProjectRef, scopedProjectKey } from "@t3tools/client-runtime/environment";
 import type { PullRequestListInput } from "@t3tools/contracts";
-import { useLocation, useNavigate, useSearch } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
   AlertCircleIcon,
   AsteriskIcon,
   CheckIcon,
   CircleDashedIcon,
-  GitMergeIcon,
-  GitPullRequestIcon,
-  MessageSquareTextIcon,
   PlusIcon,
   XIcon,
 } from "lucide-react";
 import { memo, useCallback, useMemo, useState } from "react";
 
+import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 import type { EnvironmentPullRequestEntry } from "~/components/pullRequest/pullRequestList.logic";
 import { Button } from "~/components/ui/button";
 import {
@@ -31,9 +29,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { SidebarContent, SidebarGroup, SidebarMenuButton } from "~/components/ui/sidebar";
+import { SidebarContent, SidebarGroup } from "~/components/ui/sidebar";
 import { Spinner } from "~/components/ui/spinner";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
+import { isElectron } from "~/env";
 import { cn } from "~/lib/utils";
 import { useProjects } from "~/state/entities";
 import { useEnvironments } from "~/state/environments";
@@ -48,71 +46,10 @@ import {
   sliceSettled,
 } from "./pullRequestSections";
 
-/** Rows per open bucket; the sidebar is a triage list, not an archive. */
+/** Rows per open bucket; this is a triage list, not an archive. */
 const OPEN_LIMIT = 40;
 /** Merged rows behind the settled tail, enough for a week of landings. */
 const MERGED_LIMIT = 15;
-
-/**
- * Navigating between the chat and pull-request modes. Entering records the chat path being
- * left so leaving returns to the same thread rather than the root.
- */
-function useSidebarModeNavigation(isOnPullRequests: boolean) {
-  const navigate = useNavigate();
-  const pathname = useLocation({ select: (location) => location.pathname });
-
-  const goToChat = useCallback(() => {
-    const lastChatPath = usePrViewStore.getState().lastChatPath;
-    void navigate({ to: lastChatPath ?? "/" });
-  }, [navigate]);
-
-  const goToPullRequests = useCallback(() => {
-    if (!isOnPullRequests) {
-      usePrViewStore.getState().setLastChatPath(pathname);
-    }
-    void navigate({ to: "/pull-requests", search: { involvement: "all", state: "open" } });
-  }, [isOnPullRequests, navigate, pathname]);
-
-  return { goToChat, goToPullRequests };
-}
-
-/** One icon button that reads as a destination going in and as "back to chat" coming out. */
-export const SidebarV2ModeToggle = memo(function SidebarV2ModeToggle({
-  isOnPullRequests,
-}: {
-  isOnPullRequests: boolean;
-}) {
-  const { goToChat, goToPullRequests } = useSidebarModeNavigation(isOnPullRequests);
-
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <SidebarMenuButton
-            size="icon"
-            type="button"
-            className={cn(
-              "relative focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
-              isOnPullRequests && "bg-sidebar-row-active text-sidebar-foreground",
-            )}
-            onClick={isOnPullRequests ? goToChat : goToPullRequests}
-            aria-pressed={isOnPullRequests}
-            aria-label={isOnPullRequests ? "Back to chat" : "Pull requests"}
-          />
-        }
-      >
-        {isOnPullRequests ? <MessageSquareTextIcon /> : <GitPullRequestIcon />}
-        <span
-          className="pointer-events-none absolute left-1/2 top-1/2 size-[max(100%,3rem)] -translate-1/2 pointer-fine:hidden"
-          aria-hidden="true"
-        />
-      </TooltipTrigger>
-      <TooltipPopup side="right">
-        {isOnPullRequests ? "Back to chat" : "Pull requests"}
-      </TooltipPopup>
-    </Tooltip>
-  );
-});
 
 function ChecksInline({ state }: { state: EnvironmentPullRequestEntry["checksState"] }) {
   if (state === undefined) return null;
@@ -226,7 +163,7 @@ const SettledRow = memo(function SettledRow({
         isSelected ? "bg-accent text-accent-foreground" : "hover:bg-muted/60",
       )}
     >
-      <GitMergeIcon className="size-3.5 shrink-0 text-purple-500 dark:text-purple-400" />
+      <PullRequestGlyph.merged className="size-3.5 shrink-0 text-purple-500 dark:text-purple-400" />
       <span className="min-w-0 truncate">
         #{pr.number} · {pr.title}
       </span>
@@ -467,8 +404,8 @@ function usePullRequestProjects() {
   }, [environments, projects]);
 }
 
-/** The PR list that replaces the thread list while in pull-request mode. */
-const SidebarPullRequestsContent = memo(function SidebarPullRequestsContent() {
+/** Project picker plus the bucketed list, scrolling as one. */
+const PullRequestsList = memo(function PullRequestsList() {
   const projects = usePullRequestProjects();
   const navigate = useNavigate();
   const storeProjectKey = usePrViewStore((state) => state.projectKey);
@@ -581,23 +518,31 @@ const SidebarPullRequestsContent = memo(function SidebarPullRequestsContent() {
   );
 });
 
-/** The sidebar in pull-request mode: header row plus the shared list. */
-export function SidebarV2PullRequestsPane() {
+/**
+ * The list as the page's left column. Full width until a pull request is selected on a narrow
+ * window, where list and detail take turns rather than splitting 320px off an already small stage.
+ */
+export function PullRequestsListColumn({ collapsed }: { collapsed: boolean }) {
   return (
-    <>
-      {/* Padding matches upstream's fixedHeader group so the toggle lands in the same spot in
-          both modes and the header does not jump on switch. */}
-      <SidebarGroup className="gap-1 p-2">
-        <div className="flex items-center gap-1">
-          <div className="min-w-0 flex-1 truncate px-2 text-sm font-medium text-sidebar-foreground">
-            Pull requests
-          </div>
-          <div className="shrink-0">
-            <SidebarV2ModeToggle isOnPullRequests />
-          </div>
-        </div>
-      </SidebarGroup>
-      <SidebarPullRequestsContent />
-    </>
+    <aside
+      className={cn(
+        "flex min-h-0 w-full shrink-0 flex-col overflow-hidden border-r border-border bg-sidebar text-sidebar-foreground lg:w-80",
+        collapsed && "max-lg:hidden",
+      )}
+      aria-label="Pull requests"
+    >
+      {/* Titlebar clearance, shown only when this column is the left-most surface: with the
+          sidebar collapsed (or overlaying on a narrow window) the window controls sit above it,
+          and rows must not land under them. Otherwise the list starts at the top edge, level
+          with the detail panel's own header. */}
+      <div
+        className={cn(
+          "hidden h-[var(--workspace-topbar-height)] shrink-0 max-md:block [[data-sidebar-state=collapsed]_&]:block",
+          isElectron && "drag-region",
+        )}
+        aria-hidden="true"
+      />
+      <PullRequestsList />
+    </aside>
   );
 }
