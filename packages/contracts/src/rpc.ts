@@ -2,6 +2,12 @@ import * as Schema from "effect/Schema";
 import * as Rpc from "effect/unstable/rpc/Rpc";
 import * as RpcGroup from "effect/unstable/rpc/RpcGroup";
 import { NonNegativeInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
+// [FORK] lempire
+import {
+  PlandropReportsInput,
+  PlandropReportsResult,
+  PlandropUnavailableError,
+} from "./_lempire/plandropReport.ts";
 import {
   ProviderAuthCancelInput,
   ProviderAuthCompleteInput,
@@ -318,6 +324,9 @@ export const WS_METHODS = {
   gitRunStackedAction: "git.runStackedAction",
   gitResolvePullRequest: "git.resolvePullRequest",
   gitPreparePullRequestThread: "git.preparePullRequestThread",
+
+  // [FORK] lempire: plandrop review reports
+  plandropReportsForPullRequest: "plandrop.reportsForPullRequest",
 
   // Review methods
   reviewGetDiffPreview: "review.getDiffPreview",
@@ -719,6 +728,13 @@ const WsPullRequestsStackRpc = Rpc.make(WS_METHODS.pullRequestsStack, {
   payload: PullRequestRef,
   success: Schema.NullOr(PullRequestStack),
   error: PullRequestRpcError,
+});
+
+// [FORK] lempire: the plandrop-hosted review reports for a pull request.
+const WsPlandropReportsForPullRequestRpc = Rpc.make(WS_METHODS.plandropReportsForPullRequest, {
+  payload: PlandropReportsInput,
+  success: PlandropReportsResult,
+  error: Schema.Union([PlandropUnavailableError, EnvironmentAuthorizationError]),
 });
 
 const WsPullRequestsLinkedThreadsRpc = Rpc.make(WS_METHODS.pullRequestsLinkedThreads, {
@@ -1400,6 +1416,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsPullRequestsRoutingRpc,
   WsPullRequestsRoutingIdentityRpc,
   WsPullRequestsStackRpc,
+  WsPlandropReportsForPullRequestRpc,
   WsPullRequestsLinkedThreadsRpc,
   WsPullRequestsDetailRpc,
   WsPullRequestsActivityRpc,

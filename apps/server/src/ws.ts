@@ -156,6 +156,8 @@ import * as UsageLimitSources from "./usage/UsageLimitSources.ts";
 import * as UsageService from "./usage/UsageService.ts";
 import * as TraceDiagnostics from "./diagnostics/TraceDiagnostics.ts";
 import * as PullRequestService from "./pullRequest/PullRequestService.ts";
+// [FORK] lempire
+import * as PlandropReports from "./_lempire/PlandropReports.ts";
 import { listLinkedPullRequestThreads } from "./pullRequest/linkedThreads.ts";
 import { pullRequestSyncKey } from "./pullRequest/pullRequestSyncKey.ts";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
@@ -2706,6 +2708,13 @@ const makeWsRpcLayer = (
             {
               "rpc.aggregate": "pull-requests",
             },
+          ),
+        // [FORK] lempire: reviews plandrop holds for this PR, however they got there.
+        [WS_METHODS.plandropReportsForPullRequest]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.plandropReportsForPullRequest,
+            PlandropReports.reportsForPullRequest(input),
+            { "rpc.aggregate": "pull-requests" },
           ),
         [WS_METHODS.pullRequestsLinkedThreads]: (input) =>
           observeRpcEffect(

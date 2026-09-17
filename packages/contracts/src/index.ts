@@ -45,3 +45,5 @@ export * from "./resourceTelemetry.ts";
 export * from "./usage.ts";
 export * from "./rpc.ts";
 export * from "./worktreeSetup.ts";
+// [FORK] lempire
+export * from "./_lempire/plandropReport.ts";
