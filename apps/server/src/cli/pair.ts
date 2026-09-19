@@ -563,19 +563,19 @@ const tailscaleServePortFlag = Flag.Int("tailscale-serve-port").pipe(
   Flag.withDefault(DEFAULT_TAILSCALE_SERVE_PORT),
 );
 
-const jsonFlag = Flag.boolean("json").pipe(
+const jsonFlag = Flag.Boolean("json").pipe(
   Flag.withDescription("Print a single-line JSON result instead of the QR code."),
   Flag.withDefault(false),
 );
 
-const adminFlag = Flag.boolean("admin").pipe(
+const adminFlag = Flag.Boolean("admin").pipe(
   Flag.withDescription(
     "Mint the token with administrative scopes, like the server's startup pairing URL.",
   ),
   Flag.withDefault(false),
 );
 
-const originFlag = Flag.string("origin").pipe(
+const originFlag = Flag.String("origin").pipe(
   Flag.withSchema(Schema.URLFromString),
   Flag.withDescription(
     "Origin of the running server (e.g. http://127.0.0.1:3773); skips server-runtime.json discovery. The token is minted into the userdata database under --base-dir (or the default T3 home), which must be the one that server reads.",

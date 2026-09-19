@@ -2,6 +2,7 @@ import { assert, describe, it } from "@effect/vitest";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
+import type { PlatformError } from "effect/PlatformError";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import { HttpClient, HttpClientResponse } from "effect/unstable/http";
@@ -44,13 +45,14 @@ const json = (body: unknown, status = 200) =>
 const withConfig = <A, E, R>(
   config: unknown | null,
   use: Effect.Effect<A, E, R>,
-): Effect.Effect<A, E, R | FileSystem.FileSystem | Path.Path> =>
+): Effect.Effect<A, E | PlatformError, R | FileSystem.FileSystem | Path.Path> =>
   Effect.gen(function* () {
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
     const directory = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-plandrop-" });
     const configPath = path.join(directory, "config.json");
     if (config !== null) {
+      // @effect-diagnostics-next-line preferSchemaOverJson:off - the fixture writes arbitrary config shapes.
       yield* fileSystem.writeFileString(configPath, JSON.stringify(config));
     }
     const previous = process.env[CONFIG_PATH_ENV];
