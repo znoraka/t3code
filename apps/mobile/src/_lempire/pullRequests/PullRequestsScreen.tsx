@@ -67,8 +67,10 @@ function ChecksGlyph({ state }: { state: PullRequestListEntry["checksState"] }) 
 }
 
 // The verdict, not the finding counts: at row scale the question is whether a
-// review exists and whether it was happy. A stale one keeps its colour and loses
-// its weight, so "reviewed, then touched" reads weaker without a second glyph.
+// review exists and whether it was happy. Staleness is the other half of it and
+// cannot ride on opacity — a dimmed 11px symbol reads as chrome — so a stale
+// review says the word, in the same amber pill the detail card uses. Fresh rows
+// keep the bare symbol: they are the majority, and they cost no width.
 const REVIEW_BADGE_TINTS = {
   ok: "accent-adaptive-emerald-600-400",
   warn: "accent-adaptive-amber-700-300",
@@ -78,18 +80,34 @@ const REVIEW_BADGE_TINTS = {
 function ReviewGlyph({ badge }: { badge: ReviewRowBadge | undefined }) {
   if (badge === undefined) return null;
   const label = badge.state === null ? "Reviewed" : `Reviewed: ${badge.state}`;
+  if (badge.stale) {
+    return (
+      <View
+        accessibilityLabel={`${label}, updated since the review`}
+        className="flex-row items-center gap-1 rounded-full border border-adaptive-amber-200-900-a60 bg-adaptive-amber-500-a12-a16 px-1.5 py-0.5"
+      >
+        <SymbolView
+          name="doc.text"
+          size={9}
+          tintColorClassName="accent-adaptive-amber-700-300"
+          type="monochrome"
+        />
+        <Text className="text-2xs font-t3-bold uppercase tracking-[0.5px] text-adaptive-amber-700-300">
+          Stale
+        </Text>
+      </View>
+    );
+  }
   return (
-    <View style={badge.stale ? { opacity: 0.5 } : undefined}>
-      <SymbolView
-        accessibilityLabel={badge.stale ? `${label}, updated since the review` : label}
-        name="doc.text"
-        size={11}
-        tintColorClassName={
-          badge.state === null ? "accent-icon-subtle" : REVIEW_BADGE_TINTS[badge.state]
-        }
-        type="monochrome"
-      />
-    </View>
+    <SymbolView
+      accessibilityLabel={label}
+      name="doc.text"
+      size={11}
+      tintColorClassName={
+        badge.state === null ? "accent-icon-subtle" : REVIEW_BADGE_TINTS[badge.state]
+      }
+      type="monochrome"
+    />
   );
 }
 
