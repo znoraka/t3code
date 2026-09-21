@@ -5,7 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 import { buildPullRequestFeed, type PullRequestFeedEntry } from "./pullRequestFeed";
 import { PullRequestsScreen } from "./PullRequestsScreen";
 import { useRefreshOnRevisit } from "./useRefreshOnRevisit";
-import { usePullRequestFeed } from "./usePullRequestFeed";
+import { usePullRequestFeed, usePullRequestReviewBadges } from "./usePullRequestFeed";
 
 /**
  * Matches the listing atoms' stale window. Coming back to the list should not
@@ -18,6 +18,7 @@ export function PullRequestsRouteScreen() {
   const navigation = useNavigation();
   const [settledExpanded, setSettledExpanded] = useState(false);
   const { sources, error, isPending, environmentCount, refresh } = usePullRequestFeed();
+  const reviewBadges = usePullRequestReviewBadges();
 
   const { items } = useMemo(
     () => buildPullRequestFeed({ ...sources, settledExpanded }),
@@ -48,6 +49,7 @@ export function PullRequestsRouteScreen() {
       onExpandSettled={() => setSettledExpanded(true)}
       onRefresh={refreshNow}
       onSelect={handleSelect}
+      reviewBadges={reviewBadges}
     />
   );
 }

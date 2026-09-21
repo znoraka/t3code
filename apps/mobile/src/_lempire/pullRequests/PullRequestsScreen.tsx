@@ -9,6 +9,10 @@ import {
   authorAccentHex,
   relativeTime,
 } from "@t3tools/client-runtime/_lempire/pull-request-sections";
+import {
+  reviewBadgeKey,
+  type ReviewRowBadge,
+} from "@t3tools/client-runtime/_lempire/review-of-record";
 import type { PullRequestListEntry } from "@t3tools/contracts";
 import { mixHexColors } from "@t3tools/shared/_lempire/environmentColor";
 import { LegendList } from "@legendapp/list/react-native";
@@ -62,6 +66,33 @@ function ChecksGlyph({ state }: { state: PullRequestListEntry["checksState"] }) 
   );
 }
 
+// The verdict, not the finding counts: at row scale the question is whether a
+// review exists and whether it was happy. A stale one keeps its colour and loses
+// its weight, so "reviewed, then touched" reads weaker without a second glyph.
+const REVIEW_BADGE_TINTS = {
+  ok: "accent-adaptive-emerald-600-400",
+  warn: "accent-adaptive-amber-700-300",
+  crit: "accent-adaptive-rose-600-400",
+} as const;
+
+function ReviewGlyph({ badge }: { badge: ReviewRowBadge | undefined }) {
+  if (badge === undefined) return null;
+  const label = badge.state === null ? "Reviewed" : `Reviewed: ${badge.state}`;
+  return (
+    <View style={badge.stale ? { opacity: 0.5 } : undefined}>
+      <SymbolView
+        accessibilityLabel={badge.stale ? `${label}, updated since the review` : label}
+        name="doc.text"
+        size={11}
+        tintColorClassName={
+          badge.state === null ? "accent-icon-subtle" : REVIEW_BADGE_TINTS[badge.state]
+        }
+        type="monochrome"
+      />
+    </View>
+  );
+}
+
 function groupRadius(isFirst: boolean, isLast: boolean) {
   return {
     borderTopLeftRadius: isFirst ? 18 : 0,
@@ -74,6 +105,7 @@ function groupRadius(isFirst: boolean, isLast: boolean) {
 const PullRequestCard = memo(function PullRequestCard(props: {
   readonly entry: PullRequestFeedEntry;
   readonly needsMe: boolean;
+  readonly reviewBadge: ReviewRowBadge | undefined;
   readonly isFirst: boolean;
   readonly isLast: boolean;
   readonly onSelect: (entry: PullRequestFeedEntry) => void;
@@ -122,6 +154,7 @@ const PullRequestCard = memo(function PullRequestCard(props: {
           {entry.headBranch}
         </Text>
         {entry.isDraft ? <Text className="text-2xs text-foreground-tertiary">Draft</Text> : null}
+        <ReviewGlyph badge={props.reviewBadge} />
         <ChecksGlyph state={entry.checksState} />
         {props.needsMe ? (
           <View
@@ -204,6 +237,8 @@ function RefreshNotice({ message }: { message: string }) {
 
 export function PullRequestsScreen(props: {
   readonly items: ReadonlyArray<PullRequestFeedItem>;
+  /** Review badges by `reviewBadgeKey`, for the open rows that have a review. */
+  readonly reviewBadges: ReadonlyMap<string, ReviewRowBadge>;
   readonly error: string | null;
   readonly isPending: boolean;
   /** Environments whose server can list pull requests at all. */
@@ -212,7 +247,7 @@ export function PullRequestsScreen(props: {
   readonly onRefresh: () => void;
   readonly onSelect: (entry: PullRequestFeedEntry) => void;
 }) {
-  const { onExpandSettled, onSelect } = props;
+  const { onExpandSettled, onSelect, reviewBadges } = props;
   const isInitialLoad = props.isPending && props.items.length === 0 && props.error === null;
 
   const renderItem = useCallback(
@@ -228,6 +263,7 @@ export function PullRequestsScreen(props: {
               isLast={item.isLast}
               needsMe={item.needsMe}
               onSelect={onSelect}
+              reviewBadge={reviewBadges.get(reviewBadgeKey(item.entry))}
             />
           );
         case "settled":
@@ -250,7 +286,7 @@ export function PullRequestsScreen(props: {
           );
       }
     },
-    [onExpandSettled, onSelect],
+    [onExpandSettled, onSelect, reviewBadges],
   );
 
   const listEmptyComponent = useMemo(() => {

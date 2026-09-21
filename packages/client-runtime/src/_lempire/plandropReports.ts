@@ -28,3 +28,19 @@ export function createPlandropReportsAtomFamily<R, E>(
     idleTtlMs: REPORTS_IDLE_TTL_MS,
   });
 }
+
+/**
+ * The same lookup for a whole list, one round trip for every row's badge. Shares
+ * the single lookup's staleness window: a verdict changes only when a review is
+ * re-run, whether one row is watching or forty.
+ */
+export function createPlandropListReportsAtomFamily<R, E>(
+  runtime: Atom.AtomRuntime<EnvironmentRegistry.EnvironmentRegistry | R, E>,
+) {
+  return createEnvironmentRpcQueryAtomFamily(runtime, {
+    label: "environment-data:plandrop:list-reports",
+    tag: WS_METHODS.plandropReportsForPullRequests,
+    staleTimeMs: REPORTS_STALE_TIME_MS,
+    idleTtlMs: REPORTS_IDLE_TTL_MS,
+  });
+}

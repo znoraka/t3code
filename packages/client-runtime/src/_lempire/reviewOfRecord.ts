@@ -6,7 +6,12 @@
 // commit the review read; a report published before the uploader recorded one
 // falls back to the timestamp estimate below. Shared so the web card and the
 // mobile card cannot hold two opinions about what "stale" means.
-import type { PlandropReport, PlandropReportsResult } from "@t3tools/contracts";
+import type {
+  PlandropListReportsResult,
+  PlandropReport,
+  PlandropReportsResult,
+  PlandropVerdictState,
+} from "@t3tools/contracts";
 
 /** A full agent review never finishes faster than this. */
 const MIN_REVIEW_DURATION_MS = 15 * 60_000;
@@ -129,4 +134,61 @@ export function resolveReviewLookup(input: {
   if (input.error !== null) return { state: "unavailable", reason: input.error };
   if (input.result === null) return { state: "looking" };
   return input.result.configured ? { state: "unreviewed" } : { state: "unconfigured" };
+}
+
+/** What a list row can show about its review: the verdict, and whether to trust it. */
+export interface ReviewRowBadge {
+  /** The verdict the review reached, or null for a report this fork cannot read one from. */
+  readonly state: PlandropVerdictState | null;
+  /** The review predates the pull request's last update, so it may not describe it. */
+  readonly stale: boolean;
+  readonly report: PlandropReport;
+}
+
+/**
+ * The badge for one listed pull request. Staleness is a weaker claim than the
+ * detail card's: a listing carries no commits, only `updatedAt`, which a comment
+ * moves as surely as a push does. So a stale badge means "something happened
+ * after this review", and the card is where the exact answer lives.
+ */
+export function resolveRowReviewBadge(report: PlandropReport, updatedAt: string): ReviewRowBadge {
+  return {
+    state: report.verdict?.state ?? null,
+    stale: isReviewStale(updatedAt, reviewStartedAt(report.generatedAt, null)),
+    report,
+  };
+}
+
+/** How a row finds its badge. Repositories are compared case-insensitively, as hosts do. */
+export function reviewBadgeKey(reference: {
+  readonly repository: string;
+  readonly number: number;
+}): string {
+  return `${reference.repository.toLowerCase()}#${reference.number}`;
+}
+
+/**
+ * A badge per listed pull request that has a review, keyed by
+ * `reviewBadgeKey`. Rows the lookup said nothing about are simply absent: no
+ * review, no failed lookup to explain, nothing to draw.
+ */
+export function buildRowReviewBadges(
+  result: PlandropListReportsResult | null,
+  rows: ReadonlyArray<{
+    readonly repository: string;
+    readonly number: number;
+    readonly updatedAt: string;
+  }>,
+): ReadonlyMap<string, ReviewRowBadge> {
+  if (result === null || result.entries.length === 0) return new Map();
+  const updatedAt = new Map(rows.map((row) => [reviewBadgeKey(row), row.updatedAt]));
+  return new Map(
+    result.entries.flatMap((found) => {
+      const key = reviewBadgeKey(found);
+      const rowUpdatedAt = updatedAt.get(key);
+      return rowUpdatedAt === undefined
+        ? []
+        : [[key, resolveRowReviewBadge(found.report, rowUpdatedAt)] as const];
+    }),
+  );
 }
