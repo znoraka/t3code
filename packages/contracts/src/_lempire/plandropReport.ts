@@ -80,3 +80,33 @@ export class PlandropUnavailableError extends Schema.TaggedError<PlandropUnavail
     }
   }
 }
+
+/**
+ * Several pull requests in one lookup, for a list that wants a review badge per
+ * row. Refs rather than one repository plus numbers: a project's list can span
+ * repositories (a fork and its upstream), and one query per client keeps the
+ * badge off the render path of each row.
+ */
+export const PlandropListReportsInput = Schema.Struct({
+  pullRequests: Schema.Array(PlandropReportsInput),
+});
+export type PlandropListReportsInput = typeof PlandropListReportsInput.Type;
+
+/**
+ * The review of record per pull request, newest first within each entry's own
+ * lookup. A pull request nobody has reviewed is absent, and so is one whose
+ * lookup failed on its own: a badge has nothing to say either way, and one
+ * unreachable row must not cost the rest of the list its badges. `configured:
+ * false` means this host holds no plandrop credential at all.
+ */
+export const PlandropListReportsResult = Schema.Struct({
+  configured: Schema.Boolean,
+  entries: Schema.Array(
+    Schema.Struct({
+      repository: TrimmedNonEmptyString,
+      number: PositiveInt,
+      report: PlandropReport,
+    }),
+  ),
+});
+export type PlandropListReportsResult = typeof PlandropListReportsResult.Type;

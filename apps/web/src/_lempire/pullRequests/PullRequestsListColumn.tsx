@@ -13,6 +13,10 @@ import {
   relativeTime,
   sliceSettled,
 } from "@t3tools/client-runtime/_lempire/pull-request-sections";
+import {
+  reviewBadgeKey,
+  type ReviewRowBadge,
+} from "@t3tools/client-runtime/_lempire/review-of-record";
 import { scopeProjectRef, scopedProjectKey } from "@t3tools/client-runtime/environment";
 import type { PullRequestListInput } from "@t3tools/contracts";
 import { useNavigate, useSearch } from "@tanstack/react-router";
@@ -21,6 +25,7 @@ import {
   AsteriskIcon,
   CheckIcon,
   CircleDashedIcon,
+  FileChartColumnIcon,
   PlusIcon,
   XIcon,
 } from "lucide-react";
@@ -37,6 +42,7 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { SidebarContent, SidebarGroup } from "~/components/ui/sidebar";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { Spinner } from "~/components/ui/spinner";
 import { isElectron } from "~/env";
 import { cn } from "~/lib/utils";
@@ -45,6 +51,7 @@ import { useEnvironments } from "~/state/environments";
 import { usePullRequestList } from "~/state/pullRequests";
 
 import { usePrViewStore } from "./prViewStore";
+import { useRowReviewBadges } from "./useRowReviewBadges";
 
 /** Rows per open bucket; this is a triage list, not an archive. */
 const OPEN_LIMIT = 40;
@@ -80,14 +87,50 @@ function ChecksInline({ state }: { state: EnvironmentPullRequestEntry["checksSta
   );
 }
 
+// The verdict, not the finding counts: at row scale the useful question is
+// whether a review exists and whether it was happy. A stale one keeps its colour
+// but loses its weight, so "reviewed, then touched" reads as a weaker claim than
+// "reviewed" without adding a second glyph to the row.
+const REVIEW_BADGE_STYLES = {
+  ok: "text-emerald-600 dark:text-emerald-300",
+  warn: "text-amber-600 dark:text-amber-300",
+  crit: "text-red-600 dark:text-red-400",
+} as const;
+
+function ReviewBadge({ badge }: { badge: ReviewRowBadge | undefined }) {
+  if (badge === undefined) return null;
+  const label = badge.state === null ? "Reviewed" : `Reviewed: ${badge.state}`;
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span
+            className={cn(
+              "inline-flex items-center",
+              badge.state === null ? "text-muted-foreground" : REVIEW_BADGE_STYLES[badge.state],
+              badge.stale && "opacity-50",
+            )}
+            aria-label={badge.stale ? `${label}, updated since the review` : label}
+          >
+            <FileChartColumnIcon className="size-3" aria-hidden="true" />
+          </span>
+        }
+      />
+      <TooltipPopup>{badge.stale ? `${label} · updated since` : label}</TooltipPopup>
+    </Tooltip>
+  );
+}
+
 const PullRequestRow = memo(function PullRequestRow({
   pr,
   needsMe,
+  reviewBadge,
   isSelected,
   onSelect,
 }: {
   pr: EnvironmentPullRequestEntry;
   needsMe: boolean;
+  reviewBadge: ReviewRowBadge | undefined;
   isSelected: boolean;
   onSelect: (pr: EnvironmentPullRequestEntry) => void;
 }) {
@@ -133,6 +176,7 @@ const PullRequestRow = memo(function PullRequestRow({
         <span className="min-w-0 truncate">{pr.headBranch}</span>
         <span className="ml-auto flex shrink-0 items-center gap-1.5">
           {pr.isDraft ? <span className="text-muted-foreground">Draft</span> : null}
+          <ReviewBadge badge={reviewBadge} />
           <ChecksInline state={pr.checksState} />
           {needsMe ? (
             <AsteriskIcon className="size-3 text-[#d98a70]" aria-label="Needs your review" />
@@ -263,6 +307,16 @@ function PullRequestListPanel({
     [involved.data?.entries, merged.data?.entries, mine.data?.entries, reviewing.data?.entries],
   );
 
+  // Badges for the open rows only: whether a merged pull request was reviewed is
+  // no longer a question anyone is triaging.
+  const reviewBadges = useRowReviewBadges(
+    project.environmentId,
+    useMemo(
+      () => [...sections.needsMe, ...sections.mine, ...sections.waiting],
+      [sections.mine, sections.needsMe, sections.waiting],
+    ),
+  );
+
   if (!anyData && isPending) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-xs text-muted-foreground">
@@ -321,6 +375,7 @@ function PullRequestListPanel({
               key={pullRequestRowKey(pr)}
               pr={pr}
               needsMe
+              reviewBadge={reviewBadges.get(reviewBadgeKey(pr))}
               isSelected={selectedKey === pullRequestRowKey(pr)}
               onSelect={onSelect}
             />
@@ -335,6 +390,7 @@ function PullRequestListPanel({
                   key={pullRequestRowKey(pr)}
                   pr={pr}
                   needsMe={false}
+                  reviewBadge={reviewBadges.get(reviewBadgeKey(pr))}
                   isSelected={selectedKey === pullRequestRowKey(pr)}
                   onSelect={onSelect}
                 />
@@ -351,6 +407,7 @@ function PullRequestListPanel({
                   key={pullRequestRowKey(pr)}
                   pr={pr}
                   needsMe={false}
+                  reviewBadge={reviewBadges.get(reviewBadgeKey(pr))}
                   isSelected={selectedKey === pullRequestRowKey(pr)}
                   onSelect={onSelect}
                 />

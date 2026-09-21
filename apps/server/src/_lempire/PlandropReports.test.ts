@@ -7,7 +7,7 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import { HttpClient, HttpClientResponse } from "effect/unstable/http";
 
-import { lookupReports, orderReports } from "./PlandropReports.ts";
+import { lookupListReports, lookupReports, orderReports } from "./PlandropReports.ts";
 
 const CONFIG_PATH_ENV = "T3CODE_PLANDROP_CONFIG";
 
@@ -193,6 +193,60 @@ it.layer(NodeServices.layer)("plandrop report lookup", (it) => {
           Effect.flip,
         );
         assert.strictEqual(error.reason, "malformed");
+      }),
+    ),
+  );
+});
+
+it.layer(NodeServices.layer)("plandrop list lookup", (it) => {
+  const LIST = [
+    { repository: INPUT.repository, number: 12000 },
+    { repository: INPUT.repository, number: 12001 },
+    { repository: "l3mpire/other", number: 7 },
+  ] as const;
+
+  it.effect("answers with the newest report per pull request it found one for", () =>
+    withConfig(
+      CONFIG,
+      Effect.gen(function* () {
+        const seen = { requests: [] as string[], authorization: [] as (string | undefined)[] };
+        const result = yield* lookupListReports({ pullRequests: LIST }).pipe(
+          Effect.provide(
+            httpClientLayer({
+              seen,
+              response: () => {
+                const url = seen.requests.at(-1) ?? "";
+                if (url.includes("number=12000")) {
+                  return json({
+                    reports: [entry(), entry({ url: "old", generatedAt: "2026-01-01T00:00:00Z" })],
+                  });
+                }
+                // 12001 has no review at all; the other repository's lookup fails.
+                return url.includes("number=12001") ? json({ reports: [] }) : json({}, 500);
+              },
+            }),
+          ),
+        );
+        assert.deepStrictEqual(seen.requests.length, 3);
+        assert.deepStrictEqual(
+          result.entries.map((found) => [found.repository, found.number, found.report.url]),
+          [[INPUT.repository, 12000, "https://plans.gawaak.ovh/p/me/report-a/"]],
+        );
+        assert.strictEqual(result.configured, true);
+      }),
+    ),
+  );
+
+  it.effect("says nothing and calls nobody when the host has no credential", () =>
+    withConfig(
+      null,
+      Effect.gen(function* () {
+        const seen = { requests: [] as string[], authorization: [] as (string | undefined)[] };
+        const result = yield* lookupListReports({ pullRequests: LIST }).pipe(
+          Effect.provide(httpClientLayer({ response: () => json({ reports: [entry()] }), seen })),
+        );
+        assert.deepStrictEqual(result, { configured: false, entries: [] });
+        assert.deepStrictEqual(seen.requests, []);
       }),
     ),
   );

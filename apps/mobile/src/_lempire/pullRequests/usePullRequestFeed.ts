@@ -7,6 +7,11 @@
 // the same shape as `createArchivedThreadSnapshotsAtomFamily`, so a screen
 // watching a dozen listings re-renders once.
 import { useAtomValue } from "@effect/atom-react";
+import {
+  buildRowReviewBadges,
+  reviewBadgeKey,
+  type ReviewRowBadge,
+} from "@t3tools/client-runtime/_lempire/review-of-record";
 import { EnvironmentId, type PullRequestListInput } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as Option from "effect/Option";
@@ -15,7 +20,7 @@ import { useCallback, useMemo } from "react";
 
 import { appAtomRegistry } from "../../state/atom-registry";
 import { useServerConfigs } from "../../state/entities";
-import { pullRequestList } from "./atoms";
+import { plandropListReports, pullRequestList } from "./atoms";
 import type { PullRequestFeedSource } from "./pullRequestFeed";
 
 /** Rows per open bucket; this is a triage list, not an archive. */
@@ -32,6 +37,12 @@ const BUCKET_INPUTS = {
 
 type BucketName = keyof typeof BUCKET_INPUTS;
 const BUCKET_NAMES = Object.keys(BUCKET_INPUTS) as ReadonlyArray<BucketName>;
+/** Whether a merged pull request was reviewed is nobody's triage question. */
+const BADGED_BUCKETS = [
+  "reviewRequested",
+  "involved",
+  "mine",
+] as const satisfies ReadonlyArray<BucketName>;
 
 export type PullRequestFeedSources = Readonly<
   Record<BucketName, ReadonlyArray<PullRequestFeedSource>>
@@ -89,19 +100,23 @@ const feedAtom = Atom.family((key: string) =>
   }).pipe(Atom.withLabel(`mobile:_lempire:pr-feed:${key}`)),
 );
 
-export function usePullRequestFeed(): PullRequestFeedState & {
-  /** Environments whose server can list pull requests at all. */
-  readonly environmentCount: number;
-  readonly refresh: () => void;
-} {
+/** Environments whose server can list pull requests at all. */
+function usePullRequestEnvironmentIds(): ReadonlyArray<EnvironmentId> {
   const serverConfigs = useServerConfigs();
-  const environmentIds = useMemo(
+  return useMemo(
     () =>
       [...serverConfigs].flatMap(([environmentId, config]) =>
         config.environment.capabilities.pullRequests === true ? [environmentId] : [],
       ),
     [serverConfigs],
   );
+}
+
+export function usePullRequestFeed(): PullRequestFeedState & {
+  readonly environmentCount: number;
+  readonly refresh: () => void;
+} {
+  const environmentIds = usePullRequestEnvironmentIds();
   const state = useAtomValue(feedAtom(feedEnvironmentKey(environmentIds)));
   const refresh = useCallback(() => {
     for (const environmentId of environmentIds) {
@@ -112,4 +127,45 @@ export function usePullRequestFeed(): PullRequestFeedState & {
   }, [environmentIds]);
 
   return { ...state, environmentCount: environmentIds.length, refresh };
+}
+
+/**
+ * A review badge per open row, keyed by `reviewBadgeKey`. Built off the same
+ * listing atoms the feed reads, so the phone does not have to hand the rows back
+ * down: the numbers to look up are whatever those listings currently hold, one
+ * lookup per environment (see the server's `_lempire/PlandropReports`).
+ */
+const reviewBadgesAtom = Atom.family((key: string) =>
+  Atom.make((get): ReadonlyMap<string, ReviewRowBadge> => {
+    const badges = new Map<string, ReviewRowBadge>();
+    for (const environmentId of parseFeedEnvironmentKey(key)) {
+      const rows = new Map<string, { repository: string; number: number; updatedAt: string }>();
+      for (const bucket of BADGED_BUCKETS) {
+        const result = get(pullRequestList({ environmentId, input: BUCKET_INPUTS[bucket] }));
+        for (const entry of Option.getOrNull(AsyncResult.value(result))?.entries ?? []) {
+          rows.set(reviewBadgeKey(entry), {
+            repository: entry.repository,
+            number: entry.number,
+            updatedAt: entry.updatedAt,
+          });
+        }
+      }
+      if (rows.size === 0) continue;
+      // Sorted so that a listing re-ordered by activity reuses the answer
+      // already in hand rather than keying a fresh lookup.
+      const pullRequests = [...rows.values()]
+        .map((row) => ({ repository: row.repository, number: row.number }))
+        .sort((a, b) => a.repository.localeCompare(b.repository) || a.number - b.number);
+      const result = get(plandropListReports({ environmentId, input: { pullRequests } }));
+      const value = Option.getOrNull(AsyncResult.value(result));
+      for (const [badgeKey, badge] of buildRowReviewBadges(value, [...rows.values()])) {
+        badges.set(badgeKey, badge);
+      }
+    }
+    return badges;
+  }).pipe(Atom.withLabel(`mobile:_lempire:pr-review-badges:${key}`)),
+);
+
+export function usePullRequestReviewBadges(): ReadonlyMap<string, ReviewRowBadge> {
+  return useAtomValue(reviewBadgesAtom(feedEnvironmentKey(usePullRequestEnvironmentIds())));
 }

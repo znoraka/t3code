@@ -2,9 +2,11 @@ import type { PlandropReport } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  buildRowReviewBadges,
   isReviewStale,
   resolveReviewLookup,
   resolveReviewOfRecord,
+  reviewBadgeKey,
   reviewStartedAt,
 } from "./reviewOfRecord.ts";
 
@@ -197,5 +199,46 @@ describe("resolveReviewLookup", () => {
     expect(
       lookup({ result: { configured: true, reports: [subject] }, error: "Connection lost." }),
     ).toEqual({ state: "reviewed", review: { report: subject, stalePushedAt: null } });
+  });
+});
+
+describe("buildRowReviewBadges", () => {
+  const found = (number: number, overrides: Partial<PlandropReport> = {}) => ({
+    repository: "L3mpire/Lempire",
+    number,
+    report: {
+      url: `https://plans.test/report-${number}/`,
+      sources: [],
+      generatedAt: "2026-07-30T12:00:00Z",
+      verdict: { state: "warn" as const, label: "Mergeable with reserves" },
+      ...overrides,
+    },
+  });
+  const row = (number: number, updatedAt: string) => ({
+    repository: "l3mpire/lempire",
+    number,
+    updatedAt,
+  });
+
+  it("badges a row with its verdict, and calls it stale when the row moved after the review", () => {
+    const badges = buildRowReviewBadges({ configured: true, entries: [found(1), found(2)] }, [
+      row(1, "2026-07-30T11:00:00Z"),
+      row(2, "2026-07-30T11:50:00Z"),
+    ]);
+    expect(badges.get(reviewBadgeKey(row(1, "")))).toMatchObject({ state: "warn", stale: false });
+    expect(badges.get(reviewBadgeKey(row(2, "")))).toMatchObject({ state: "warn", stale: true });
+  });
+
+  it("says nothing about a row the lookup did not answer for, or a verdict it cannot read", () => {
+    const badges = buildRowReviewBadges(
+      { configured: true, entries: [found(1, { verdict: undefined })] },
+      [row(1, "2026-07-30T11:00:00Z"), row(9, "2026-07-30T11:00:00Z")],
+    );
+    expect(badges.get(reviewBadgeKey(row(1, "")))?.state).toBe(null);
+    expect(badges.has(reviewBadgeKey(row(9, "")))).toBe(false);
+  });
+
+  it("has nothing to show before the lookup answers", () => {
+    expect(buildRowReviewBadges(null, [row(1, "2026-07-30T11:00:00Z")]).size).toBe(0);
   });
 });

@@ -2718,6 +2718,13 @@ const makeWsRpcLayer = (
             PlandropReports.reportsForPullRequest(input),
             { "rpc.aggregate": "pull-requests" },
           ),
+        // [FORK] lempire: the same lookup for a whole list, for its review badges.
+        [WS_METHODS.plandropReportsForPullRequests]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.plandropReportsForPullRequests,
+            PlandropReports.reportsForPullRequests(input),
+            { "rpc.aggregate": "pull-requests" },
+          ),
         [WS_METHODS.pullRequestsLinkedThreads]: (input) =>
           observeRpcEffect(
             WS_METHODS.pullRequestsLinkedThreads,
