@@ -88,9 +88,11 @@ function ChecksInline({ state }: { state: EnvironmentPullRequestEntry["checksSta
 }
 
 // The verdict, not the finding counts: at row scale the useful question is
-// whether a review exists and whether it was happy. A stale one keeps its colour
-// but loses its weight, so "reviewed, then touched" reads as a weaker claim than
-// "reviewed" without adding a second glyph to the row.
+// whether a review exists and whether it was happy. Staleness is the other half
+// of that question and cannot be carried by weight — a dimmed 12px glyph is
+// indistinguishable from chrome in a scanned column — so a stale review says the
+// word, in the same amber the detail card's Stale pill uses. Fresh rows keep the
+// bare glyph: they are the majority, and they cost no width.
 const REVIEW_BADGE_STYLES = {
   ok: "text-emerald-600 dark:text-emerald-300",
   warn: "text-amber-600 dark:text-amber-300",
@@ -104,16 +106,25 @@ function ReviewBadge({ badge }: { badge: ReviewRowBadge | undefined }) {
     <Tooltip>
       <TooltipTrigger
         render={
-          <span
-            className={cn(
-              "inline-flex items-center",
-              badge.state === null ? "text-muted-foreground" : REVIEW_BADGE_STYLES[badge.state],
-              badge.stale && "opacity-50",
-            )}
-            aria-label={badge.stale ? `${label}, updated since the review` : label}
-          >
-            <FileChartColumnIcon className="size-3" aria-hidden="true" />
-          </span>
+          badge.stale ? (
+            <span
+              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-amber-500/50 bg-amber-500/10 px-1.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-300"
+              aria-label={`${label}, updated since the review`}
+            >
+              <FileChartColumnIcon className="size-2.5" aria-hidden="true" />
+              Stale
+            </span>
+          ) : (
+            <span
+              className={cn(
+                "inline-flex items-center",
+                badge.state === null ? "text-muted-foreground" : REVIEW_BADGE_STYLES[badge.state],
+              )}
+              aria-label={label}
+            >
+              <FileChartColumnIcon className="size-3" aria-hidden="true" />
+            </span>
+          )
         }
       />
       <TooltipPopup>{badge.stale ? `${label} · updated since` : label}</TooltipPopup>
