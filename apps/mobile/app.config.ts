@@ -229,7 +229,7 @@ const buildConfig = (base: ConfigContext["config"]): ExpoConfig => ({
   slug: "t3-code",
   platforms: ["ios", "android"],
   scheme: variant.scheme,
-  version: "1.2.1",
+  version: "1.3.0",
   // [FORK] app.json pins runtimeVersion for the self-hosted OTA server; fall
   // back to upstream's policy when it is absent.
   runtimeVersion: base.runtimeVersion ?? {
