@@ -7,12 +7,17 @@
 // shared with mobile in `@t3tools/client-runtime/_lempire/review-of-record`.
 import { createPlandropListReportsAtomFamily } from "@t3tools/client-runtime/_lempire/plandrop-reports";
 import {
+  applyKnownReviewStaleness,
   buildRowReviewBadges,
   reviewBadgeKey,
   type ReviewRowBadge,
 } from "@t3tools/client-runtime/_lempire/review-of-record";
+import {
+  reviewStalenessSnapshot,
+  subscribeReviewStaleness,
+} from "@t3tools/client-runtime/_lempire/review-staleness-store";
 import type { EnvironmentId } from "@t3tools/contracts";
-import { useMemo } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 
 import { connectionAtomRuntime } from "../../connection/runtime";
 import { useEnvironmentQuery } from "../../state/query";
@@ -50,5 +55,14 @@ export function useRowReviewBadges(
       [environmentId, pullRequests],
     ),
   );
-  return useMemo(() => buildRowReviewBadges(data, rows), [data, rows]);
+  // Rows a card has already answered for keep that answer over the estimate.
+  const known = useSyncExternalStore(
+    subscribeReviewStaleness,
+    reviewStalenessSnapshot,
+    reviewStalenessSnapshot,
+  );
+  return useMemo(
+    () => applyKnownReviewStaleness(buildRowReviewBadges(data, rows), known),
+    [data, rows, known],
+  );
 }

@@ -183,6 +183,10 @@
       "types": "./src/_lempire/reviewOfRecord.ts",
       "default": "./src/_lempire/reviewOfRecord.ts"
     },
+    "./_lempire/review-staleness-store": {
+      "types": "./src/_lempire/reviewStalenessStore.ts",
+      "default": "./src/_lempire/reviewStalenessStore.ts"
+    },
     "./_lempire/review-variant": {
       "types": "./src/_lempire/reviewVariant.ts",
       "default": "./src/_lempire/reviewVariant.ts"

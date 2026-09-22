@@ -2,6 +2,7 @@ import type { PlandropReport } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  applyKnownReviewStaleness,
   buildRowReviewBadges,
   isReviewStale,
   resolveReviewLookup,
@@ -89,7 +90,7 @@ describe("resolveReviewOfRecord", () => {
         commits: [commit("old", "2026-07-30T10:00:00Z"), commit("beef", "2026-07-30T11:00:00Z")],
         activityPending: false,
       }),
-    ).toEqual({ report: subject, stalePushedAt: null });
+    ).toEqual({ report: subject, stalePushedAt: null, exact: true });
   });
 
   it("names the push that outdated a review whose sha is no longer the head", () => {
@@ -100,7 +101,7 @@ describe("resolveReviewOfRecord", () => {
         commits: [commit("beef", "2026-07-30T11:00:00Z"), commit("cafe", "2026-07-30T13:00:00Z")],
         activityPending: false,
       }),
-    ).toEqual({ report: subject, stalePushedAt: "2026-07-30T13:00:00Z" });
+    ).toEqual({ report: subject, stalePushedAt: "2026-07-30T13:00:00Z", exact: true });
   });
 
   it("falls back to the timestamp estimate for a report with no sha", () => {
@@ -112,7 +113,7 @@ describe("resolveReviewOfRecord", () => {
         commits: [commit("cafe", "2026-07-30T13:00:00Z")],
         activityPending: false,
       }),
-    ).toEqual({ report: subject, stalePushedAt: "2026-07-30T13:00:00Z" });
+    ).toEqual({ report: subject, stalePushedAt: "2026-07-30T13:00:00Z", exact: true });
     // 11:00 predates it, so the review still covers the branch.
     expect(
       resolveReviewOfRecord({
@@ -120,7 +121,7 @@ describe("resolveReviewOfRecord", () => {
         commits: [commit("cafe", "2026-07-30T11:00:00Z")],
         activityPending: false,
       }),
-    ).toEqual({ report: subject, stalePushedAt: null });
+    ).toEqual({ report: subject, stalePushedAt: null, exact: true });
   });
 
   it("claims nothing about staleness while the commits are still loading", () => {
@@ -131,7 +132,7 @@ describe("resolveReviewOfRecord", () => {
         commits: [commit("cafe", "2026-07-30T13:00:00Z")],
         activityPending: true,
       }),
-    ).toEqual({ report: subject, stalePushedAt: null });
+    ).toEqual({ report: subject, stalePushedAt: null, exact: false });
   });
 
   it("claims nothing about staleness when the host carries no commits", () => {
@@ -140,6 +141,7 @@ describe("resolveReviewOfRecord", () => {
       {
         report: subject,
         stalePushedAt: null,
+        exact: false,
       },
     );
   });
@@ -190,7 +192,7 @@ describe("resolveReviewLookup", () => {
     const newest = report({ generatedAt: "2026-07-30T14:00:00Z" });
     expect(lookup({ result: { configured: true, reports: [newest, report()] } })).toEqual({
       state: "reviewed",
-      review: { report: newest, stalePushedAt: null },
+      review: { report: newest, stalePushedAt: null, exact: false },
     });
   });
 
@@ -198,7 +200,10 @@ describe("resolveReviewLookup", () => {
     const subject = report();
     expect(
       lookup({ result: { configured: true, reports: [subject] }, error: "Connection lost." }),
-    ).toEqual({ state: "reviewed", review: { report: subject, stalePushedAt: null } });
+    ).toEqual({
+      state: "reviewed",
+      review: { report: subject, stalePushedAt: null, exact: false },
+    });
   });
 });
 
@@ -240,5 +245,69 @@ describe("buildRowReviewBadges", () => {
 
   it("has nothing to show before the lookup answers", () => {
     expect(buildRowReviewBadges(null, [row(1, "2026-07-30T11:00:00Z")]).size).toBe(0);
+  });
+});
+
+describe("applyKnownReviewStaleness", () => {
+  const report: PlandropReport = {
+    url: "https://plans.test/report-1/",
+    sources: [],
+    generatedAt: "2026-07-30T12:00:00Z",
+    verdict: { state: "warn", label: "Mergeable with reserves" },
+  } as PlandropReport;
+  const key = "l3mpire/lempire#1";
+  /** The row the bug produces: a comment after the review, read as a possible push. */
+  const guessedStale = new Map([
+    [key, { state: "warn" as const, stale: true, report, updatedAt: "2026-07-30T13:00:00Z" }],
+  ]);
+  const answer = (overrides: Record<string, unknown> = {}) =>
+    new Map([
+      [
+        key,
+        {
+          reportUrl: report.url,
+          updatedAt: "2026-07-30T13:00:00Z",
+          stale: false,
+          ...overrides,
+        },
+      ],
+    ]);
+
+  it("clears a guessed stale badge once the card has answered for that row", () => {
+    expect(applyKnownReviewStaleness(guessedStale, answer()).get(key)).toMatchObject({
+      state: "warn",
+      stale: false,
+    });
+  });
+
+  it("keeps the badge it was given when the answer agrees with it", () => {
+    expect(applyKnownReviewStaleness(guessedStale, answer({ stale: true }))).toBe(guessedStale);
+  });
+
+  it("falls back to the estimate once the row moved past what the card read", () => {
+    const moved = new Map([
+      [key, { state: "warn" as const, stale: true, report, updatedAt: "2026-07-30T14:00:00Z" }],
+    ]);
+    expect(applyKnownReviewStaleness(moved, answer())).toBe(moved);
+  });
+
+  it("still answers for a row the list has not caught up with yet", () => {
+    const behind = new Map([
+      [key, { state: "warn" as const, stale: true, report, updatedAt: "2026-07-30T12:30:00Z" }],
+    ]);
+    expect(applyKnownReviewStaleness(behind, answer()).get(key)?.stale).toBe(false);
+  });
+
+  it("says nothing about a row whose review of record has since changed", () => {
+    expect(
+      applyKnownReviewStaleness(
+        guessedStale,
+        answer({ reportUrl: "https://plans.test/report-2/" }),
+      ),
+    ).toBe(guessedStale);
+  });
+
+  it("leaves the map alone when nothing is known", () => {
+    expect(applyKnownReviewStaleness(guessedStale, new Map())).toBe(guessedStale);
   });
 });

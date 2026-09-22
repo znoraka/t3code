@@ -8,15 +8,20 @@
 // watching a dozen listings re-renders once.
 import { useAtomValue } from "@effect/atom-react";
 import {
+  applyKnownReviewStaleness,
   buildRowReviewBadges,
   reviewBadgeKey,
   type ReviewRowBadge,
 } from "@t3tools/client-runtime/_lempire/review-of-record";
+import {
+  reviewStalenessSnapshot,
+  subscribeReviewStaleness,
+} from "@t3tools/client-runtime/_lempire/review-staleness-store";
 import { EnvironmentId, type PullRequestListInput } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/unstable/reactivity";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 
 import { appAtomRegistry } from "../../state/atom-registry";
 import { useServerConfigs } from "../../state/entities";
@@ -167,5 +172,9 @@ const reviewBadgesAtom = Atom.family((key: string) =>
 );
 
 export function usePullRequestReviewBadges(): ReadonlyMap<string, ReviewRowBadge> {
-  return useAtomValue(reviewBadgesAtom(feedEnvironmentKey(usePullRequestEnvironmentIds())));
+  const badges = useAtomValue(reviewBadgesAtom(feedEnvironmentKey(usePullRequestEnvironmentIds())));
+  // Folded in here rather than in the atom: the store is not a query, and a row
+  // a detail screen has answered for should stop guessing the moment it does.
+  const known = useSyncExternalStore(subscribeReviewStaleness, reviewStalenessSnapshot);
+  return useMemo(() => applyKnownReviewStaleness(badges, known), [badges, known]);
 }

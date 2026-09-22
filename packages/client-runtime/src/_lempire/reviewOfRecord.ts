@@ -53,6 +53,12 @@ export interface PullRequestReview {
   readonly report: PlandropReport;
   /** The commit that outdated the review, or null when it still covers the branch. */
   readonly stalePushedAt: string | null;
+  /**
+   * The verdict was reached with the pull request's commits in hand, so
+   * `stalePushedAt` is an answer rather than the absence of one. False while the
+   * activity is still loading, and on a host that carried no commits at all.
+   */
+  readonly exact: boolean;
 }
 
 /** One commit as both clients carry it: the activity half of a pull request detail. */
@@ -86,12 +92,12 @@ export function resolveReviewOfRecord(input: {
   const { report } = input;
   if (report === null) return null;
   const head = input.activityPending ? null : headCommit(input.commits);
-  if (head === null) return { report, stalePushedAt: null };
+  if (head === null) return { report, stalePushedAt: null, exact: false };
   const stale =
     report.headSha === undefined
       ? isReviewStale(head.committedDate, reviewStartedAt(report.generatedAt, null))
       : report.headSha !== head.oid;
-  return { report, stalePushedAt: stale ? head.committedDate : null };
+  return { report, stalePushedAt: stale ? head.committedDate : null, exact: true };
 }
 
 /**
@@ -143,19 +149,23 @@ export interface ReviewRowBadge {
   /** The review predates the pull request's last update, so it may not describe it. */
   readonly stale: boolean;
   readonly report: PlandropReport;
+  /** The row's last update, as the badge read it: what an exact answer has to cover. */
+  readonly updatedAt: string;
 }
 
 /**
- * The badge for one listed pull request. Staleness is a weaker claim than the
- * detail card's: a listing carries no commits, only `updatedAt`, which a comment
- * moves as surely as a push does. So a stale badge means "something happened
- * after this review", and the card is where the exact answer lives.
+ * The badge for one listed pull request. Staleness starts as a weaker claim than
+ * the detail card's: a listing carries no commits, only `updatedAt`, which a
+ * comment moves as surely as a push does. So a stale badge means "something
+ * happened after this review" until the card has been opened and answered
+ * properly, which `applyKnownReviewStaleness` folds back in.
  */
 export function resolveRowReviewBadge(report: PlandropReport, updatedAt: string): ReviewRowBadge {
   return {
     state: report.verdict?.state ?? null,
     stale: isReviewStale(updatedAt, reviewStartedAt(report.generatedAt, null)),
     report,
+    updatedAt,
   };
 }
 
@@ -191,4 +201,50 @@ export function buildRowReviewBadges(
         : [[key, resolveRowReviewBadge(found.report, rowUpdatedAt)] as const];
     }),
   );
+}
+
+/**
+ * What opening a pull request taught the list about its review. The detail holds
+ * the branch's commits and can say exactly whether the report still describes
+ * them; a row holds only `updatedAt`, which a comment moves as surely as a push
+ * does — including the comment the review itself posts. So the detail's answer
+ * is carried back, and outranks the row's estimate for as long as it applies.
+ */
+export interface KnownReviewStaleness {
+  /** The report that was judged: a newer review arrives with its own question. */
+  readonly reportUrl: string;
+  /** The pull request's `updatedAt` as the detail read it. */
+  readonly updatedAt: string;
+  readonly stale: boolean;
+}
+
+/** True when an exact answer read the row's update, or something later than it. */
+function covers(answer: KnownReviewStaleness, badge: ReviewRowBadge): boolean {
+  const known = Date.parse(answer.updatedAt);
+  const row = Date.parse(badge.updatedAt);
+  return !Number.isNaN(known) && !Number.isNaN(row) && known >= row;
+}
+
+/**
+ * Badges with the exact answers folded in where one is known and still applies.
+ * A row that has moved on since the detail read it keeps the estimate: whether
+ * that movement was a push is precisely what the old answer cannot vouch for.
+ *
+ * Returns the very same map when nothing changed, so a list nobody has opened a
+ * pull request from renders no differently for having asked.
+ */
+export function applyKnownReviewStaleness(
+  badges: ReadonlyMap<string, ReviewRowBadge>,
+  known: ReadonlyMap<string, KnownReviewStaleness>,
+): ReadonlyMap<string, ReviewRowBadge> {
+  if (badges.size === 0 || known.size === 0) return badges;
+  let corrected: Map<string, ReviewRowBadge> | null = null;
+  for (const [key, badge] of badges) {
+    const answer = known.get(key);
+    if (answer === undefined || answer.stale === badge.stale) continue;
+    if (answer.reportUrl !== badge.report.url || !covers(answer, badge)) continue;
+    corrected ??= new Map(badges);
+    corrected.set(key, { ...badge, stale: answer.stale });
+  }
+  return corrected ?? badges;
 }

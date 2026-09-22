@@ -3,14 +3,19 @@
 // Header, the review of record, the action that starts a new one, and the review
 // threads. No diff, no conversation, no merge: the phone is for deciding whether
 // the agent has looked at this and what it found.
-import { resolveReviewLookup } from "@t3tools/client-runtime/_lempire/review-of-record";
+import {
+  resolveReviewLookup,
+  reviewBadgeKey,
+  type ReviewLookup,
+} from "@t3tools/client-runtime/_lempire/review-of-record";
+import { recordReviewStaleness } from "@t3tools/client-runtime/_lempire/review-staleness-store";
 import { REVIEW_VARIANTS } from "@t3tools/client-runtime/_lempire/review-variant";
 import { relativeTime } from "@t3tools/client-runtime/_lempire/pull-request-sections";
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
 import { EnvironmentId, ProjectId } from "@t3tools/contracts";
 import { matchesLinkedPullRequestUrl } from "@t3tools/shared/changeRequestUrl";
 import { useNavigation, type StaticScreenProps } from "@react-navigation/native";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from "react-native";
 
 import { AppText as Text } from "../../components/AppText";
@@ -111,6 +116,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestR
       }),
     [activityQuery.data, reportsQuery.data, reportsQuery.error],
   );
+  useAnswerRowBadge(reviewLookup, repository, number, detail?.updatedAt ?? null);
 
   const allThreads = useThreadShells();
   const reviewThreads = useMemo(() => {
@@ -370,4 +376,26 @@ function hostLabel(url: string): string {
   } catch {
     return "the host";
   }
+}
+
+/**
+ * Hands the feed the answer this screen just worked out. A row only has
+ * `updatedAt` to go on and has to read the review's own comment as possible new
+ * code; this screen has the commits and knows, so what it knows goes back to the
+ * row that was guessing.
+ */
+function useAnswerRowBadge(
+  lookup: ReviewLookup,
+  repository: string,
+  number: number,
+  updatedAt: string | null,
+): void {
+  useEffect(() => {
+    if (updatedAt === null || lookup.state !== "reviewed" || !lookup.review.exact) return;
+    recordReviewStaleness(reviewBadgeKey({ repository, number }), {
+      reportUrl: lookup.review.report.url,
+      updatedAt,
+      stale: lookup.review.stalePushedAt !== null,
+    });
+  }, [lookup, repository, number, updatedAt]);
 }

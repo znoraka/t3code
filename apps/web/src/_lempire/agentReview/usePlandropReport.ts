@@ -12,9 +12,11 @@ import {
 } from "@t3tools/client-runtime/_lempire/plandrop-reports";
 import {
   resolveReviewLookup,
+  reviewBadgeKey,
   type PullRequestReview,
   type ReviewLookup,
 } from "@t3tools/client-runtime/_lempire/review-of-record";
+import { recordReviewStaleness } from "@t3tools/client-runtime/_lempire/review-staleness-store";
 import type { EnvironmentId, PullRequestDetailView } from "@t3tools/contracts";
 import { useEffect, useMemo, useRef } from "react";
 
@@ -76,5 +78,25 @@ export function useReviewOfRecord(
     [data, error, detail.commits, activityPending],
   );
 
+  useAnswerRowBadge(lookup, detail);
+
   return { lookup, retry: refresh };
+}
+
+/**
+ * Hands the list the answer this page just worked out. A row only has
+ * `updatedAt` to go on and has to read the review's own comment as possible new
+ * code; the card has the commits and knows, so what it knows goes back to the
+ * row that was guessing.
+ */
+function useAnswerRowBadge(lookup: ReviewLookup, detail: PullRequestDetailView): void {
+  const { repository, number, updatedAt } = detail;
+  useEffect(() => {
+    if (lookup.state !== "reviewed" || !lookup.review.exact) return;
+    recordReviewStaleness(reviewBadgeKey({ repository, number }), {
+      reportUrl: lookup.review.report.url,
+      updatedAt,
+      stale: lookup.review.stalePushedAt !== null,
+    });
+  }, [lookup, repository, number, updatedAt]);
 }
