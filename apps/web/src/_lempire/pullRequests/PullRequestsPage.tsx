@@ -6,6 +6,7 @@ import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 
 import { PullRequestDetailPanel } from "~/components/pullRequest/PullRequestDetailPanel";
+import { isElectron } from "~/env";
 import type { ShortcutMatchContext } from "~/keybindings";
 import { SidebarInset } from "~/components/ui/sidebar";
 import { useMediaQuery } from "~/hooks/useMediaQuery";
@@ -22,6 +23,8 @@ const NO_SURFACES_OPEN = {
   terminalOpen: false,
   previewFocus: false,
   previewOpen: false,
+  isWeb: !isElectron,
+  isDesktop: isElectron,
 } satisfies ShortcutMatchContext;
 const getShortcutContext = () => NO_SURFACES_OPEN;
 
