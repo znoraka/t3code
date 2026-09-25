@@ -5,13 +5,10 @@ const PR_LAST_PROJECT_KEY = "t3code:pr-last-project-id";
 interface PrViewState {
   /** The project whose pull requests the sidebar lists, as a scoped project key. */
   projectKey: string | null;
-  /** The chat route left to enter pull-request mode, so leaving returns to the same thread. */
-  lastChatPath: string | null;
 }
 
 interface PrViewActions {
   setProjectKey: (projectKey: string) => void;
-  setLastChatPath: (path: string) => void;
 }
 
 function readLastProjectKey(): string | null {
@@ -24,7 +21,6 @@ function readLastProjectKey(): string | null {
 
 export const usePrViewStore = create<PrViewState & PrViewActions>((set) => ({
   projectKey: readLastProjectKey(),
-  lastChatPath: null,
   setProjectKey: (projectKey) => {
     try {
       window.localStorage.setItem(PR_LAST_PROJECT_KEY, projectKey);
@@ -33,5 +29,4 @@ export const usePrViewStore = create<PrViewState & PrViewActions>((set) => ({
     }
     set({ projectKey });
   },
-  setLastChatPath: (lastChatPath) => set({ lastChatPath }),
 }));
