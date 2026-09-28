@@ -7,6 +7,8 @@
 // machine or in a thread nobody linked — which is the normal case. It renders a
 // verdict ribbon + crit/warn/good tiles, flagged stale when the branch moved
 // past the commit the review read, above the list of this PR's review threads.
+// Reviews other people shared with this host sit in the same card, one tab per
+// reviewer with yours selected first.
 import type { EnvironmentId, PlandropReport, PullRequestDetailView } from "@t3tools/contracts";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { useNavigate } from "@tanstack/react-router";
@@ -17,13 +19,18 @@ import {
   FileChartColumnIcon,
   HistoryIcon,
 } from "lucide-react";
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../../components/ui/tooltip";
 import { cn } from "../../lib/utils";
 import { matchesLinkedPullRequestUrl } from "../../lib/openPullRequestLink";
 import { useThreadShells } from "../../state/entities";
 import { buildThreadRouteParams } from "../../threadRoutes";
+import {
+  buildReviewTabs,
+  reviewCardHeading,
+  type ReviewTab,
+} from "@t3tools/client-runtime/_lempire/review-of-record";
 import { useReviewOfRecord } from "./usePlandropReport";
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 
@@ -36,6 +43,8 @@ const RIBBON_STYLES = {
 } as const;
 
 const RIBBON_MARKS = { ok: "✓", warn: "⚠", crit: "✗" } as const;
+
+const TAB_DOT_STYLES = { ok: "bg-success", warn: "bg-warning", crit: "bg-destructive" } as const;
 
 const TILE_STYLES = {
   crit: "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400",
@@ -77,81 +86,119 @@ function ReportTiles({ sources }: { sources: PlandropReport["sources"] }) {
   );
 }
 
-const ReportCardBody = memo(function ReportCardBody({
-  report,
-  updatedAt,
-  stalePushedAt,
+const ReviewCard = memo(function ReviewCard({
+  tabs,
   onOpenExternal,
 }: {
-  report: PlandropReport;
-  updatedAt: string | null;
-  /** Relative time of the push that outdated this review, or null when fresh. */
-  stalePushedAt: string | null;
+  tabs: ReadonlyArray<ReviewTab>;
   onOpenExternal?: ((url: string) => void) | undefined;
 }) {
+  const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
+  // A reviewer whose tab went away (a refresh dropped them) falls back to the first.
+  const selected = tabs.find((tab) => tab.review.report.url === selectedUrl) ?? tabs[0];
+  if (selected === undefined) return null;
+
+  const { report } = selected.review;
   const open = () => {
     if (onOpenExternal) onOpenExternal(report.url);
     else window.open(report.url, "_blank", "noopener,noreferrer");
   };
 
+  const updatedAt = relativeTime(report.generatedAt);
+  const stalePushedAt = relativeTime(selected.review.stalePushedAt);
   const isStale = stalePushedAt !== null;
   const verdict = report.verdict;
 
   return (
-    <button
-      type="button"
-      onClick={open}
+    <div
       className={cn(
-        "block w-full max-w-2xl overflow-hidden rounded-xl border text-left transition-colors",
+        "w-full max-w-2xl overflow-hidden rounded-xl border transition-colors",
         isStale
           ? "border-amber-500/40 hover:border-amber-500/60"
           : "border-border/70 hover:border-border",
       )}
     >
-      <div className="flex items-center gap-1.5 px-3 py-2 text-[11px] text-muted-foreground">
+      <button
+        type="button"
+        onClick={open}
+        className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-[11px] text-muted-foreground"
+      >
         <FileChartColumnIcon className="size-3.5 shrink-0" aria-hidden="true" />
-        <span className="font-medium">Your review of this PR</span>
-        {updatedAt ? <span>· {updatedAt}</span> : null}
+        <span className="truncate font-medium">{reviewCardHeading(tabs, selected)}</span>
+        {updatedAt ? <span className="shrink-0">· {updatedAt}</span> : null}
         {isStale ? (
           <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-300">
             <HistoryIcon className="size-2.5" aria-hidden="true" />
             Stale
           </span>
         ) : null}
-        <span className="ml-auto inline-flex items-center gap-1 text-muted-foreground/70">
+        <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-muted-foreground/70">
           plans.gawaak.ovh
           <ExternalLinkIcon className="size-3" aria-hidden="true" />
         </span>
-      </div>
-      {/* Say it in words too — the badge alone doesn't explain why the numbers
-          below can't be trusted. */}
-      {isStale ? (
-        <div className="flex items-start gap-1.5 border-t border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-[11px] leading-snug text-amber-700 dark:text-amber-300">
-          <AlertTriangleIcon className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
-          <span>
-            New code was pushed {stalePushedAt}, after this review read the branch — it may not
-            cover the current state. Re-run it to be sure.
-          </span>
+      </button>
+      {tabs.length > 1 ? (
+        <div role="tablist" aria-label="Reviewers" className="flex flex-wrap gap-1 px-3 pb-2">
+          {tabs.map((tab) => {
+            const isSelected = tab === selected;
+            const state = tab.review.report.verdict?.state;
+            return (
+              <button
+                key={tab.review.report.url}
+                type="button"
+                role="tab"
+                aria-selected={isSelected}
+                onClick={() => setSelectedUrl(tab.review.report.url)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-2xs transition-colors",
+                  isSelected
+                    ? "border-border bg-muted text-foreground"
+                    : "border-border/60 text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {state ? (
+                  <span
+                    className={cn("size-1.5 shrink-0 rounded-full", TAB_DOT_STYLES[state])}
+                    aria-hidden="true"
+                  />
+                ) : null}
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       ) : null}
-      {verdict && verdict.label.length > 0 ? (
-        <div
-          className={cn(
-            "px-3 py-1.5 text-xs font-bold uppercase tracking-wider",
-            RIBBON_STYLES[verdict.state],
-            // A stale verdict shouldn't shout as loudly as a current one.
-            isStale && "opacity-60",
-          )}
-        >
-          {RIBBON_MARKS[verdict.state]} {verdict.label}
-        </div>
-      ) : null}
-      {report.sources.length > 0 ? (
-        <div className={cn(isStale && "opacity-60")}>
-          <ReportTiles sources={report.sources} />
-        </div>
-      ) : null}
-    </button>
+      <button type="button" onClick={open} className="block w-full text-left">
+        {/* Say it in words too — the badge alone doesn't explain why the numbers
+            below can't be trusted. */}
+        {isStale ? (
+          <div className="flex items-start gap-1.5 border-t border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-[11px] leading-snug text-amber-700 dark:text-amber-300">
+            <AlertTriangleIcon className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
+            <span>
+              New code was pushed {stalePushedAt}, after this review read the branch — it may not
+              cover the current state. Re-run it to be sure.
+            </span>
+          </div>
+        ) : null}
+        {verdict && verdict.label.length > 0 ? (
+          <div
+            className={cn(
+              "px-3 py-1.5 text-xs font-bold uppercase tracking-wider",
+              RIBBON_STYLES[verdict.state],
+              // A stale verdict shouldn't shout as loudly as a current one.
+              isStale && "opacity-60",
+            )}
+          >
+            {RIBBON_MARKS[verdict.state]} {verdict.label}
+          </div>
+        ) : null}
+        {report.sources.length > 0 ? (
+          <div className={cn(isStale && "opacity-60")}>
+            <ReportTiles sources={report.sources} />
+          </div>
+        ) : null}
+      </button>
+    </div>
   );
 });
 
@@ -178,7 +225,11 @@ export function AgentReviewCard({
 }) {
   const allThreads = useThreadShells();
   const navigate = useNavigate();
-  const { lookup, retry } = useReviewOfRecord(environmentId, detail, activityPending);
+  const { lookup, sharedReviews, retry } = useReviewOfRecord(
+    environmentId,
+    detail,
+    activityPending,
+  );
 
   // Review threads are the ones linked to this PR (explicitly, or through the
   // branch they run on), newest first.
@@ -195,19 +246,19 @@ export function AgentReviewCard({
 
   // A lookup that failed is worth a line: silence here reads as "nobody has
   // reviewed this", which is the one thing a failed lookup cannot tell you.
-  const saysSomething = lookup.state === "reviewed" || lookup.state === "unavailable";
-  if (!saysSomething && reviewThreads.length === 0) return null;
+  const tabs = useMemo(
+    () => buildReviewTabs(lookup.state === "reviewed" ? lookup.review : null, sharedReviews),
+    [lookup, sharedReviews],
+  );
+
+  if (tabs.length === 0 && lookup.state !== "unavailable" && reviewThreads.length === 0) {
+    return null;
+  }
 
   return (
     <section className="flex flex-col gap-2 border-b border-border/70 px-4 py-3">
-      {lookup.state === "reviewed" ? (
-        <ReportCardBody
-          report={lookup.review.report}
-          updatedAt={relativeTime(lookup.review.report.generatedAt)}
-          stalePushedAt={relativeTime(lookup.review.stalePushedAt)}
-          onOpenExternal={onOpenExternal}
-        />
-      ) : lookup.state === "unavailable" ? (
+      {tabs.length > 0 ? <ReviewCard tabs={tabs} onOpenExternal={onOpenExternal} /> : null}
+      {lookup.state === "unavailable" ? (
         <Tooltip>
           <TooltipTrigger
             render={

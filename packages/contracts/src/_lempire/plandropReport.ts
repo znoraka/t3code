@@ -42,6 +42,13 @@ export const PlandropReport = Schema.Struct({
   headSha: Schema.optional(TrimmedNonEmptyString),
   /** When the run finished, falling back to when the artifact was published. */
   generatedAt: TrimmedNonEmptyString,
+  /** The publishing account's address. */
+  owner: Schema.optional(TrimmedNonEmptyString),
+  /**
+   * Someone else's review, shared with this host's account (or an account
+   * linked to it) rather than published by it. Never the review of record.
+   */
+  shared: Schema.optional(Schema.Boolean),
 });
 export type PlandropReport = typeof PlandropReport.Type;
 

@@ -12,6 +12,7 @@ import {
 } from "@t3tools/client-runtime/_lempire/plandrop-reports";
 import {
   resolveReviewLookup,
+  resolveSharedReviews,
   reviewBadgeKey,
   type PullRequestReview,
   type ReviewLookup,
@@ -57,7 +58,12 @@ export function useReviewOfRecord(
   detail: PullRequestDetailView,
   /** Commits ride on the activity half of the detail; no verdict on staleness until it lands. */
   activityPending: boolean,
-): { readonly lookup: ReviewLookup; readonly retry: () => void } {
+): {
+  readonly lookup: ReviewLookup;
+  /** Other people's reviews shared with this host, newest per reviewer. */
+  readonly sharedReviews: ReadonlyArray<PullRequestReview>;
+  readonly retry: () => void;
+} {
   const query = useEnvironmentQuery(
     plandropReportsAtom({
       environmentId,
@@ -78,9 +84,14 @@ export function useReviewOfRecord(
     [data, error, detail.commits, activityPending],
   );
 
+  const sharedReviews = useMemo(
+    () => resolveSharedReviews({ result: data, commits: detail.commits, activityPending }),
+    [data, detail.commits, activityPending],
+  );
+
   useAnswerRowBadge(lookup, detail);
 
-  return { lookup, retry: refresh };
+  return { lookup, sharedReviews, retry: refresh };
 }
 
 /**

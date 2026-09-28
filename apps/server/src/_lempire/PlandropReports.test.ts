@@ -92,7 +92,7 @@ it.layer(NodeServices.layer)("plandrop report lookup", (it) => {
           Effect.provide(httpClientLayer({ response: () => json({ reports: [entry()] }), seen })),
         );
         assert.deepStrictEqual(seen.requests, [
-          "https://drop.test/api/reports?repo=l3mpire%2Flempire&number=12000",
+          "https://drop.test/api/reports?repo=l3mpire%2Flempire&number=12000&limit=20",
         ]);
         assert.deepStrictEqual(seen.authorization, ["Bearer plandrop-token"]);
         assert.deepStrictEqual(result, {
@@ -112,6 +112,34 @@ it.layer(NodeServices.layer)("plandrop report lookup", (it) => {
             },
           ],
         });
+      }),
+    ),
+  );
+
+  it.effect("keeps who published a report, and whether it was shared with this host", () =>
+    withConfig(
+      CONFIG,
+      Effect.gen(function* () {
+        const result = yield* lookupReports(INPUT).pipe(
+          Effect.provide(
+            httpClientLayer({
+              response: () =>
+                json({
+                  reports: [
+                    entry({ owner: "denis@lempire.co", shared: true }),
+                    entry({ url: "mine", owner: "noe@lempire.co", shared: false }),
+                  ],
+                }),
+            }),
+          ),
+        );
+        assert.deepStrictEqual(
+          result.reports.map((report) => [report.owner, report.shared]),
+          [
+            ["denis@lempire.co", true],
+            ["noe@lempire.co", undefined],
+          ],
+        );
       }),
     ),
   );
@@ -218,7 +246,12 @@ it.layer(NodeServices.layer)("plandrop list lookup", (it) => {
                 const url = seen.requests.at(-1) ?? "";
                 if (url.includes("number=12000")) {
                   return json({
-                    reports: [entry(), entry({ url: "old", generatedAt: "2026-01-01T00:00:00Z" })],
+                    reports: [
+                      // Someone else's newer review is not this row's badge.
+                      entry({ url: "theirs", shared: true, generatedAt: "2026-09-20T00:00:00Z" }),
+                      entry(),
+                      entry({ url: "old", generatedAt: "2026-01-01T00:00:00Z" }),
+                    ],
                   });
                 }
                 // 12001 has no review at all; the other repository's lookup fails.

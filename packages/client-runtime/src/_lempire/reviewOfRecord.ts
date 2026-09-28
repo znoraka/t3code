@@ -132,7 +132,7 @@ export function resolveReviewLookup(input: {
     input.result === null
       ? null
       : resolveReviewOfRecord({
-          report: input.result.reports[0] ?? null,
+          report: input.result.reports.find((report) => report.shared !== true) ?? null,
           commits: input.commits,
           activityPending: input.activityPending,
         });
@@ -140,6 +140,69 @@ export function resolveReviewLookup(input: {
   if (input.error !== null) return { state: "unavailable", reason: input.error };
   if (input.result === null) return { state: "looking" };
   return input.result.configured ? { state: "unreviewed" } : { state: "unconfigured" };
+}
+
+/**
+ * Reviews other people shared with this host, newest per reviewer and newest
+ * reviewer first, each with its own staleness. Separate from the review of
+ * record: someone else's verdict sits beside yours, never in its place.
+ */
+export function resolveSharedReviews(input: {
+  readonly result: PlandropReportsResult | null;
+  readonly commits: ReadonlyArray<ReviewedCommit>;
+  readonly activityPending: boolean;
+}): ReadonlyArray<PullRequestReview> {
+  if (input.result === null) return [];
+  const seenOwners = new Set<string>();
+  const reviews: PullRequestReview[] = [];
+  // Reports arrive newest first, so the first one per owner is their latest.
+  for (const report of input.result.reports) {
+    if (report.shared !== true) continue;
+    const owner = report.owner ?? report.url;
+    if (seenOwners.has(owner)) continue;
+    seenOwners.add(owner);
+    const review = resolveReviewOfRecord({
+      report,
+      commits: input.commits,
+      activityPending: input.activityPending,
+    });
+    if (review !== null) reviews.push(review);
+  }
+  return reviews;
+}
+
+/** Who a shared review is from, as a card names them: the address's local part. */
+export function reviewerName(report: PlandropReport): string {
+  const owner = report.owner;
+  if (owner === undefined) return "someone";
+  const at = owner.indexOf("@");
+  return at > 0 ? owner.slice(0, at) : owner;
+}
+
+/** One reviewer's tab on the review card. */
+export interface ReviewTab {
+  /** "You", or who a shared review is from. */
+  readonly label: string;
+  readonly mine: boolean;
+  readonly review: PullRequestReview;
+}
+
+/** The card's tabs: yours first when there is one, then each other reviewer. */
+export function buildReviewTabs(
+  own: PullRequestReview | null,
+  shared: ReadonlyArray<PullRequestReview>,
+): ReadonlyArray<ReviewTab> {
+  const tabs: ReviewTab[] = own === null ? [] : [{ label: "You", mine: true, review: own }];
+  for (const review of shared) {
+    tabs.push({ label: reviewerName(review.report), mine: false, review });
+  }
+  return tabs;
+}
+
+/** The card's heading for the tabs it holds. */
+export function reviewCardHeading(tabs: ReadonlyArray<ReviewTab>, selected: ReviewTab): string {
+  if (tabs.length > 1) return `${tabs.length} reviews of this PR`;
+  return selected.mine ? "Your review of this PR" : `Review by ${selected.label}`;
 }
 
 /** What a list row can show about its review: the verdict, and whether to trust it. */

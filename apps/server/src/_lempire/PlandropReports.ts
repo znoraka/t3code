@@ -25,6 +25,12 @@ import * as NodeOS from "node:os";
 
 const LOOKUP_TIMEOUT_MS = 8_000;
 
+/**
+ * Reports asked for per pull request. Well past one: other people's reviews
+ * share the list, and a run of your own re-reviews must not push theirs out.
+ */
+const REPORTS_PER_PULL_REQUEST = 20;
+
 /** Test hook: the config file the lookup reads, when it is not the real one. */
 const CONFIG_PATH_ENV = "T3CODE_PLANDROP_CONFIG";
 
@@ -62,6 +68,8 @@ const PlandropIndexEntry = Schema.Struct({
   generatedAt: Schema.optional(Schema.String),
   createdAt: Schema.optional(Schema.String),
   updatedAt: Schema.optional(Schema.String),
+  owner: Schema.optional(Schema.String),
+  shared: Schema.optional(Schema.Boolean),
 });
 
 const PlandropIndex = Schema.Struct({ reports: Schema.Array(PlandropIndexEntry) });
@@ -112,6 +120,8 @@ function toReport(entry: typeof PlandropIndexEntry.Type): PlandropReport | null 
     ),
     ...(entry.pr?.headSha === undefined ? {} : { headSha: entry.pr.headSha }),
     generatedAt,
+    ...(entry.owner === undefined || entry.owner.length === 0 ? {} : { owner: entry.owner }),
+    ...(entry.shared === true ? { shared: true } : {}),
   };
   return report;
 }
@@ -160,6 +170,7 @@ const fetchReports = Effect.fn("_lempire.plandropReportIndex")(function* (
   const url = new URL("/api/reports", credential.server);
   url.searchParams.set("repo", input.repository);
   url.searchParams.set("number", String(input.number));
+  url.searchParams.set("limit", String(REPORTS_PER_PULL_REQUEST));
 
   const response = yield* httpClient
     .get(url.toString(), { headers: { authorization: `Bearer ${credential.token}` } })
@@ -197,7 +208,8 @@ export const lookupReports = Effect.fn("_lempire.plandropReportsForPullRequest")
 });
 
 /**
- * The review of record for each of several pull requests. One row's failed
+ * The review of record for each of several pull requests — this host's own
+ * newest, never one shared with it: the row badge speaks for your review. One row's failed
  * lookup is dropped rather than failing the list: a badge that cannot be drawn
  * costs nothing, and the other rows still have theirs.
  */
@@ -212,7 +224,7 @@ export const lookupListReports = Effect.fn("_lempire.plandropReportsForPullReque
     (reference) =>
       fetchReports(credential, reference).pipe(
         Effect.map((reports) => {
-          const report = reports[0];
+          const report = reports.find((candidate) => candidate.shared !== true);
           return report === undefined
             ? []
             : [{ repository: reference.repository, number: reference.number, report }];

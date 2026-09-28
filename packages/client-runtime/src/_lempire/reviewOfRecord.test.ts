@@ -3,11 +3,15 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   applyKnownReviewStaleness,
+  buildReviewTabs,
   buildRowReviewBadges,
   isReviewStale,
   resolveReviewLookup,
   resolveReviewOfRecord,
+  resolveSharedReviews,
   reviewBadgeKey,
+  reviewCardHeading,
+  reviewerName,
   reviewStartedAt,
 } from "./reviewOfRecord.ts";
 
@@ -196,6 +200,18 @@ describe("resolveReviewLookup", () => {
     });
   });
 
+  it("never takes someone else's shared review as the review of record", () => {
+    const mine = report({ url: "mine" });
+    const theirs = report({ url: "theirs", shared: true, generatedAt: "2026-07-30T14:00:00Z" });
+    expect(lookup({ result: { configured: true, reports: [theirs, mine] } })).toEqual({
+      state: "reviewed",
+      review: { report: mine, stalePushedAt: null, exact: false },
+    });
+    expect(lookup({ result: { configured: true, reports: [theirs] } })).toEqual({
+      state: "unreviewed",
+    });
+  });
+
   it("keeps showing a report it already has when a refresh fails", () => {
     const subject = report();
     expect(
@@ -204,6 +220,74 @@ describe("resolveReviewLookup", () => {
       state: "reviewed",
       review: { report: subject, stalePushedAt: null, exact: false },
     });
+  });
+});
+
+describe("resolveSharedReviews", () => {
+  const report = (fields: Partial<PlandropReport> = {}): PlandropReport =>
+    ({
+      url: "https://plans.gawaak.ovh/p/1/2/",
+      sources: [],
+      generatedAt: "2026-07-30T12:00:00Z",
+      ...fields,
+    }) as PlandropReport;
+
+  it("keeps each reviewer's newest review, and leaves your own out", () => {
+    const denisNew = report({ url: "d2", owner: "denis@lempire.co", shared: true });
+    const mine = report({ url: "mine", owner: "noe@lempire.co" });
+    const aliceOld = report({ url: "a1", owner: "alice@lempire.co", shared: true });
+    const denisOld = report({ url: "d1", owner: "denis@lempire.co", shared: true });
+    const reviews = resolveSharedReviews({
+      result: { configured: true, reports: [denisNew, mine, aliceOld, denisOld] },
+      commits: [{ oid: "cafe", committedDate: "2026-07-30T13:00:00Z" }],
+      activityPending: false,
+    });
+    expect(reviews.map((review) => review.report.url)).toEqual(["d2", "a1"]);
+    // Each carries its own staleness, the same way yours does.
+    expect(reviews[0]?.stalePushedAt).toBe("2026-07-30T13:00:00Z");
+  });
+
+  it("has nothing before the environment answers", () => {
+    expect(resolveSharedReviews({ result: null, commits: [], activityPending: false })).toEqual([]);
+  });
+});
+
+describe("reviewerName", () => {
+  it("names a reviewer by their address's local part", () => {
+    const base = { url: "u", sources: [], generatedAt: "2026-07-30T12:00:00Z" } as PlandropReport;
+    expect(reviewerName({ ...base, owner: "denis@lempire.co" })).toBe("denis");
+    expect(reviewerName(base)).toBe("someone");
+  });
+});
+
+describe("buildReviewTabs", () => {
+  const review = (fields: Partial<PlandropReport>) => ({
+    report: {
+      url: "u",
+      sources: [],
+      generatedAt: "2026-07-30T12:00:00Z",
+      ...fields,
+    } as PlandropReport,
+    stalePushedAt: null,
+    exact: false,
+  });
+
+  it("puts your review first and names the rest by reviewer", () => {
+    const tabs = buildReviewTabs(review({ url: "mine" }), [
+      review({ url: "d", owner: "denis@lempire.co", shared: true }),
+    ]);
+    expect(tabs.map((tab) => [tab.label, tab.mine])).toEqual([
+      ["You", true],
+      ["denis", false],
+    ]);
+    expect(reviewCardHeading(tabs, tabs[1]!)).toBe("2 reviews of this PR");
+  });
+
+  it("heads a lone review by whose it is", () => {
+    const [mine] = buildReviewTabs(review({}), []);
+    expect(reviewCardHeading([mine!], mine!)).toBe("Your review of this PR");
+    const [theirs] = buildReviewTabs(null, [review({ owner: "denis@lempire.co", shared: true })]);
+    expect(reviewCardHeading([theirs!], theirs!)).toBe("Review by denis");
   });
 });
 

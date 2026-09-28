@@ -4,9 +4,14 @@
 // stale ribbon when the branch moved past the commit the review read. Both read
 // the same report from plandrop's per-pull-request index and share the staleness
 // decision (`resolveReviewOfRecord`), so the two surfaces cannot disagree about
-// whether a verdict still holds.
-import type { PullRequestReview } from "@t3tools/client-runtime/_lempire/review-of-record";
+// whether a verdict still holds. Reviews other people shared sit in the same
+// card, one tab per reviewer with yours selected first.
+import {
+  reviewCardHeading,
+  type ReviewTab,
+} from "@t3tools/client-runtime/_lempire/review-of-record";
 import type { PlandropReport } from "@t3tools/contracts";
+import { useState } from "react";
 import { Pressable, View } from "react-native";
 
 import { AppText as Text } from "../../components/AppText";
@@ -27,6 +32,12 @@ const RIBBON_TEXT_STYLES = {
 } as const;
 
 const RIBBON_MARKS = { ok: "✓", warn: "⚠", crit: "✗" } as const;
+
+const TAB_DOT_STYLES = {
+  ok: "bg-adaptive-emerald-600-400",
+  warn: "bg-adaptive-amber-700-400",
+  crit: "bg-adaptive-rose-600-400",
+} as const;
 
 const TILE_STYLES = {
   crit: "border-adaptive-rose-500-a12-a16 bg-adaptive-rose-500-a12-a16",
@@ -81,34 +92,46 @@ function ReportTiles({ sources }: { sources: PlandropReport["sources"] }) {
 }
 
 export function AgentReviewCard(props: {
-  readonly review: PullRequestReview;
-  /** Relative age of the report, e.g. "2h ago". */
-  readonly generatedAgo: string | null;
-  /** Relative age of the push that outdated it, or null when it still holds. */
-  readonly stalePushedAgo: string | null;
+  /** Yours first when there is one, then each reviewer who shared theirs. */
+  readonly tabs: ReadonlyArray<ReviewTab>;
+  /** Relative age of a timestamp, e.g. "2h ago". */
+  readonly formatAge: (value: string | null) => string | null;
   readonly onOpen: (url: string) => void;
 }) {
-  const { report } = props.review;
-  const isStale = props.review.stalePushedAt !== null;
+  const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
+  // A reviewer whose tab went away (a refresh dropped them) falls back to the first.
+  const selected = props.tabs.find((tab) => tab.review.report.url === selectedUrl) ?? props.tabs[0];
+  if (selected === undefined) return null;
+
+  const { report } = selected.review;
+  const heading = reviewCardHeading(props.tabs, selected);
+  const generatedAgo = props.formatAge(report.generatedAt);
+  const stalePushedAgo = props.formatAge(selected.review.stalePushedAt);
+  const isStale = selected.review.stalePushedAt !== null;
   const verdict = report.verdict;
+  const open = () => props.onOpen(report.url);
 
   return (
-    <Pressable
-      accessibilityLabel={`Open the review report for this pull request${isStale ? ", outdated" : ""}`}
-      accessibilityRole="button"
-      className={`overflow-hidden rounded-[18px] border active:opacity-70 ${isStale ? "border-adaptive-amber-200-900-a60" : "border-border"}`}
-      onPress={() => props.onOpen(report.url)}
+    <View
+      className={`overflow-hidden rounded-[18px] border ${isStale ? "border-adaptive-amber-200-900-a60" : "border-border"}`}
     >
-      <View className="flex-row items-center gap-1.5 px-3 py-2">
+      <Pressable
+        accessibilityLabel={`Open ${selected.mine ? "your review" : `${selected.label}'s review`}${isStale ? ", outdated" : ""}`}
+        accessibilityRole="button"
+        className="flex-row items-center gap-1.5 px-3 py-2 active:opacity-70"
+        onPress={open}
+      >
         <SymbolView
           name="doc.text"
           size={11}
           tintColorClassName="accent-icon-subtle"
           type="monochrome"
         />
-        <Text className="text-xs font-t3-medium text-foreground-muted">Your review of this PR</Text>
-        {props.generatedAgo ? (
-          <Text className="text-xs text-foreground-tertiary">· {props.generatedAgo}</Text>
+        <Text className="shrink text-xs font-t3-medium text-foreground-muted" numberOfLines={1}>
+          {heading}
+        </Text>
+        {generatedAgo ? (
+          <Text className="text-xs text-foreground-tertiary">· {generatedAgo}</Text>
         ) : null}
         {isStale ? (
           <View className="rounded-full border border-adaptive-amber-200-900-a60 bg-adaptive-amber-500-a12-a16 px-1.5 py-0.5">
@@ -125,38 +148,67 @@ export function AgentReviewCard(props: {
             type="monochrome"
           />
         </View>
-      </View>
+      </Pressable>
 
-      {/* Say it in words too — the badge alone doesn't explain why the numbers
-          below can't be trusted. */}
-      {isStale ? (
-        <View className="flex-row items-start gap-1.5 border-t border-adaptive-amber-200-900-a60 bg-adaptive-amber-500-a12-a16 px-3 py-2">
-          <SymbolView
-            name="exclamationmark.triangle"
-            size={11}
-            tintColorClassName="accent-adaptive-amber-700-300"
-            type="monochrome"
-          />
-          <Text className="min-w-0 flex-1 text-xs leading-snug text-adaptive-amber-700-300">
-            New code was pushed {props.stalePushedAgo ?? "since"}, after this review read the branch
-            — it may not cover the current state. Re-run it to be sure.
-          </Text>
+      {props.tabs.length > 1 ? (
+        <View accessibilityRole="tablist" className="flex-row flex-wrap gap-1.5 px-3 pb-2">
+          {props.tabs.map((tab) => {
+            const isSelected = tab === selected;
+            const state = tab.review.report.verdict?.state;
+            return (
+              <Pressable
+                accessibilityRole="tab"
+                accessibilityState={{ selected: isSelected }}
+                className={`flex-row items-center gap-1.5 rounded-full border px-2.5 py-1 active:opacity-70 ${isSelected ? "border-border bg-subtle" : "border-border"}`}
+                key={tab.review.report.url}
+                onPress={() => setSelectedUrl(tab.review.report.url)}
+              >
+                {state ? (
+                  <View className={`h-1.5 w-1.5 rounded-full ${TAB_DOT_STYLES[state]}`} />
+                ) : null}
+                <Text
+                  className={`text-xs ${isSelected ? "font-t3-medium text-foreground" : "text-foreground-muted"}`}
+                >
+                  {tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       ) : null}
 
-      {/* A stale verdict shouldn't shout as loudly as a current one. */}
-      <View style={isStale ? { opacity: 0.6 } : undefined}>
-        {verdict && verdict.label.length > 0 ? (
-          <View className={`px-3 py-1.5 ${RIBBON_STYLES[verdict.state]}`}>
-            <Text
-              className={`text-xs font-t3-bold uppercase tracking-[1px] ${RIBBON_TEXT_STYLES[verdict.state]}`}
-            >
-              {RIBBON_MARKS[verdict.state]} {verdict.label}
+      <Pressable accessibilityRole="button" className="active:opacity-70" onPress={open}>
+        {/* Say it in words too — the badge alone doesn't explain why the numbers
+            below can't be trusted. */}
+        {isStale ? (
+          <View className="flex-row items-start gap-1.5 border-t border-adaptive-amber-200-900-a60 bg-adaptive-amber-500-a12-a16 px-3 py-2">
+            <SymbolView
+              name="exclamationmark.triangle"
+              size={11}
+              tintColorClassName="accent-adaptive-amber-700-300"
+              type="monochrome"
+            />
+            <Text className="min-w-0 flex-1 text-xs leading-snug text-adaptive-amber-700-300">
+              New code was pushed {stalePushedAgo ?? "since"}, after this review read the branch —
+              it may not cover the current state. Re-run it to be sure.
             </Text>
           </View>
         ) : null}
-        {report.sources.length > 0 ? <ReportTiles sources={report.sources} /> : null}
-      </View>
-    </Pressable>
+
+        {/* A stale verdict shouldn't shout as loudly as a current one. */}
+        <View style={isStale ? { opacity: 0.6 } : undefined}>
+          {verdict && verdict.label.length > 0 ? (
+            <View className={`px-3 py-1.5 ${RIBBON_STYLES[verdict.state]}`}>
+              <Text
+                className={`text-xs font-t3-bold uppercase tracking-[1px] ${RIBBON_TEXT_STYLES[verdict.state]}`}
+              >
+                {RIBBON_MARKS[verdict.state]} {verdict.label}
+              </Text>
+            </View>
+          ) : null}
+          {report.sources.length > 0 ? <ReportTiles sources={report.sources} /> : null}
+        </View>
+      </Pressable>
+    </View>
   );
 }

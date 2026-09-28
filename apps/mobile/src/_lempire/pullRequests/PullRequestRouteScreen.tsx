@@ -5,6 +5,8 @@
 // the agent has looked at this and what it found.
 import {
   resolveReviewLookup,
+  buildReviewTabs,
+  resolveSharedReviews,
   reviewBadgeKey,
   type ReviewLookup,
 } from "@t3tools/client-runtime/_lempire/review-of-record";
@@ -115,6 +117,23 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestR
         activityPending: activityQuery.data === null,
       }),
     [activityQuery.data, reportsQuery.data, reportsQuery.error],
+  );
+  const sharedReviews = useMemo(
+    () =>
+      resolveSharedReviews({
+        result: reportsQuery.data,
+        commits: activityQuery.data?.commits ?? [],
+        activityPending: activityQuery.data === null,
+      }),
+    [activityQuery.data, reportsQuery.data],
+  );
+  const reviewTabs = useMemo(
+    () =>
+      buildReviewTabs(
+        reviewLookup.state === "reviewed" ? reviewLookup.review : null,
+        sharedReviews,
+      ),
+    [reviewLookup, sharedReviews],
   );
   useAnswerRowBadge(reviewLookup, repository, number, detail?.updatedAt ?? null);
 
@@ -236,16 +255,16 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestR
 
             {/* Only an answer that actually arrived can say a pull request is
                 unreviewed; a lookup that failed says so, and offers to retry. */}
-            {reviewLookup.state === "reviewed" ? (
+            {reviewTabs.length > 0 ? (
               <View className="mt-4">
                 <AgentReviewCard
-                  generatedAgo={relativeAge(reviewLookup.review.report.generatedAt)}
+                  formatAge={relativeAge}
                   onOpen={(url) => void tryOpenExternalUrl(url, "pull-request")}
-                  review={reviewLookup.review}
-                  stalePushedAgo={relativeAge(reviewLookup.review.stalePushedAt)}
+                  tabs={reviewTabs}
                 />
               </View>
-            ) : reviewLookup.state === "unavailable" ? (
+            ) : null}
+            {reviewLookup.state === "reviewed" ? null : reviewLookup.state === "unavailable" ? (
               <Pressable
                 accessibilityLabel="Look for a review of this pull request again"
                 accessibilityRole="button"
@@ -262,7 +281,9 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestR
                   Could not check whether this pull request has been reviewed. Tap to try again.
                 </Text>
               </Pressable>
-            ) : reviewLookup.state === "unconfigured" ? null : (
+            ) : reviewLookup.state === "unconfigured" ||
+              // Someone else's review answers "has anyone looked at this".
+              (reviewLookup.state === "unreviewed" && reviewTabs.length > 0) ? null : (
               <Text className="mt-4 text-xs text-foreground-tertiary">
                 {reviewLookup.state === "looking"
                   ? "Looking for a review of this pull request..."
