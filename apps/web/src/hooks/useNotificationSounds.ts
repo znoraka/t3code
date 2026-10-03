@@ -1,3 +1,4 @@
+import { threadRuntimeIsActive } from "@t3tools/client-runtime/state/models";
 import type { ThreadId } from "@t3tools/contracts";
 import { useEffect, useRef } from "react";
 import { useThreadShells } from "../state/entities";
@@ -25,7 +26,7 @@ export function useNotificationSounds() {
     let playQuestion = false;
 
     for (const thread of threads) {
-      const sessionRunning = thread.session?.status === "running";
+      const sessionRunning = threadRuntimeIsActive(thread.runtime);
       const needsAttention = thread.hasPendingApprovals || thread.hasPendingUserInput;
 
       const prev = prevState.get(thread.id);

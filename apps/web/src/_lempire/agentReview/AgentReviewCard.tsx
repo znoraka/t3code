@@ -25,7 +25,10 @@ import { matchesLinkedPullRequestUrl } from "../../lib/openPullRequestLink";
 import { useThreadShells } from "../../state/entities";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import { useReviewOfRecord } from "./usePlandropReport";
-import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
+import {
+  threadRuntimeIsActive,
+  type EnvironmentThreadShell,
+} from "@t3tools/client-runtime/state/models";
 
 // `warn` is "mergeable with reserves" — amber, not a red alarm. Only `crit`
 // (not mergeable) gets the red band and the ✗.
@@ -156,8 +159,9 @@ const ReportCardBody = memo(function ReportCardBody({
 });
 
 function threadStatus(thread: EnvironmentThreadShell): { label: string; className: string } {
-  if (thread.session?.status === "running") return { label: "Running", className: "text-blue-500" };
-  if (thread.session?.status === "error") return { label: "Error", className: "text-destructive" };
+  if (threadRuntimeIsActive(thread.runtime))
+    return { label: "Running", className: "text-blue-500" };
+  if (thread.runtime?.status === "failed") return { label: "Error", className: "text-destructive" };
   if (thread.hasPendingApprovals || thread.hasPendingUserInput) {
     return { label: "Waiting", className: "text-amber-500" };
   }

@@ -12,6 +12,7 @@ import { recordReviewStaleness } from "@t3tools/client-runtime/_lempire/review-s
 import { REVIEW_VARIANTS } from "@t3tools/client-runtime/_lempire/review-variant";
 import { relativeTime } from "@t3tools/client-runtime/_lempire/pull-request-sections";
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
+import { threadRuntimeIsActive } from "@t3tools/client-runtime/state/models";
 import { EnvironmentId, ProjectId } from "@t3tools/contracts";
 import { matchesLinkedPullRequestUrl } from "@t3tools/shared/changeRequestUrl";
 import { useNavigation, type StaticScreenProps } from "@react-navigation/native";
@@ -60,10 +61,10 @@ function threadStatus(thread: EnvironmentThreadShell): {
   readonly label: string;
   readonly className: string;
 } {
-  if (thread.session?.status === "running") {
+  if (threadRuntimeIsActive(thread.runtime)) {
     return { label: "Running", className: "text-adaptive-sky-600-400" };
   }
-  if (thread.session?.status === "error") {
+  if (thread.runtime?.status === "failed") {
     return { label: "Error", className: "text-adaptive-rose-600-400" };
   }
   if (thread.hasPendingApprovals || thread.hasPendingUserInput) {
