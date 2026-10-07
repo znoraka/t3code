@@ -5,7 +5,7 @@
 // having been said in a thread this environment can see. A host with no plandrop
 // credential answers `configured: false`, which is not an error.
 import { WS_METHODS } from "@t3tools/contracts";
-import type { Atom } from "effect/unstable/reactivity";
+import type { Atom } from "effect/reactivity";
 
 import type * as EnvironmentRegistry from "../connection/registry.ts";
 import { createEnvironmentRpcQueryAtomFamily } from "../state/runtime.ts";

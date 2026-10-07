@@ -35,13 +35,8 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as References from "effect/References";
 import * as Schema from "effect/Schema";
-import { Command, Flag, GlobalFlag } from "effect/unstable/cli";
-import {
-  FetchHttpClient,
-  HttpClient,
-  HttpClientRequest,
-  HttpClientResponse,
-} from "effect/unstable/http";
+import { Command, Flag, GlobalFlag } from "effect/cli";
+import { FetchHttpClient, HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as ServerConfig from "../config.ts";
@@ -59,6 +54,7 @@ import {
   renderTerminalQrCode,
   resolveHeadlessConnectionString,
 } from "../startupAccess.ts";
+import { authScopesFlag } from "./authScopes.ts";
 import { baseDirFlag, DurationFromString } from "./config.ts";
 
 const WELL_KNOWN_ENVIRONMENT_PATH = "/.well-known/t3/environment";
@@ -259,18 +255,20 @@ interface DiscoveredPairTarget {
 /**
  * `--admin` mints the same grant shape as the server's own startup pairing
  * URL: administrative scopes under the internal administrative subject, which
- * `listPairingLinks` hides from the connections UI. The default matches the
- * standard client grant a phone or browser pairs with.
+ * `listPairingLinks` hides from the connections UI, and overrides `--scope`.
+ * Otherwise the token carries the `--scope` selection (the standard client
+ * grant by default) as an ordinary one-time token.
  */
 export const resolvePairGrant = (
   admin: boolean,
+  scopes: ReadonlyArray<AuthEnvironmentScope>,
 ): { readonly scopes: ReadonlyArray<AuthEnvironmentScope>; readonly subject: string } =>
   admin
     ? {
         scopes: AuthAdministrativeScopes,
         subject: EnvironmentAuth.INTERNAL_ADMINISTRATIVE_BOOTSTRAP_SUBJECT,
       }
-    : { scopes: AuthStandardClientScopes, subject: "one-time-token" };
+    : { scopes, subject: "one-time-token" };
 
 /**
  * Runtime state synthesized from an explicit `--origin`. The pid is this CLI
@@ -400,6 +398,9 @@ const makePairServerConfig = Effect.fn(function* (input: {
     variant === "dev" ? DEV_VARIANT_PLACEHOLDER_URL : undefined,
     {},
   );
+  // An explicit --origin may point at a home this machine has never written, and minting
+  // persists an environment id and a database under it.
+  yield* ServerConfig.ensureServerDirectories(derivedPaths);
   return ServerConfig.make({
     logLevel: input.logLevel,
     traceMinLevel: "Info",
@@ -427,6 +428,8 @@ const makePairServerConfig = Effect.fn(function* (input: {
     startupPresentation: "headless",
     desktopBootstrapToken: undefined,
     desktopTelemetryFd: undefined,
+    desktopBrowserFd: undefined,
+    desktopBrowserControlFd: undefined,
     desktopTelemetryControlFd: undefined,
     resourceMonitorPath: undefined,
     autoBootstrapProjectFromCwd: false,
@@ -531,7 +534,7 @@ const mintPairingLink = Effect.fn("pair.mintPairingLink")(function* (input: {
     });
   }).pipe(
     Effect.provide(
-      EnvironmentAuth.runtimeLayer.pipe(
+      EnvironmentAuth.layerRuntime.pipe(
         Layer.provide(ServerConfig.layer(input.config)),
         Layer.provide(Layer.succeed(References.MinimumLogLevel, input.config.logLevel)),
       ),
@@ -589,6 +592,7 @@ const encodePairingMintResult = Schema.encodeEffect(Schema.fromJsonString(Pairin
 
 export const pairCommand = Command.make("pair", {
   baseDir: baseDirFlag,
+  scopes: authScopesFlag(AuthStandardClientScopes),
   ttl: ttlFlag,
   label: labelFlag,
   tailscale: tailscaleFlag,
@@ -641,7 +645,7 @@ export const pairCommand = Command.make("pair", {
         }
       }
 
-      const grant = resolvePairGrant(flags.admin);
+      const grant = resolvePairGrant(flags.admin, flags.scopes);
       const config = yield* makePairServerConfig({ target, logLevel });
       const issued = yield* mintPairingLink({
         config,

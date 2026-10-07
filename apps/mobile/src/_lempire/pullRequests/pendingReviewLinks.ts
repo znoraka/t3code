@@ -13,7 +13,7 @@
 // in the mobile preferences store.
 import { useAtomValue } from "@effect/atom-react";
 import type { ThreadId, ThreadLinkedPullRequest } from "@t3tools/contracts";
-import { Atom } from "effect/unstable/reactivity";
+import { Atom } from "effect/reactivity";
 import { useEffect } from "react";
 
 import { appAtomRegistry } from "../../state/atom-registry";
