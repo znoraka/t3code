@@ -183,12 +183,23 @@ Mac; do not attempt it.
    rm -rf "/Applications/T3 Code (Alpha).app" && mv "/Applications/T3 Code (Alpha).app.new" "/Applications/T3 Code (Alpha).app"
    hdiutil detach "/Volumes/<volume>"
    ```
-3. Restart the app: the frontend holds no state — sessions live in the server
-   service — so quitting and relaunching it is always safe (this agent session
-   survives; it belongs to the service, not the app):
+3. Relaunch the app **after Phase 4 restarts the service**, so it adopts the
+   new server code:
    ```
    osascript -e 'quit app "T3 Code (Alpha)"'; sleep 3; open -a "T3 Code (Alpha)"
    ```
+   This is only harmless when the app adopted the service. If adoption failed,
+   the app spawned its own backend (a listener owned by the `T3 Code (Alpha)`
+   process in `lsof -nP -iTCP -sTCP:LISTEN`, usually `:3774`), and every thread
+   started from the app — this session included, when its ancestor chain hits
+   `/Applications/T3 Code (Alpha).app/…/app.asar/apps/server/dist` — dies with
+   it. In that case make the relaunch the detached last call (same pattern as
+   Phase 4 step 3), and tell the dev which threads drop. Why adoption failed is
+   in `~/.t3/userdata/logs/desktop.trace.ndjson` (`desktop.adoptedServer.*`
+   spans) and the service log.
+4. Verify adoption after relaunch: the app process owns no TCP listener and
+   the window shows the service's threads. A listener means the app is running
+   its own server against the same database again — report it, don't ignore it.
 
 ### Linux
 
@@ -239,6 +250,8 @@ repo-wide `vp check`/test suites on top of it (CI owns those).
      Tell the user in the report: the service restarts ~20 s after this
      message, this session and connected clients will drop briefly, and the
      desktop app reconnects on its own (it adopts the running server).
+     If the app also needs relaunching, chain it into the same detached call
+     after the kickstart.
 4. This restart is the sanctioned exception to "never start a server against
    `~/.t3/userdata`" — it IS the production service. Still never point a dev or
    test server at that home dir.
