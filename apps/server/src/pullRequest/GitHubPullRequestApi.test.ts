@@ -1236,7 +1236,7 @@ layer("GitHubPullRequestApi.layer", (it) => {
             : emptySearch(),
         ),
       );
-      const cli = yield* GitHubPullRequestCli.GitHubPullRequestCli;
+      const cli = yield* GitHubPullRequestApi.GitHubPullRequestApi;
 
       yield* cli.listPullRequests({
         cwd: "/w",
