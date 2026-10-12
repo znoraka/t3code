@@ -52,7 +52,6 @@ const withConfig = <A, E, R>(
     const directory = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-plandrop-" });
     const configPath = path.join(directory, "config.json");
     if (config !== null) {
-      // @effect-diagnostics-next-line preferSchemaOverJson:off - the fixture writes arbitrary config shapes.
       yield* fileSystem.writeFileString(configPath, JSON.stringify(config));
     }
     const previous = process.env[CONFIG_PATH_ENV];

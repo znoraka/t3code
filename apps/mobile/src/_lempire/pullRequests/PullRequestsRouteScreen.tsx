@@ -33,7 +33,7 @@ export function PullRequestsRouteScreen() {
         environmentId: String(entry.environmentId),
         projectId: String(entry.projectId),
         repository: entry.repository,
-        number: String(entry.number),
+        number: entry.number,
         host: entry.host,
       });
     },

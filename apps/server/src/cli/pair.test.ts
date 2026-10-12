@@ -6,7 +6,7 @@ import * as NodePath from "node:path";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NetService from "@t3tools/shared/Net";
-import { HostProcessEnvironment } from "@t3tools/shared/hostProcess";
+import * as HostProcess from "@t3tools/shared/HostProcess";
 import { assert, describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -221,7 +221,7 @@ describe("t3 pair", () => {
       }),
     ).pipe(
       Effect.provide(NodeServices.layer),
-      Effect.provideService(HostProcessEnvironment, {
+      Effect.provideService(HostProcess.Environment, {
         ...process.env,
         [SERVICE_LAUNCHER_CONTEXT_ENV]: JSON.stringify({
           protocol: SERVICE_LAUNCHER_PROTOCOL,
@@ -252,7 +252,6 @@ describe("t3 pair", () => {
 
         const output = yield* captureStdout(runCli(["pair", "--base-dir", baseDir, "--json"]));
 
-        // @effect-diagnostics-next-line preferSchemaOverJson:off - CLI JSON output is decoded as a presentation DTO.
         const result = JSON.parse(output) as {
           readonly origin: string;
           readonly pairingUrl: string;
@@ -280,7 +279,6 @@ describe("t3 pair", () => {
           runCli(["pair", "--json", "--origin", origin, "--base-dir", baseDir]),
         );
 
-        // @effect-diagnostics-next-line preferSchemaOverJson:off - CLI JSON output is decoded as a presentation DTO.
         const result = JSON.parse(output) as { readonly origin: string; readonly token: string };
         assert.equal(result.origin, origin);
 
@@ -288,7 +286,6 @@ describe("t3 pair", () => {
         const listed = yield* captureStdout(
           runCli(["auth", "pairing", "list", "--base-dir", baseDir, "--json"]),
         );
-        // @effect-diagnostics-next-line preferSchemaOverJson:off - CLI JSON output is decoded as a presentation DTO.
         const credentials = JSON.parse(listed) as ReadonlyArray<{ readonly label?: string }>;
         assert.equal(credentials.length, 1);
       }),
@@ -320,7 +317,6 @@ describe("t3 pair", () => {
         const output = yield* captureStdout(
           runCli(["pair", "--json", "--admin", "--origin", origin, "--base-dir", baseDir]),
         );
-        // @effect-diagnostics-next-line preferSchemaOverJson:off - CLI JSON output is decoded as a presentation DTO.
         const result = JSON.parse(output) as { readonly token: string };
         assert.match(result.token, /^[A-Z2-9]{12}$/);
 
@@ -329,7 +325,6 @@ describe("t3 pair", () => {
         const listed = yield* captureStdout(
           runCli(["auth", "pairing", "list", "--base-dir", baseDir, "--json"]),
         );
-        // @effect-diagnostics-next-line preferSchemaOverJson:off - CLI JSON output is decoded as a presentation DTO.
         const credentials = JSON.parse(listed) as ReadonlyArray<unknown>;
         assert.equal(credentials.length, 0);
       }),
