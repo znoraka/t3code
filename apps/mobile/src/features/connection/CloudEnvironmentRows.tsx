@@ -4,10 +4,7 @@ import { ConnectionTraceId } from "./ConnectionTraceId";
 import { useCloudAuth as useAuth } from "../../_lempire/cloudAuth";
 // [FORK] end
 import { SymbolView } from "../../components/AppSymbol";
-import {
-  connectionStatusText,
-  type EnvironmentConnectionPhase,
-} from "@t3tools/client-runtime/connection";
+import { type EnvironmentConnectionPhase } from "@t3tools/client-runtime/connection";
 import {
   type EnvironmentId,
   type EnvironmentMachineKind,
@@ -28,6 +25,7 @@ import { serverEnvironment } from "../../state/server";
 import { availableCloudEnvironmentPresentation } from "../cloud/cloudEnvironmentPresentation";
 import { hasCloudPublicConfig } from "../cloud/publicConfig";
 import { ConnectionStatusDot } from "./ConnectionStatusDot";
+import { environmentStatusText } from "./environmentStatusText";
 import { type RelayEnvironmentView, useConnectionController } from "./useConnectionController";
 
 interface CloudEnvironmentRowsProps {
@@ -309,7 +307,7 @@ function CloudEnvironmentRowShell(props: {
   const shouldPulse = isRetrying;
   const statusText =
     props.statusText ??
-    connectionStatusText({
+    environmentStatusText({
       phase: props.connectionState,
       error: props.connectionError,
       traceId: props.connectionErrorTraceId,

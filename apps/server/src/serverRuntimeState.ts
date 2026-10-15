@@ -6,6 +6,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 import { writeFileStringAtomically } from "@t3tools/shared/atomicWrite";
+import packageJson from "../package.json" with { type: "json" };
 import type * as ServerConfig from "./config.ts";
 import { formatHostForUrl, isWildcardHost } from "./startupAccess.ts";
 
@@ -53,6 +54,7 @@ export const makePersistedServerRuntimeState = (input: {
     ...(input.config.devUrl ? { devUrl: input.config.devUrl.toString() } : {}),
     startedAt: DateTime.formatIso(now),
     ...(input.serviceManaged ? { serviceManaged: true } : {}),
+    serverVersion: packageJson.version,
   }));
 
 export const persistServerRuntimeState = (input: {
@@ -105,6 +107,7 @@ export const clearPersistedServerRuntimeState = (path: string) =>
  * alive.
  */
 export const isProcessAlive = (pid: number): boolean => {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
     process.kill(pid, 0);
     return true;

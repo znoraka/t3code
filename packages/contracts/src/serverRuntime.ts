@@ -7,8 +7,10 @@ import * as Schema from "effect/Schema";
  * adopt an already-running server instead of spawning its own.
  */
 export const PersistedServerRuntimeState = Schema.Struct({
+  // Schema version of this file, not the server build. See `serverVersion`.
   version: Schema.Literal(1),
   pid: Schema.Int,
+  ownerId: Schema.optional(Schema.String),
   host: Schema.optional(Schema.String),
   port: Schema.Int,
   origin: Schema.String,
@@ -22,6 +24,12 @@ export const PersistedServerRuntimeState = Schema.Struct({
    * the difference between "restart the service" and "stop your terminal".
    */
   serviceManaged: Schema.optional(Schema.Boolean),
+  /**
+   * The server build that wrote this record. `t3 triage` reports it because
+   * the CLI that runs triage can be a different build. Missing on records
+   * written by older servers.
+   */
+  serverVersion: Schema.optional(Schema.String),
 });
 export type PersistedServerRuntimeState = typeof PersistedServerRuntimeState.Type;
 
