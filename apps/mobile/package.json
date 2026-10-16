@@ -1,6 +1,6 @@
 {
   "name": "@t3tools/mobile",
-  "version": "0.0.56",
+  "version": "0.0.57",
   "private": true,
   "main": "index.ts",
   "scripts": {
@@ -154,14 +154,6 @@
     "enableVideo": false
   },
   "expo": {
-    "install": {
-      "exclude": [
-        "react-native-keyboard-controller",
-        "typescript",
-        "react-native-screens",
-        "react-native-enriched-markdown"
-      ]
-    },
     "autolinking": {
       "buildFromSource": [
         "expo-notifications",
@@ -169,6 +161,14 @@
         "react-native-reanimated",
         "@react-native-menu/menu",
         "expo-audio"
+      ]
+    },
+    "install": {
+      "exclude": [
+        "react-native-keyboard-controller",
+        "typescript",
+        "react-native-screens",
+        "react-native-enriched-markdown"
       ]
     }
   },
