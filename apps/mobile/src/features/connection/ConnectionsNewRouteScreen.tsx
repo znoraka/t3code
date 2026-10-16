@@ -1,5 +1,6 @@
 import { ScreenScrollView as ScrollView } from "../../components/ScreenScrollView";
-import { useAuth } from "@clerk/expo";
+// [FORK] lempire: Clerk-or-local-relay auth hooks
+import { useCloudAuth as useAuth } from "../../_lempire/cloudAuth";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Haptics from "expo-haptics";
 import {

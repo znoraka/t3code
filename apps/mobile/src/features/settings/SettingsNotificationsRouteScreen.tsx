@@ -1,7 +1,8 @@
 import { AuthRelayWriteScope } from "@t3tools/contracts";
 import { readEnvironmentScope } from "../../state/session";
 import { ScreenScrollView as ScrollView } from "../../components/ScreenScrollView";
-import { useAuth } from "@clerk/expo";
+// [FORK] lempire: Clerk-or-local-relay auth hooks
+import { useCloudAuth as useAuth } from "../../_lempire/cloudAuth";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import * as Notifications from "expo-notifications";
 import { useNavigation } from "@react-navigation/native";
