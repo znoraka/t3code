@@ -179,20 +179,24 @@ Mac; do not attempt it.
 2. Install — replace the canonical app only, leave any `*.backup.app` copies:
    ```
    hdiutil attach -nobrowse release/T3-Code-<ver>-<arch>.dmg
-   ditto "/Volumes/<volume>/T3 Code (Alpha).app" "/Applications/T3 Code (Alpha).app.new"
-   rm -rf "/Applications/T3 Code (Alpha).app" && mv "/Applications/T3 Code (Alpha).app.new" "/Applications/T3 Code (Alpha).app"
+   ditto "/Volumes/<volume>/T3 Code (Beta).app" "/Applications/T3 Code (Beta).app.new"
+   rm -rf "/Applications/T3 Code (Beta).app" && mv "/Applications/T3 Code (Beta).app.new" "/Applications/T3 Code (Beta).app"
    hdiutil detach "/Volumes/<volume>"
    ```
+   The app is "T3 Code (Beta)" since upstream's rebrand (same bundle id
+   `com.t3tools.t3code`; upstream migrates saved connections). A leftover
+   `T3 Code (Alpha).app` is the pre-rename install: remove it so only one copy
+   of the bundle id stays in /Applications.
 3. Relaunch the app **after Phase 4 restarts the service**, so it adopts the
    new server code:
    ```
-   osascript -e 'quit app "T3 Code (Alpha)"'; sleep 3; open -a "T3 Code (Alpha)"
+   osascript -e 'quit app "T3 Code (Beta)"'; sleep 3; open -a "T3 Code (Beta)"
    ```
    This is only harmless when the app adopted the service. If adoption failed,
-   the app spawned its own backend (a listener owned by the `T3 Code (Alpha)`
+   the app spawned its own backend (a listener owned by the `T3 Code (Beta)`
    process in `lsof -nP -iTCP -sTCP:LISTEN`, usually `:3774`), and every thread
    started from the app — this session included, when its ancestor chain hits
-   `/Applications/T3 Code (Alpha).app/…/app.asar/apps/server/dist` — dies with
+   `/Applications/T3 Code (Beta).app/…/app.asar/apps/server/dist` — dies with
    it. In that case make the relaunch the detached last call (same pattern as
    Phase 4 step 3), and tell the dev which threads drop. Why adoption failed is
    in `~/.t3/userdata/logs/desktop.trace.ndjson` (`desktop.adoptedServer.*`
