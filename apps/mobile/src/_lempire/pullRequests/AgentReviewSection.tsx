@@ -19,9 +19,9 @@ import { useNavigation } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo } from "react";
 import { Pressable, View } from "react-native";
 
-import { AppText as Text } from "../../components/AppText";
-import { SymbolView } from "../../components/AppSymbol";
-import { ControlPillMenu } from "../../components/ControlPill";
+import { AppText as Text } from "../../components/ui/AppText";
+import { SymbolView } from "../../components/ui/AppSymbol";
+import { Menu } from "../../components/ui/Menu";
 import {
   pullRequestTarget,
   type PullRequestParams,
@@ -165,11 +165,7 @@ export function AgentReviewSection({ params }: { readonly params: PullRequestPar
         </Text>
       )}
 
-      <ControlPillMenu
-        actions={reviewActions}
-        onPressAction={handleReviewAction}
-        title="Review with agent"
-      >
+      <Menu actions={reviewActions} onPressAction={handleReviewAction} title="Review with agent">
         <Pressable
           accessibilityLabel="Review with agent"
           accessibilityRole="button"
@@ -178,7 +174,7 @@ export function AgentReviewSection({ params }: { readonly params: PullRequestPar
           <SymbolView name="brain" size={13} tintColorClassName="accent-icon" type="monochrome" />
           <Text className="text-sm font-t3-bold text-foreground">Review with agent</Text>
         </Pressable>
-      </ControlPillMenu>
+      </Menu>
 
       {reviewThreads.length > 0 ? (
         <View className="mt-4 gap-1">

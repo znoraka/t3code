@@ -9,8 +9,8 @@ import type { PullRequestReview } from "@t3tools/client-runtime/_lempire/review-
 import type { PlandropReport } from "@t3tools/contracts";
 import { Pressable, View } from "react-native";
 
-import { AppText as Text } from "../../components/AppText";
-import { SymbolView } from "../../components/AppSymbol";
+import { AppText as Text } from "../../components/ui/AppText";
+import { SymbolView } from "../../components/ui/AppSymbol";
 
 // `warn` is "mergeable with reserves" — amber, not a red alarm. Only `crit`
 // (not mergeable) gets the red band and the ✗.

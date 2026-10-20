@@ -75,36 +75,35 @@ export const persistServerRuntimeState = (input: {
     ),
   );
 
-export const clearPersistedServerRuntimeState = (path: string) =>
-  Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem;
-    yield* fs.remove(path, { force: true }).pipe(
-      Effect.mapError(
-        (cause) =>
-          new ServerRuntimeStateError({
-            operation: "clear",
-            statePath: path,
-            cause,
+export const clearPersistedServerRuntimeState = Effect.fn(
+  "serverRuntimeState.clearPersistedServerRuntimeState",
+)(function* (path: string) {
+  const fs = yield* FileSystem.FileSystem;
+  yield* fs.remove(path, { force: true }).pipe(
+    Effect.mapError(
+      (cause) =>
+        new ServerRuntimeStateError({
+          operation: "clear",
+          statePath: path,
+          cause,
+        }),
+    ),
+    Effect.catchTags({
+      ServerRuntimeStateError: (error) =>
+        Effect.logWarning(error.message).pipe(
+          Effect.annotateLogs({
+            operation: error.operation,
+            statePath: error.statePath,
+            cause: error,
           }),
-      ),
-      Effect.catchTags({
-        ServerRuntimeStateError: (error) =>
-          Effect.logWarning(error.message).pipe(
-            Effect.annotateLogs({
-              operation: error.operation,
-              statePath: error.statePath,
-              cause: error,
-            }),
-          ),
-      }),
-    );
-  });
+        ),
+    }),
+  );
+});
 
 /**
- * Report whether the pid recorded in a persisted runtime state is still
- * running. Signal 0 delivers nothing; it only reports whether the pid exists.
- * EPERM means it exists but belongs to another user, which still counts as
- * alive.
+ * Signal 0 delivers nothing; it only reports whether the pid exists. EPERM
+ * means it exists but belongs to another user, which still counts as alive.
  */
 export const isProcessAlive = (pid: number): boolean => {
   if (!Number.isInteger(pid) || pid <= 0) return false;
@@ -116,8 +115,10 @@ export const isProcessAlive = (pid: number): boolean => {
   }
 };
 
-export const readPersistedServerRuntimeState = (path: string) =>
-  Effect.gen(function* () {
+export const readPersistedServerRuntimeState = Effect.fn(
+  "serverRuntimeState.readPersistedServerRuntimeState",
+)(
+  function* (path: string) {
     const fs = yield* FileSystem.FileSystem;
     const raw = yield* fs.readFileString(path).pipe(
       Effect.matchEffect({
@@ -154,16 +155,16 @@ export const readPersistedServerRuntimeState = (path: string) =>
           }),
       ),
     );
-  }).pipe(
-    Effect.catchTags({
-      ServerRuntimeStateError: (error) =>
-        Effect.logWarning(error.message).pipe(
-          Effect.annotateLogs({
-            operation: error.operation,
-            statePath: error.statePath,
-            cause: error,
-          }),
-          Effect.as(Option.none<PersistedServerRuntimeState>()),
-        ),
-    }),
-  );
+  },
+  Effect.catchTags({
+    ServerRuntimeStateError: (error) =>
+      Effect.logWarning(error.message).pipe(
+        Effect.annotateLogs({
+          operation: error.operation,
+          statePath: error.statePath,
+          cause: error,
+        }),
+        Effect.as(Option.none<PersistedServerRuntimeState>()),
+      ),
+  }),
+);
