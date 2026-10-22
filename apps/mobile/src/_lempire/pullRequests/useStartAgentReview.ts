@@ -3,13 +3,12 @@
 // Same handoff as web: open a draft in the pull request's project with the
 // review prompt staged, and nothing checked out — the review skill reads the PR
 // through `gh`. Expressed in the phone's own draft machinery: a new-task draft
-// is created, filled, and opened by id, which the new-task sheet already
-// supports.
+// is created, filled, and opened by id as a draft thread.
 import {
   buildReviewPrompt,
   type ReviewVariant,
 } from "@t3tools/client-runtime/_lempire/review-variant";
-import { useNavigation } from "@react-navigation/native";
+import { StackActions, useNavigation } from "@react-navigation/native";
 import type { EnvironmentId, ProjectId, ThreadLinkedPullRequest } from "@t3tools/contracts";
 import { useCallback } from "react";
 
@@ -33,14 +32,11 @@ export function useStartAgentReview(input: {
       // link needs the host's URL to match against, which only the loaded
       // detail carries — without it the review still runs, unlinked.
       if (link.url.length > 0) rememberPendingReviewLink(draftKey, link);
-      navigation.navigate("NewTaskSheet", {
-        screen: "NewTaskDraft",
-        params: {
-          draftId: draftKey,
-          environmentId: String(environmentId),
-          projectId: String(projectId),
-        },
-      });
+      navigation.dispatch(
+        StackActions.push("Thread", {
+          draft: { draftId: draftKey, title: `PR #${link.number}` },
+        }),
+      );
     },
     [environmentId, link, navigation, projectId],
   );

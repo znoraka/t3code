@@ -1,4 +1,6 @@
 import * as Updates from "expo-updates";
+// Metro namespace imports evaluate unrelated React Native getters, including unavailable native modules.
+import { AppState } from "react-native";
 
 import {
   type AtomCommandResult,
@@ -415,25 +417,13 @@ async function defaultFlushPendingWrites(): Promise<void> {
   if (failed) throw failed.reason;
 }
 
-/**
- * [FORK] lempire: `import("react-native")` makes Metro copy every export of the
- * module, which runs the deprecated `PushNotificationIOS` getter. On RN 0.88 its
- * native module is gone, so that getter throws and the app aborts at launch.
- * `require` returns the module itself and only reads the getter asked for.
- */
-function loadReactNative(): typeof import("react-native") {
-  return require("react-native") as typeof import("react-native");
-}
-
 async function defaultIsSafeToRestartInBackground(): Promise<boolean> {
   const { isForegroundHandoffActive } = await import("../../lib/foreground-handoff");
   if (isForegroundHandoffActive()) return false;
-  const { AppState } = loadReactNative();
   return AppState.currentState === "background";
 }
 
 function defaultOnNextBackground(apply: () => void, includeCurrent: boolean): void {
-  const { AppState } = loadReactNative();
   const subscription = AppState.addEventListener("change", (state) => {
     if (state !== "background") return;
     subscription.remove();
@@ -452,7 +442,6 @@ export const DEFERRED_INSTALL_PROMPT_AFTER_MS = 30 * 60 * 1000;
  * the timer running.
  */
 function defaultOnForegroundStay(apply: () => void): void {
-  const { AppState } = loadReactNative();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const arm = () => {
     timer ??= setTimeout(() => {
@@ -536,7 +525,6 @@ export function createAppUpdateForegroundRecheck(
   return () => {
     if (started || !isAppUpdateCheckAvailable(client)) return;
     started = true;
-    const { AppState } = loadReactNative();
     let backgroundedAtMs: number | null = null;
     AppState.addEventListener("change", (state) => {
       if (state === "background") {

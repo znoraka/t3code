@@ -6,21 +6,8 @@ import type { EnvironmentId, ProjectId } from "@t3tools/contracts";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { PullRequestsPage } from "../_lempire/pullRequests/PullRequestsPage";
-import {
-  PullRequestListSort,
-  type PullRequestListPreferences,
-} from "../components/pullRequest/pullRequestListPreferences";
-
-export interface PullRequestsSearch extends PullRequestListPreferences {
-  readonly environmentId?: EnvironmentId;
-  readonly projectId?: ProjectId;
-  readonly host?: string;
-  readonly repository?: string;
-  readonly number?: number;
-  readonly selectedProjectId?: ProjectId;
-  readonly selectedHost?: string;
-  readonly selectedEnvironmentId?: EnvironmentId;
-}
+import { PullRequestListSort } from "../components/pullRequest/pullRequestListPreferences";
+import { type PullRequestsSearch } from "../components/pullRequest/usePullRequestListView";
 
 const MAX_SEARCH_LABEL_CANDIDATES = 100;
 
