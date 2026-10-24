@@ -21,7 +21,7 @@ import { memo, useMemo } from "react";
 
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../../components/ui/tooltip";
 import { cn } from "../../lib/utils";
-import { matchesLinkedPullRequestUrl } from "../../lib/openPullRequestLink";
+import { sourceControlClients } from "@t3tools/client-runtime/source-control-clients";
 import { useThreadShells } from "../../state/entities";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import { useReviewOfRecord } from "./usePlandropReport";
@@ -190,7 +190,7 @@ export function AgentReviewCard({
     const candidates = allThreads.filter((thread) => {
       if (thread.environmentId !== environmentId || thread.archivedAt !== null) return false;
       const linked = thread.linkedPullRequest ?? thread.branchPullRequest;
-      return linked != null && matchesLinkedPullRequestUrl(linked, detail.url);
+      return linked != null && sourceControlClients.isSameChangeRequest(linked.url, detail.url);
     });
     return candidates.sort((a, b) =>
       (b.updatedAt ?? b.createdAt).localeCompare(a.updatedAt ?? a.createdAt),

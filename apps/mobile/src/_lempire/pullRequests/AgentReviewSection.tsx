@@ -14,7 +14,7 @@ import { relativeTime } from "@t3tools/client-runtime/_lempire/pull-request-sect
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
 import { threadRuntimeIsActive } from "@t3tools/client-runtime/state/models";
 import { EnvironmentId, ProjectId } from "@t3tools/contracts";
-import { matchesLinkedPullRequestUrl } from "@t3tools/shared/changeRequestUrl";
+import { sourceControlClients } from "@t3tools/client-runtime/source-control-clients";
 import { useNavigation } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo } from "react";
 import { Pressable, View } from "react-native";
@@ -91,7 +91,7 @@ export function AgentReviewSection({ params }: { readonly params: PullRequestPar
     const linkedToThisPullRequest = allThreads.filter((thread) => {
       if (thread.environmentId !== environmentId || thread.archivedAt !== null) return false;
       const linked = thread.linkedPullRequest ?? thread.branchPullRequest;
-      return linked != null && matchesLinkedPullRequestUrl(linked, detail.url);
+      return linked != null && sourceControlClients.isSameChangeRequest(linked.url, detail.url);
     });
     // Copy-then-sort: Hermes has no `toSorted`.
     return [...linkedToThisPullRequest].sort((left, right) =>
