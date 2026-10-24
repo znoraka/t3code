@@ -7,7 +7,10 @@ private final class WorkspaceTabBar: UITabBar {
   override func layoutSubviews() {
     super.layoutSubviews()
     let row = tabButtons(in: self).reduce(CGRect.null) { $0.union(convert($1.bounds, from: $1)) }
-    if !row.isNull { onContentLayout?(row) }
+    // iOS 27 no longer exposes the item buttons this way. Without a row, Compose keeps a zero
+    // frame: its icon still draws, but no touch can reach it.
+    let content = bounds.inset(by: UIEdgeInsets(top: 0, left: 0, bottom: safeAreaInsets.bottom, right: 0))
+    onContentLayout?(row.isNull || row.height == 0 ? content : row)
   }
 
   override func safeAreaInsetsDidChange() {
@@ -17,7 +20,7 @@ private final class WorkspaceTabBar: UITabBar {
 
   private func tabButtons(in view: UIView) -> [UIView] {
     view.subviews.filter { !$0.isHidden }.flatMap { subview in
-      if subview is UIControl, subview.accessibilityIdentifier?.hasPrefix("workspace-tab-") == true {
+      if subview.accessibilityIdentifier?.hasPrefix("workspace-tab-") == true {
         return [subview]
       }
       return tabButtons(in: subview)
@@ -123,7 +126,8 @@ final class T3SidebarTabBarView: ExpoView, UITabBarDelegate {
   private func layoutCompose(alongside frame: CGRect) {
     guard showsCompose, frame.height > 0 else { return }
     let row = convert(frame, from: tabBar)
-    let size = row.height + 8
+    // The fallback row spans the whole bar, so keep Compose inside the space reserved for it.
+    let size = min(row.height + 8, bounds.maxX - row.maxX - 16)
     composeButton.frame = CGRect(x: row.maxX + 16, y: row.midY - size / 2, width: size, height: size)
   }
 
