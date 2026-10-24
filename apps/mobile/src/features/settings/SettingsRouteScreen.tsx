@@ -1,16 +1,31 @@
-import { Toolbar } from "../../components/ui/Toolbar";
-import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
+import {
+  navigationCustomizationAvailable,
+  overflowNavigationTabs,
+} from "../workspace/navigation-tab-order";
+import {
+  NAVIGATION_TAB_ICONS,
+  WORKSPACE_TAB_LABELS,
+  useNavigationTabOrder,
+  useHiddenNavigationTabs,
+} from "../workspace/navigation-tabs";
+import { useSelectWorkspaceTab } from "../workspace/useSelectWorkspaceTab";
+import {
+  ScreenScrollView as ScrollView,
+  ScreenScrollViewBottomInset,
+} from "../../components/ui/ScreenScrollView";
 // [FORK] lempire: Clerk-or-local-relay auth hooks
 import { useCloudAuth as useAuth, useCloudUser as useUser } from "../../_lempire/cloudAuth";
 // [FORK] end
 import { useNavigation } from "@react-navigation/native";
 import { Platform, View } from "react-native";
+import { useWorkspaceSurface } from "../workspace/useWorkspaceSurface";
+import { useDeviceType } from "../../native/native-layout-metrics";
+import { useCompactWorkspaceTabs } from "../workspace/useSystemWorkspaceTabBar";
 import { deriveProjectGroupLabel } from "@t3tools/client-runtime/state/project-grouping";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { hasCloudPublicConfig } from "../cloud/publicConfig";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
-import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { useSavedRemoteConnections } from "../../state/use-remote-environment-registry";
 import { SettingsRow } from "./components/SettingsRow";
 import { SettingsSection } from "./components/SettingsSection";
@@ -22,8 +37,9 @@ import {
 import { useSettingsEnvironmentFilter } from "./settings-environment-filter";
 
 export function SettingsRouteScreen() {
-  const navigation = useNavigation();
-  const { layout } = useAdaptiveWorkspaceLayout();
+  const surface = useWorkspaceSurface();
+  const deviceType = useDeviceType();
+  const compactTabs = useCompactWorkspaceTabs();
   const content = hasCloudPublicConfig() ? (
     <ConfiguredSettingsRouteScreen />
   ) : (
@@ -31,30 +47,18 @@ export function SettingsRouteScreen() {
   );
 
   return (
-    <>
-      {Platform.OS === "ios" ? (
-        <NativeStackScreenOptions options={{ headerBackVisible: !layout.usesSplitView }} />
-      ) : null}
-      {Platform.OS === "ios" && layout.usesSplitView ? (
-        <>
-          <Toolbar placement="left">
-            <Toolbar.Button
-              accessibilityLabel="Go back"
-              icon="chevron.left"
-              onPress={() => navigation.goBack()}
-            />
-          </Toolbar>
-        </>
-      ) : null}
-      <SettingsEnvironmentFilterHeader closeSettings />
-      {Platform.OS === "android" ? (
-        <SettingsScreen title="Settings" trailing={<AndroidSettingsEnvironmentFilter />}>
-          {content}
-        </SettingsScreen>
-      ) : (
-        content
-      )}
-    </>
+    <View className={`flex-1 ${surface.className}`}>
+      <SettingsEnvironmentFilterHeader />
+      <ScreenScrollViewBottomInset value={deviceType === "pad" || compactTabs ? 80 : 0}>
+        {Platform.OS === "android" ? (
+          <SettingsScreen title="Settings" trailing={<AndroidSettingsEnvironmentFilter />}>
+            {content}
+          </SettingsScreen>
+        ) : (
+          content
+        )}
+      </ScreenScrollViewBottomInset>
+    </View>
   );
 }
 
@@ -71,7 +75,7 @@ function ConfiguredSettingsRouteScreen() {
       : (user?.primaryEmailAddress?.emailAddress ?? "Signed in");
 
   return (
-    <View collapsable={false} className="flex-1 bg-sheet">
+    <View collapsable={false} className="flex-1">
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
@@ -79,6 +83,7 @@ function ConfiguredSettingsRouteScreen() {
         contentContainerClassName="gap-4 px-5 pt-4"
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
       >
+        <OverflowSection />
         <SettingsSection title="Connections">
           <SettingsRow
             icon="person.crop.circle"
@@ -109,7 +114,7 @@ function LocalSettingsRouteScreen() {
   const environmentCount = Object.keys(savedConnectionsById).length;
 
   return (
-    <View collapsable={false} className="flex-1 bg-sheet">
+    <View collapsable={false} className="flex-1">
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
@@ -119,6 +124,7 @@ function LocalSettingsRouteScreen() {
           paddingBottom: Math.max(insets.bottom, 18) + 18,
         }}
       >
+        <OverflowSection />
         <SettingsSection title="Connections">
           <SettingsRow
             icon="desktopcomputer"
@@ -156,6 +162,13 @@ function SettingsIndexSections() {
     <>
       <SettingsSection title="Interface">
         <SettingsRow icon="paintbrush" label="Appearance" target="SettingsAppearance" />
+        {navigationCustomizationAvailable() ? (
+          <SettingsRow
+            icon="line.3.horizontal"
+            label="Navigation tabs"
+            target="SettingsNavigation"
+          />
+        ) : null}
         {Platform.OS === "ios" ? (
           <>
             <SettingsRow icon="keyboard" label="Keyboard" target="SettingsKeyboard" />
@@ -217,9 +230,29 @@ function SettingsIndexSections() {
       </SettingsSection>
 
       <SettingsSection title="App">
-        <SettingsRow icon="chart.bar.xaxis" label="Usage" target="SettingsUsage" />
         <SettingsRow icon="info.circle" label="About T3 Code" target="SettingsAbout" />
       </SettingsSection>
     </>
   );
+}
+
+function OverflowSection() {
+  const order = useNavigationTabOrder();
+  const hidden = useHiddenNavigationTabs();
+  const { layout } = useAdaptiveWorkspaceLayout();
+  const tabs =
+    Platform.OS === "android" && layout.usesSplitView ? [] : overflowNavigationTabs(order, hidden);
+  const selectTab = useSelectWorkspaceTab();
+  return tabs.length ? (
+    <SettingsSection>
+      {tabs.map((tab) => (
+        <SettingsRow
+          key={tab}
+          icon={NAVIGATION_TAB_ICONS[tab]}
+          label={WORKSPACE_TAB_LABELS[tab]}
+          onPress={() => selectTab(tab)}
+        />
+      ))}
+    </SettingsSection>
+  ) : null;
 }
