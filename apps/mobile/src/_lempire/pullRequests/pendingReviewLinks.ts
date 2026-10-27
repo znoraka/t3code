@@ -80,7 +80,7 @@ function forgetClaimedLink(threadId: ThreadId): void {
 
 /**
  * Writes claimed links onto their threads once those exist. Mounted in the
- * app's null-rendering worker leaf, which already watches every thread shell.
+ * PendingReviewLinksWorker, a null-rendering leaf in the root stack.
  */
 export function useApplyPendingReviewLinks(): void {
   const threads = useThreadShells();

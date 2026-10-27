@@ -1,27 +1,7 @@
-// Adoption of an externally started T3 server as the desktop primary.
-//
-// The stock desktop flow scans upward from 3773 for a *free* port and spawns
-// its own bundled server — so a server already running against the same T3
-// home (systemd service, `npx t3 start`, a second desktop instance) ends up
-// coexisting with a second server on the same SQLite database. This module
-// lets the desktop detect that server at startup and connect to it instead:
-//
-//   1. Discovery finds a candidate origin (the persisted server-runtime.json,
-//      falling back to the default port) and confirms it answers with a T3
-//      environment descriptor.
-//   2. Proof that the candidate serves *our* data directory is obtained by
-//      minting a one-time admin pairing token into our own database (via the
-//      bundled server CLI: `pair --json --admin --origin ...`) and exchanging
-//      it at the candidate origin for a bearer session. A foreign server
-//      reads a different database and fails the exchange, so the desktop
-//      falls back to spawning as before.
-//   3. The pool registers an *adopted* primary instance that never spawns or
-//      kills anything: it health-probes the origin and drives the window's
-//      onReady/onShutdown callbacks, while DesktopLocalEnvironmentAuth serves
-//      the bearer obtained in step 2.
-//
-// Adoption is skipped in development, when T3CODE_PORT is set, and when
-// T3CODE_DESKTOP_NO_ADOPT=1.
+// Adopts a T3 server already running on this T3 home as the desktop primary instead of spawning
+// a second server on the same SQLite database. A candidate proves it serves our data dir when a
+// pairing token minted into our database exchanges there; a foreign server fails the exchange.
+// Skipped in development, when T3CODE_PORT is set, and when T3CODE_DESKTOP_NO_ADOPT=1.
 
 import { bootstrapRemoteBearerSession } from "@t3tools/client-runtime/authorization";
 import {
@@ -88,13 +68,9 @@ export class DesktopAdoptedServer extends Context.Service<
     // pool's primary construction, the app bootstrap's port resolution, the
     // local auth's bearer lookup — observes the same result.
     readonly decide: Effect.Effect<Option.Option<AdoptedServerConnection>>;
-    // A `DesktopBackendInstance` for a server this desktop did not start and
-    // must never stop. start/stop only gate the health monitor driving the
-    // onReady/onShutdown window callbacks; there is no child process, no
-    // restart loop, and no preflight. The fabricated start config keeps pool
-    // consumers (IPC bootstraps, the renderer primary target) working
-    // unchanged — its bootstrap token is empty because auth for an adopted
-    // primary flows through the bearer minted at discovery time.
+    // An instance for a server this desktop did not start and must never stop: start/stop only
+    // gate the health monitor behind onReady/onShutdown. The fabricated start config keeps pool
+    // consumers working; its bootstrap token is empty because auth uses the discovery bearer.
     readonly makeAdoptedBackendInstance: (
       spec: AdoptedBackendInstanceSpec,
     ) => Effect.Effect<DesktopBackendManager.DesktopBackendInstance, never, Scope.Scope>;
@@ -139,20 +115,23 @@ export const make = Effect.gen(function* () {
 
   const runtimeStatePath = environment.path.join(environment.stateDir, "server-runtime.json");
 
-  const probeEnvironmentDescriptor = (origin: URL) =>
-    Effect.gen(function* () {
+  const probeEnvironmentDescriptor = Effect.fn("DesktopAdoptedServer.probeEnvironmentDescriptor")(
+    function* (origin: URL) {
       const response = yield* httpClient.execute(
         HttpClientRequest.get(new URL(WELL_KNOWN_ENVIRONMENT_PATH, origin).toString()),
       );
       return yield* HttpClientResponse.filterStatusOk(response).pipe(
         Effect.flatMap(HttpClientResponse.schemaBodyJson(ExecutionEnvironmentDescriptor)),
       );
-    }).pipe(Effect.timeout(DESCRIPTOR_PROBE_TIMEOUT), Effect.option);
+    },
+    Effect.timeout(DESCRIPTOR_PROBE_TIMEOUT),
+    Effect.option,
+  );
 
   const readRuntimeStateCandidate = Effect.gen(function* () {
     const raw = yield* fileSystem
       .readFileString(runtimeStatePath)
-      .pipe(Effect.map(Option.some), Effect.orElseSucceed(Option.none<string>));
+      .pipe(Effect.asSome, Effect.orElseSucceed(Option.none<string>));
     if (Option.isNone(raw)) {
       return Option.none<URL>();
     }
@@ -455,20 +434,26 @@ export const make = Effect.gen(function* () {
       })),
     );
 
-    const waitForReady = (timeout: Duration.Duration): Effect.Effect<boolean> =>
-      Effect.gen(function* () {
-        const current = yield* Ref.get(stateRef);
-        if (!current.desiredRunning) return { done: true, ready: false };
-        return current.ready ? { done: true, ready: true } : { done: false, ready: false };
-      }).pipe(
+    const waitForReady = Effect.fn("DesktopAdoptedServer.waitForReady")(function* (
+      timeout: Duration.Duration,
+    ) {
+      const ready = Ref.get(stateRef).pipe(
+        Effect.map((current) =>
+          current.desiredRunning
+            ? { done: current.ready, ready: current.ready }
+            : { done: true, ready: false },
+        ),
         Effect.repeat({
           until: (status) => status.done,
           schedule: Schedule.spaced(Duration.millis(100)),
         }),
         Effect.map((status) => status.ready),
+      );
+      return yield* ready.pipe(
         Effect.timeoutOption(timeout),
         Effect.map(Option.getOrElse(() => false)),
       );
+    });
 
     yield* Effect.addFinalizer(() => stop());
 
@@ -477,7 +462,7 @@ export const make = Effect.gen(function* () {
       label: spec.label,
       start,
       stop: () => stop(),
-      currentConfig: Effect.succeed(Option.some(fabricatedConfig)),
+      currentConfig: Effect.succeedSome(fabricatedConfig),
       snapshot,
       waitForReady,
     } satisfies DesktopBackendManager.DesktopBackendInstance;
@@ -497,7 +482,8 @@ export const layerTest = (
     DesktopAdoptedServer,
     DesktopAdoptedServer.of({
       decide: Effect.succeed(decision),
-      makeAdoptedBackendInstance: () =>
+      makeAdoptedBackendInstance: Effect.fn("DesktopAdoptedServer.makeAdoptedBackendInstance")(() =>
         Effect.die("DesktopAdoptedServer.layerTest does not support makeAdoptedBackendInstance"),
+      ),
     }),
   );

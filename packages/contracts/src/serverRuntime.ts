@@ -12,6 +12,7 @@ export const PersistedServerRuntimeState = Schema.Struct({
   pid: Schema.Int,
   ownerId: Schema.optional(Schema.String),
   host: Schema.optional(Schema.String),
+  privateNetworkOnly: Schema.optional(Schema.Boolean),
   port: Schema.Int,
   origin: Schema.String,
   // Present when the server fronts a dev web server (VITE_DEV_SERVER_URL).

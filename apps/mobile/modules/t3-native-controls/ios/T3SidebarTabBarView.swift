@@ -6,9 +6,12 @@ private final class WorkspaceTabBar: UITabBar {
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    let row = tabButtons(in: self).reduce(CGRect.null) { $0.union(convert($1.bounds, from: $1)) }
-    // iOS 27 no longer exposes the item buttons this way. Without a row, Compose keeps a zero
-    // frame: its icon still draws, but no touch can reach it.
+    // iOS 26.6 doesn't copy item identifiers onto its tab buttons; the bar holds no other controls.
+    // iOS 27 tags item views that aren't UIControls, so identifiers match any view class.
+    let identified = tabButtons(in: self) { $0.accessibilityIdentifier?.hasPrefix("workspace-tab-") == true }
+    let buttons = identified.isEmpty ? tabButtons(in: self) { $0 is UIControl } : identified
+    let row = buttons.reduce(CGRect.null) { $0.union(convert($1.bounds, from: $1)) }
+    // Without a row, Compose keeps a zero frame: its icon still draws, but no touch can reach it.
     let content = bounds.inset(by: UIEdgeInsets(top: 0, left: 0, bottom: safeAreaInsets.bottom, right: 0))
     onContentLayout?(row.isNull || row.height == 0 ? content : row)
   }
@@ -18,12 +21,10 @@ private final class WorkspaceTabBar: UITabBar {
     invalidateIntrinsicContentSize()
   }
 
-  private func tabButtons(in view: UIView) -> [UIView] {
+  private func tabButtons(in view: UIView, matching match: (UIView) -> Bool) -> [UIView] {
     view.subviews.filter { !$0.isHidden }.flatMap { subview in
-      if subview.accessibilityIdentifier?.hasPrefix("workspace-tab-") == true {
-        return [subview]
-      }
-      return tabButtons(in: subview)
+      if match(subview) { return [subview] }
+      return tabButtons(in: subview, matching: match)
     }
   }
 }
@@ -94,8 +95,7 @@ final class T3SidebarTabBarView: ExpoView, UITabBarDelegate {
     }
     configuration.cornerStyle = .capsule
     configuration.baseForegroundColor = .label
-    configuration.image = UIImage(systemName: "square.and.pencil")
-    configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 24)
+    configuration.image = tabIcon(UIImage(systemName: "square.and.pencil"))
     composeButton.configuration = configuration
   }
 

@@ -23,6 +23,8 @@ const USER_PROFILE_CUSTOM_PAGES = [
   },
 ] satisfies UserProfileCustomPage[];
 
+// Without cloud config the app has no entry point here and appLinking drops the deep link.
+// [FORK] Local-relay builds still count as configured, so they redirect instead.
 export function SettingsAuthRouteScreen() {
   const navigation = useNavigation();
   // [FORK] lempire: the self-hosted relay has no accounts, so there is nothing
@@ -43,15 +45,17 @@ export function SettingsAuthRouteScreen() {
 function ConfiguredSettingsAuthRouteScreen() {
   const { isLoaded, isSignedIn } = useAuth({ treatPendingAsSignedOut: false });
   const navigation = useNavigation();
-  const handleHostBack = () => navigation.dispatch(StackActions.popTo("SettingsContent"));
+  const handleHostBack = () => navigation.goBack();
   // Once signed in, stay on the profile view so signing out pops back instead of
   // flashing the sign-in form.
   const [hasBeenSignedIn, setHasBeenSignedIn] = useState(isSignedIn === true);
   if (isSignedIn && !hasBeenSignedIn) setHasBeenSignedIn(true);
 
+  // Clerk reports sign-out only through its auth store (the native profile view
+  // and the T3 Connect page can both sign out), so this follows that store.
   useEffect(() => {
     if (hasBeenSignedIn && isLoaded && isSignedIn === false) {
-      navigation.dispatch(StackActions.popTo("SettingsContent"));
+      navigation.goBack();
     }
   }, [hasBeenSignedIn, isLoaded, isSignedIn, navigation]);
 
