@@ -18,7 +18,7 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { useCloudAuth as useAuth, useCloudUser as useUser } from "../../_lempire/cloudAuth";
 // [FORK] end
 import { useNavigation, useNavigationState } from "@react-navigation/native";
-import { use, useMemo, type ComponentProps } from "react";
+import { use, type ComponentProps } from "react";
 import { Platform, View } from "react-native";
 import { useWorkspaceSurface } from "../workspace/useWorkspaceSurface";
 import { useNativeColumnLayoutMetrics } from "../../native/native-layout-metrics";
@@ -63,7 +63,7 @@ export function SettingsListScreen(props: {
   const workspace = useWorkspaceTabs();
   const inSidebar = props.sidebar;
   const selected = props.selected;
-  const sidebar = useMemo(() => (inSidebar ? { selected } : null), [inSidebar, selected]);
+  const sidebar = inSidebar ? { selected } : null;
   const content = hasCloudPublicConfig() ? (
     <ConfiguredSettingsRouteScreen />
   ) : (
