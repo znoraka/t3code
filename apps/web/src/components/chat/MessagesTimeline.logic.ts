@@ -1358,6 +1358,30 @@ function timelineRowEntries(entries: ReadonlyArray<TimelineEntry>) {
   return withoutSubagentDelegationRows(settleSupersededReasoning(entries));
 }
 
+// A pending approval row stands in for the tool call it gates; that call has not run yet.
+function withoutApprovalGatedTools(
+  entries: ReadonlyArray<TimelineEntry>,
+  isPendingApproval: (entry: WorkLogEntry) => boolean,
+): ReadonlyArray<TimelineEntry> {
+  const refKey = (entry: WorkLogEntry) => {
+    const ref = entry.projectedItem?.item.nativeItemRef;
+    return ref ? `${ref.driver}:${ref.nativeId}` : null;
+  };
+  const gatedRefs = new Set<string>();
+  for (const entry of entries) {
+    if (entry.kind !== "work" || !isPendingApproval(entry.entry)) continue;
+    const key = refKey(entry.entry);
+    if (key !== null) gatedRefs.add(key);
+  }
+  if (gatedRefs.size === 0) return entries;
+  return entries.filter(
+    (entry) =>
+      entry.kind !== "work" ||
+      entry.entry.itemType === "approval_request" ||
+      !gatedRefs.has(refKey(entry.entry) ?? ""),
+  );
+}
+
 function deriveTimelineTurnFolds(
   input: Pick<
     MessagesTimelineRowsInput,
@@ -1401,7 +1425,6 @@ export function deriveMessagesTimelineRows(input: {
   availableRevertTurnCounts?: ReadonlySet<number> | undefined;
   worktreeSetup?: WorktreeSetupSnapshot | null;
 }): MessagesTimelineRow[] {
-  const timelineEntries = timelineRowEntries(input.timelineEntries);
   const isPendingApproval = (entry: WorkLogEntry) => {
     const item = entry.projectedItem?.item;
     return (
@@ -1409,6 +1432,10 @@ export function deriveMessagesTimelineRows(input: {
       input.pendingApprovalRequestIds?.has(item.requestId) === true
     );
   };
+  const timelineEntries = withoutApprovalGatedTools(
+    timelineRowEntries(input.timelineEntries),
+    isPendingApproval,
+  );
   const turnDiffSummaryByAssistantMessageId = new Map<MessageId, TurnDiffSummary>();
   for (const summary of input.turnDiffSummaries) {
     if (summary.assistantMessageId) {

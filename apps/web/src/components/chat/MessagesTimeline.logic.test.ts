@@ -180,10 +180,16 @@ describe("deriveMessagesTimelineRows", () => {
         parentItemId: null,
         status,
       };
+      const toolRef = {
+        driver: ProviderDriverKind.make("claudeAgent"),
+        nativeId: "toolu_1",
+        strength: "strong",
+      } as const;
       const items: OrchestrationV2ProjectedTurnItem["item"][] = [
         {
           ...common,
           id: TurnItemId.make("command"),
+          nativeItemRef: toolRef,
           type: "command_execution",
           input: "pwd",
           output: "",
@@ -191,6 +197,7 @@ describe("deriveMessagesTimelineRows", () => {
         {
           ...common,
           id: TurnItemId.make("approval"),
+          nativeItemRef: toolRef,
           type: "approval_request",
           requestId: RuntimeRequestId.make("approval-request"),
           requestKind: "command",
@@ -261,6 +268,13 @@ describe("deriveMessagesTimelineRows", () => {
           .filter((row) => row.kind === "work-live")
           .flatMap((row) => row.groupedEntries)
           .some((entry) => entry.itemType === "approval_request"),
+      ).toBe(false);
+      expect(
+        pendingRows.some(
+          (row) =>
+            (row.kind === "work" || row.kind === "work-live") &&
+            row.groupedEntries.some((entry) => entry.itemType === "command_execution"),
+        ),
       ).toBe(false);
       const approvalOnlyRows = deriveMessagesTimelineRows({
         timelineEntries: entries.slice(1, 2),
