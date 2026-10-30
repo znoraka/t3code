@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-const SOUND_SECONDS = 0.6;
-
-const audio = { currentTime: 0, started: 0 };
+const audio = { currentTime: 0, notes: [] as number[] };
 
 class FakeAudioContext {
   state = "running";
@@ -13,17 +11,20 @@ class FakeAudioContext {
   resume() {
     return Promise.resolve();
   }
-  decodeAudioData() {
-    return Promise.resolve({ duration: SOUND_SECONDS });
+  createGain() {
+    return { gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} };
   }
-  createBufferSource() {
-    return {
-      buffer: null,
+  createOscillator() {
+    const oscillator = {
+      type: "",
+      frequency: { value: 0 },
       connect() {},
       start() {
-        audio.started += 1;
+        audio.notes.push(oscillator.frequency.value);
       },
+      stop() {},
     };
+    return oscillator;
   }
 }
 
@@ -36,12 +37,8 @@ async function loadUnlocked() {
 beforeEach(() => {
   vi.resetModules();
   audio.currentTime = 0;
-  audio.started = 0;
+  audio.notes = [];
   vi.stubGlobal("AudioContext", FakeAudioContext);
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => ({ arrayBuffer: async () => new ArrayBuffer(0) })),
-  );
 });
 
 afterEach(() => {
@@ -52,28 +49,26 @@ describe("playNotificationSound", () => {
   it("plays one sound for threads that complete together", async () => {
     const { playNotificationSound } = await loadUnlocked();
 
-    await Promise.all(
-      Array.from({ length: 4 }, () => playNotificationSound("completion", () => true)),
-    );
+    for (let index = 0; index < 4; index += 1) playNotificationSound("completion", () => true);
 
-    expect(audio.started).toBe(1);
+    expect(audio.notes).toEqual([659.25, 523.25]);
   });
 
   it("still plays an input alert over a completion sound", async () => {
     const { playNotificationSound } = await loadUnlocked();
-    await playNotificationSound("completion", () => true);
+    playNotificationSound("completion", () => true);
 
-    await playNotificationSound("input", () => true);
+    playNotificationSound("input", () => true);
 
-    expect(audio.started).toBe(2);
+    expect(audio.notes).toEqual([659.25, 523.25, 523.25, 659.25]);
   });
 
   it("leaves the slot free when a sound is turned off before it plays", async () => {
     const { playNotificationSound } = await loadUnlocked();
-    await playNotificationSound("completion", () => false);
+    playNotificationSound("completion", () => false);
 
-    await playNotificationSound("completion", () => true);
+    playNotificationSound("completion", () => true);
 
-    expect(audio.started).toBe(1);
+    expect(audio.notes).toEqual([659.25, 523.25]);
   });
 });

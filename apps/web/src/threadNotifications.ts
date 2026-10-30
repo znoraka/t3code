@@ -1,9 +1,6 @@
 import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import type { ClientSettings } from "@t3tools/contracts/settings";
 
-import completionUrl from "./assets/notification-completion.mp3";
-import inputUrl from "./assets/notification-input.mp3";
-
 type NotificationMode = ClientSettings["notificationMode"];
 export const NOTIFICATION_MODE_LABELS = {
   off: "Off",
@@ -81,9 +78,16 @@ export function setNotificationBadge(count: number) {
 }
 
 let audioContext: AudioContext | undefined;
-const buffers = new Map<string, Promise<AudioBuffer>>();
 /** When each sound's current playback ends, on the audio context's clock. */
 const playingUntil = new Map<string, number>();
+
+// [FORK] lempire: our two-note chimes instead of upstream's recorded sounds.
+const CHIMES = {
+  completion: [659.25, 523.25],
+  input: [523.25, 659.25],
+} satisfies Record<"completion" | "input", ReadonlyArray<number>>;
+const NOTE_SECONDS = 0.12;
+const NOTE_GAP_SECONDS = 0.05;
 
 /** Called from a gesture so browsers allow later background playback. */
 export function unlockNotificationAudio() {
@@ -91,31 +95,26 @@ export function unlockNotificationAudio() {
   void audioContext.resume().catch(() => undefined);
 }
 
-export async function playNotificationSound(
-  kind: "completion" | "input",
-  shouldPlay: () => boolean,
-) {
-  if (!audioContext || audioContext.state !== "running") return;
+export function playNotificationSound(kind: "completion" | "input", shouldPlay: () => boolean) {
+  if (!audioContext || audioContext.state !== "running" || !shouldPlay()) return;
   const context = audioContext;
-  const url = kind === "completion" ? completionUrl : inputUrl;
-  try {
-    let buffer = buffers.get(url);
-    if (!buffer) {
-      buffer = fetch(url)
-        .then((response) => response.arrayBuffer())
-        .then((data) => context.decodeAudioData(data));
-      buffers.set(url, buffer);
-    }
-    const decoded = await buffer;
-    if (!shouldPlay() || context.state !== "running") return;
-    // Coalesce same-sound bursts after decode to avoid clipping; input and completion alerts keep separate slots.
-    if (context.currentTime < (playingUntil.get(url) ?? 0)) return;
-    const source = context.createBufferSource();
-    source.buffer = decoded;
-    source.connect(context.destination);
-    source.start();
-    playingUntil.set(url, context.currentTime + decoded.duration);
-  } catch {
-    buffers.delete(url);
-  }
+  const now = context.currentTime;
+  // Coalesce same-sound bursts to avoid clipping; input and completion alerts keep separate slots.
+  if (now < (playingUntil.get(kind) ?? 0)) return;
+  const notes = CHIMES[kind];
+  notes.forEach((frequency, index) => {
+    const start = now + index * (NOTE_SECONDS + NOTE_GAP_SECONDS);
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.value = frequency;
+    gain.gain.setValueAtTime(0.3, start);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + NOTE_SECONDS);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(start);
+    oscillator.stop(start + NOTE_SECONDS);
+  });
+  playingUntil.set(kind, now + notes.length * (NOTE_SECONDS + NOTE_GAP_SECONDS));
 }
+// [FORK] end

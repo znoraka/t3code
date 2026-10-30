@@ -47,7 +47,6 @@ import {
   selectProjectGroupingSettings,
 } from "@t3tools/client-runtime/state/project-grouping";
 import { useUiStateStore } from "../uiStateStore";
-import { useNotificationSounds } from "../hooks/useNotificationSounds";
 import { PendingLinksBootstrap } from "../_lempire/agentReview/PendingLinksBootstrap";
 import { configureClientTracing } from "../observability/clientTracing";
 import { resolveInitialServerAuthGateState } from "../environments/primary";
@@ -200,7 +199,6 @@ function RootRouteBranch() {
         hostedStatic={authGateState.status === "hosted-static"}
       >
         {/* [FORK] lempire */}
-        {primaryEnvironmentAuthenticated ? <NotificationSoundsBootstrap /> : null}
         {primaryEnvironmentAuthenticated ? <PendingLinksBootstrap /> : null}
         {/* [FORK] end */}
         {primaryEnvironmentAuthenticated ? <DesktopAppActivationCoordinator /> : null}
@@ -298,11 +296,6 @@ function errorDetails(error: unknown): string {
   } catch {
     return "No additional error details are available.";
   }
-}
-
-function NotificationSoundsBootstrap() {
-  useNotificationSounds();
-  return null;
 }
 
 const MAX_ERROR_CAUSE_DEPTH = 5;
