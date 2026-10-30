@@ -50,6 +50,7 @@ import { useProjects } from "~/state/entities";
 import { useEnvironments } from "~/state/environments";
 import { usePullRequestList } from "~/state/pullRequests";
 
+import { PullRequestLayoutToggle } from "./PullRequestLayoutToggle";
 import { usePrViewStore } from "./prViewStore";
 import { useRowReviewBadges } from "./useRowReviewBadges";
 
@@ -540,8 +541,8 @@ const PullRequestsList = memo(function PullRequestsList() {
   return (
     <SidebarContent>
       <SidebarGroup className="p-0">
-        {projects.length > 1 && activeProjectKey ? (
-          <div className="border-b border-border/50 px-3 py-2">
+        <div className="flex items-center gap-1 border-b border-border/50 px-3 py-2">
+          {projects.length > 1 && activeProjectKey ? (
             <Select
               value={activeProjectKey}
               onValueChange={handleProjectChange}
@@ -566,8 +567,11 @@ const PullRequestsList = memo(function PullRequestsList() {
                 })}
               </SelectPopup>
             </Select>
-          </div>
-        ) : null}
+          ) : (
+            <div className="flex-1" />
+          )}
+          <PullRequestLayoutToggle size="icon-xs" variant="ghost" />
+        </div>
         <div className="flex-1 overflow-hidden">
           {activeProject ? (
             <PullRequestListPanel

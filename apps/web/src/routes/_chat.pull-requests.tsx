@@ -1,6 +1,5 @@
-// [FORK] lempire: upstream's list-plus-panel page is replaced by the sidebar's pull-request
-// mode (see _lempire/pullRequests). Only the search contract survives here, since thread links
-// and the sidebar footer navigate with it.
+// [FORK] lempire: the page is the fork's (see _lempire/pullRequests), which renders either its
+// triage list or upstream's own page per the saved layout. The search contract is upstream's.
 
 import type { EnvironmentId, ProjectId } from "@t3tools/contracts";
 import { createFileRoute } from "@tanstack/react-router";

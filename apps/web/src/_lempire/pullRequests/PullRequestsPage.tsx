@@ -6,6 +6,7 @@ import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 
 import { PullRequestDetailPanel } from "~/components/pullRequest/PullRequestDetailPanel";
+import { PullRequestsPage as UpstreamPullRequestsPage } from "~/components/pullRequest/PullRequestsPage";
 import { isElectron } from "~/env";
 import type { ShortcutMatchContext } from "~/keybindings";
 import { SidebarInset } from "~/components/ui/sidebar";
@@ -13,6 +14,7 @@ import { useMediaQuery } from "~/hooks/useMediaQuery";
 import { cn } from "~/lib/utils";
 import { useProjects } from "~/state/entities";
 
+import { usePrViewStore } from "./prViewStore";
 import { PullRequestsListColumn } from "./PullRequestsListColumn";
 
 const route = getRouteApi("/_chat/pull-requests");
@@ -29,6 +31,11 @@ const NO_SURFACES_OPEN = {
 const getShortcutContext = () => NO_SURFACES_OPEN;
 
 export function PullRequestsPage() {
+  const layout = usePrViewStore((state) => state.layout);
+  return layout === "upstream" ? <UpstreamPullRequestsPage /> : <TriagePullRequestsPage />;
+}
+
+function TriagePullRequestsPage() {
   const search = route.useSearch();
   const navigate = useNavigate({ from: "/pull-requests" });
   const projects = useProjects();

@@ -14,6 +14,7 @@ import {
 import { WorkspacePageContainer } from "../WorkspacePageContainer";
 import { WorkspacePageHeader } from "../WorkspacePageHeader";
 import { workspaceAreaProps } from "../../lib/workspaceFocus";
+import { PullRequestLayoutToggle } from "../../_lempire/pullRequests/PullRequestLayoutToggle";
 import { PullRequestCompactFilterMenu } from "./PullRequestCompactFilterMenu";
 import type { PullRequestFilterOption } from "./PullRequestListFilters";
 import { INVOLVEMENT_TABS, STATE_TABS } from "./pullRequestListOptions";
@@ -253,6 +254,8 @@ export function PullRequestsColumn({
               {!condensed ? (
                 <PullRequestRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
               ) : null}
+              {/* [FORK] lempire: the way back to the fork's triage list. */}
+              <PullRequestLayoutToggle size="icon" variant="outline" />
             </div>
             <div ref={markerRef} aria-hidden className="-mt-3 h-px w-full" />
           </div>

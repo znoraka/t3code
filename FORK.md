@@ -98,6 +98,8 @@ Run `grep -rn '\[FORK\]' . --include='*.ts' --include='*.tsx'` to get the curren
 | `apps/mobile/src/features/threads/ThreadNavigationSidebar.tsx`   | Same wiring as HomeScreen — the iPad sidebar renders the same header and rows.                                    | Sidebar machine colors  |
 | `packages/shared/package.json`                                   | `exports` entry for `./_lempire/environmentColor`. JSON, carries no `[FORK]` comment — noted here instead.        | Sidebar machine colors  |
 | `apps/web/src/components/pullRequest/PullRequestDetailPanel.tsx` | "Review with agent" + variant radio + "Copy review prompt" in the actions menu, next to upstream's own handoffs.  | Agent review            |
+| `apps/web/src/components/pullRequest/PullRequestsColumn.tsx`     | `PullRequestLayoutToggle` in the toolbar: the way back from upstream's page to the triage list.                   | PR triage list          |
+| `apps/web/src/routes/_chat.pull-requests.tsx`                    | Renders the fork's `PullRequestsPage`, which picks triage list or upstream's page by saved layout.                | PR triage list          |
 | `apps/web/src/components/pullRequest/PullRequestSummaryTab.tsx`  | `AgentReviewCard` at the top of the scroll root; renders nothing for an unreviewed PR.                            | Agent review            |
 | `apps/web/src/routes/__root.tsx`                                 | Mounts `PendingLinksBootstrap`.                                                                                   | Agent review            |
 | `apps/web/src/threadNotifications.ts`                            | Plays the fork's two-note chimes instead of upstream's mp3s; upstream still decides when.                         | Notification chime      |
