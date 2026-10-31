@@ -116,7 +116,7 @@ in the final report that the OTA must be shipped from the Mac.
      bump it wrote, delete the partial `apps/mobile/dist/`, rerun.
 3. The push alone does **not** deploy (no git webhook). Trigger Coolify:
    ```
-   curl -X GET "https://coolify.gawaak.ovh/api/v1/deploy?uuid=$(cat ~/.config/coolify/t3code-deploy-uuid)" \
+   curl -X POST "https://coolify.gawaak.ovh/api/v1/deploy?uuid=$(cat ~/.config/coolify/t3code-deploy-uuid)" \
      -H "Authorization: Bearer $(cat ~/.config/coolify/token)"
    ```
    If either file is missing, ask the user for the value instead of guessing.
