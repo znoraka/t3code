@@ -7,7 +7,7 @@ import { useNativePaste } from "../../lib/useNativePaste";
 import { convertPastedImagesToAttachments } from "../../lib/composerImages";
 import { PROVIDER_SEND_TURN_MAX_ATTACHMENTS, type UserInputQuestion } from "@t3tools/contracts";
 import { useAtomValue } from "@effect/atom-react";
-import { View } from "react-native";
+import { View, type TextInputInstance } from "react-native";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { ComposerAttachmentButton } from "./ComposerAttachmentButton";
 import { ComposerAttachmentStrip } from "../../components/ComposerAttachmentStrip";
@@ -46,6 +46,8 @@ export function QuestionAttachments(props: {
   const configs = useServerConfigs();
   const drafts = useAtomValue(composerDraftsAtom);
   const focusedRef = useRef(false);
+  const inputRef = useRef<TextInputInstance>(null);
+  const typedRef = useRef(props.value);
   const onInputFocusChange = props.onInputFocusChange;
   // The caller keys this component by request and question, so unmounting ends any open
   // picker's scope.
@@ -58,6 +60,14 @@ export function QuestionAttachments(props: {
       scope.active = false;
     };
   }, []);
+  // A controlled value lags fast typing and snaps the cursor back, so the input owns its text.
+  // Picking an option is the only outside edit, and it only ever clears the answer.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- pushes the option-tap clear into the uncontrolled native input
+  useEffect(() => {
+    if (props.value !== "" || typedRef.current === "") return;
+    typedRef.current = "";
+    inputRef.current?.clear();
+  }, [props.value]);
   // Unmounted inputs never emit onBlur; explicitly release keyboard ownership.
   const releaseFocus = useEffectEvent(() => {
     if (focusedRef.current) onInputFocusChange?.(false);
@@ -195,11 +205,15 @@ export function QuestionAttachments(props: {
       <VideoPreviewModal source={previewVideo} onRequestClose={() => setPreviewVideo(null)} />
       <TextInputWrapper onPaste={paste}>
         <TextInput
-          value={props.value}
+          ref={inputRef}
+          defaultValue={props.value}
           multiline={props.question.initialAnswer !== undefined}
           submitBehavior={props.question.initialAnswer !== undefined ? "newline" : undefined}
           editable={!props.disabled}
-          onChangeText={props.onChangeText}
+          onChangeText={(value) => {
+            typedRef.current = value;
+            props.onChangeText(value);
+          }}
           onFocus={() => {
             focusedRef.current = true;
             onInputFocusChange?.(true);
