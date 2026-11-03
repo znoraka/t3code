@@ -8,7 +8,10 @@ until you send or dismiss it.
 
 Guest links are a beta. Turn on **Settings → Labs → Guest links** for the machine that runs the
 thread. They also need [T3 Connect](./remote-access.md): sign in and link that machine, because the
-link points at its T3 Connect address. The machine must stay online while the guest uses it.
+link points at its T3 Connect address. Without T3 Connect, set `T3CODE_GUEST_LINK_HOST` on that
+machine's server to the hostname of another HTTPS tunnel that reaches it, such as
+`t3.tunnel.example.com`; links use it whenever T3 Connect is not running. The machine must stay
+online while the guest uses it.
 While the setting is off, every guest link on that machine stops working; links that have not
 expired work again when you turn it back on.
 
