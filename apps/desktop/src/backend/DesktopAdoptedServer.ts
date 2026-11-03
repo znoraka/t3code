@@ -106,7 +106,7 @@ const isProcessAlive = (pid: number): boolean => {
   }
 };
 
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const config = yield* DesktopConfig.DesktopConfig;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const fileSystem = yield* FileSystem.FileSystem;

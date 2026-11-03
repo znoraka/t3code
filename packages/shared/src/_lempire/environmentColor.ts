@@ -1,49 +1,29 @@
-// [FORK] lempire: deterministic per-environment accent colors for the sidebar.
-//
-// One color per *machine* (environment), not per project: every project on the
-// same laptop/VPS shares a hue, so the color answers "where does this run?".
-//
-// The color is a pure function of the environment id, never stored. That
-// matters: the connection catalog is persisted per-device (IndexedDB on web,
-// secure storage on mobile) and does NOT sync, so any *stored* color would need
-// a sync channel that does not exist. Deriving instead means web and mobile
-// independently compute the same color for the same machine, for free — the
-// server mints `environmentId` once and every client copies it verbatim, so the
-// two platforms already agree on the input.
+// [FORK] lempire: per-machine accent colors, a pure function of the environment
+// id. Never store them: the connection catalog is per-device and does not sync,
+// so web and mobile must each derive the same color from the same id.
 
 /**
- * Mid-tone hues that stay legible against both the light and dark app
- * backgrounds. Rendering lightens these toward the foreground in dark mode and
- * darkens them in light mode (see `environmentAccentTextColor`), so the palette
- * is stored at the mid point rather than tuned for one theme.
- *
- * Ordering interleaves neighbouring hues so that adjacent palette indices stay
- * far apart on the color wheel — consecutive hash values look distinct.
+ * Mid-tone hues legible on light and dark backgrounds once mixed toward the
+ * foreground. Neighbouring hues are interleaved so consecutive hash values
+ * look distinct.
  */
 export const ENVIRONMENT_ACCENT_PALETTE: readonly string[] = [
-  "#8b5cf6", // violet
-  "#0891b2", // cyan
-  "#d97706", // amber
-  "#10b981", // emerald
-  "#f43f5e", // rose
-  "#3b82f6", // blue
-  "#f97316", // orange
-  "#14b8a6", // teal
-  "#ec4899", // pink
-  "#65a30d", // lime
-  "#6366f1", // indigo
-  "#0ea5e9", // sky
+  "#8b5cf6",
+  "#0891b2",
+  "#d97706",
+  "#10b981",
+  "#f43f5e",
+  "#3b82f6",
+  "#f97316",
+  "#14b8a6",
+  "#ec4899",
+  "#65a30d",
+  "#6366f1",
+  "#0ea5e9",
 ];
 
-/**
- * Fraction of the theme foreground blended into the accent for text. Pulls the
- * hue toward white on dark backgrounds and toward black on light ones, which is
- * what keeps a single palette readable in both themes.
- */
+/** Fraction of the theme foreground blended into the accent for text. */
 export const ENVIRONMENT_ACCENT_TEXT_MIX = 0.25;
-
-/** Peak opacity of the header wash gradient. */
-export const ENVIRONMENT_ACCENT_WASH_OPACITY = 0.16;
 
 /** FNV-1a (32-bit). Stable across platforms and JS engines — no crypto needed. */
 function hashKey(key: string): number {
@@ -57,14 +37,9 @@ function hashKey(key: string): number {
 }
 
 /**
- * The accent hue an environment *prefers*, as a `#rrggbb` string.
- *
- * Hashing alone cannot keep a sidebar's colors distinct — that is the birthday
- * problem, not bad luck: with a 12-color palette, ~62% of 5-machine sidebars
- * and ~95% of 8-machine ones contain a duplicate, and widening the palette
- * barely moves those odds. Prefer `assignEnvironmentAccentColors`, which starts
- * here and then resolves collisions. Exported for callers that genuinely want a
- * per-id pure function and can tolerate duplicates.
+ * The accent hue an environment *prefers*. Hashing alone duplicates colors often
+ * (a 12-color palette collides in ~62% of 5-machine sidebars), so prefer
+ * `assignEnvironmentAccentColors`, which starts here and resolves collisions.
  */
 export function environmentAccentColor(environmentId: string): string {
   const palette = ENVIRONMENT_ACCENT_PALETTE;
@@ -105,24 +80,10 @@ function hueDistance(left: number, right: number): number {
 }
 
 /**
- * Assign a visually distinct accent color to each environment id.
- *
- * Distinct *palette slots* are not the same as distinct *colors*: the palette
- * holds several greens, so picking slots by hash alone routinely lands four
- * machines on cyan/teal/emerald/lime — technically different, perceptually one
- * color, and useless for telling machines apart. So instead of probing to the
- * next free slot, each machine after the first takes the unused color whose hue
- * is farthest from every hue already taken. Two machines land ~180° apart,
- * three ~120°, and so on.
- *
- * The first machine still takes its hashed preference, which keeps the palette
- * anchored to the ids rather than to list position.
- *
- * Assignment runs over the ids *sorted*, not in display order, so re-sorting
- * the sidebar never reshuffles colors. Connecting or removing a machine still
- * can, which is the price of guaranteed distinctness — see the FORK.md notes.
- * Past `ENVIRONMENT_ACCENT_PALETTE.length` machines the palette is exhausted and
- * colors repeat; the group name still disambiguates.
+ * Assign a visually distinct color per id: after the first (hashed) machine, each
+ * takes the unused color whose hue is farthest from those taken. Ids are sorted,
+ * so re-sorting the sidebar never reshuffles colors; past the palette size,
+ * colors repeat.
  */
 export function assignEnvironmentAccentColors(
   environmentIds: readonly string[],
@@ -232,20 +193,3 @@ export function environmentAccentTextColor(accentColor: string, foregroundColor:
 export function environmentAccentGradientId(key: string): string {
   return `env-accent-${hashKey(key).toString(36)}`;
 }
-
-/**
- * Where each color sits along the header wash, as a 0..100 percentage.
- *
- * A row that lives on one machine gets that machine's color at 0% fading out —
- * the single-color case is exactly the original treatment. A row aggregated
- * across machines (the same repo on a laptop and a VPS) blends their colors
- * left to right, so the wash shows the row genuinely spans both rather than
- * silently picking one.
- */
-export function environmentAccentStopOffset(index: number, count: number): number {
-  const blendSpan = 55;
-  return count <= 1 ? 0 : (index / (count - 1)) * blendSpan;
-}
-
-/** Where the wash has fully faded out. */
-export const ENVIRONMENT_ACCENT_FADE_OFFSET = 85;

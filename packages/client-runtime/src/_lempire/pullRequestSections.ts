@@ -27,7 +27,7 @@ export function pullRequestRowKey(entry: {
   return `${(entry.host ?? "").toLowerCase()}:${entry.repository.toLowerCase()}#${entry.number}`;
 }
 
-export function byUpdatedAtDesc(a: PullRequestListEntry, b: PullRequestListEntry): number {
+function byUpdatedAtDesc(a: PullRequestListEntry, b: PullRequestListEntry): number {
   const left = a.updatedAt ? Date.parse(a.updatedAt) : 0;
   const right = b.updatedAt ? Date.parse(b.updatedAt) : 0;
   return right - left;
