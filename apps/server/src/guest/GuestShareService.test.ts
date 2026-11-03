@@ -17,6 +17,7 @@ import {
   ThreadId,
   TurnItemId,
 } from "@t3tools/contracts";
+import * as ConfigProvider from "effect/ConfigProvider";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
@@ -151,8 +152,12 @@ const layerTest = GuestShareService.layer.pipe(
 
 const threadId = ThreadId.make("thread:guest-share-service");
 
-const shareThreadFor = Effect.fn(function* (threadId: ThreadId) {
-  yield* Ref.set(hostname, "env.t3.test");
+const shareThreadFor = Effect.fn(function* (
+  threadId: ThreadId,
+  connectHost: string | null = "env.t3.test",
+  linkHost = connectHost,
+) {
+  yield* Ref.set(hostname, connectHost);
   const orchestrator = yield* Orchestrator.OrchestratorV2;
   yield* orchestrator.dispatch({
     type: "thread.create",
@@ -170,7 +175,7 @@ const shareThreadFor = Effect.fn(function* (threadId: ThreadId) {
   });
   const guestShares = yield* GuestShareService.GuestShareService;
   const { url } = yield* guestShares.create({ threadId });
-  assert.isTrue(url.startsWith("https://env.t3.test/guest#"));
+  assert.isTrue(url.startsWith(`https://${linkHost}/guest#`));
   const credential = url.slice(url.indexOf("#") + 1);
   return { orchestrator, guestShares, credential };
 });
@@ -314,6 +319,27 @@ it.effect("refuses guest requests once T3 Connect no longer serves the link's ho
     );
     assert.isTrue(Exit.isFailure(submitted));
   }).pipe(Effect.provide(layerTest)),
+);
+
+it.effect("points links at T3CODE_GUEST_LINK_HOST while T3 Connect serves no host", () =>
+  Effect.gen(function* () {
+    const { guestShares, credential } = yield* shareThreadFor(threadId, null, "t3.tunnel.example");
+    const { token: session } = yield* guestShares.redeem({ credential, name: "Sam" });
+    yield* Ref.set(hostname, "env.t3.test");
+    assert.equal((yield* Effect.flip(guestShares.check(session))).reason, "inactive");
+  }).pipe(
+    Effect.provide(
+      layerTest.pipe(
+        Layer.provide(
+          ConfigProvider.layer(
+            ConfigProvider.fromEnv({
+              env: { T3CODE_GUEST_LINK_HOST: "https://t3.tunnel.example/" },
+            }),
+          ),
+        ),
+      ),
+    ),
+  ),
 );
 
 it.effect("closes an open guest stream when T3 Connect stops serving the link's host", () =>

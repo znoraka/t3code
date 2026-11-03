@@ -1,11 +1,6 @@
-// [FORK] lempire: the review of record for a pull request, and whether it still
-// describes the branch.
-//
-// Reports come from the environment's plandrop lookup rather than from thread
-// messages, so a review counts wherever it ran. Staleness prefers the head
-// commit the review read; a report published before the uploader recorded one
-// falls back to the timestamp estimate below. Shared so the web card and the
-// mobile card cannot hold two opinions about what "stale" means.
+// [FORK] lempire: the review of record for a pull request, from the environment's
+// plandrop lookup so a review counts wherever it ran. Shared so the web and mobile
+// cards cannot disagree about what "stale" means.
 import type {
   PlandropListReportsResult,
   PlandropReport,
@@ -17,13 +12,9 @@ import type {
 const MIN_REVIEW_DURATION_MS = 15 * 60_000;
 
 /**
- * Epoch ms of the moment the review started looking at the code — the cutoff a
- * push has to beat to be covered. A review takes at least
- * `MIN_REVIEW_DURATION_MS`, so the report's own timestamp is far too late to
- * compare against: a push mid-review would look reviewed. Prefer a known start,
- * and never assume a run shorter than the floor (a "start" only a couple of
- * minutes before the report is some follow-up, not the beginning).
- * `NaN` when neither timestamp parses.
+ * Epoch ms when the review started looking at the code: the cutoff a push must
+ * beat. Never assumes a run shorter than `MIN_REVIEW_DURATION_MS`, since a push
+ * mid-review must not look reviewed. `NaN` when neither timestamp parses.
  */
 export function reviewStartedAt(finishedAt: string, startedAt: string | null): number {
   const finished = Date.parse(finishedAt);
@@ -102,10 +93,8 @@ export function resolveReviewOfRecord(input: {
 
 /**
  * What a card can honestly say about a pull request's review. An empty index is
- * only "nobody has reviewed this" when the environment actually answered: a
- * lookup still in flight, one the environment could not answer, and one the host
- * has no credential for each look identical in the data and must not be reported
- * as an unreviewed pull request.
+ * "unreviewed" only when the environment actually answered; in-flight, failed
+ * and unconfigured lookups must not be reported as unreviewed.
  */
 export type ReviewLookup =
   | { readonly state: "reviewed"; readonly review: PullRequestReview }
@@ -154,13 +143,11 @@ export interface ReviewRowBadge {
 }
 
 /**
- * The badge for one listed pull request. Staleness starts as a weaker claim than
- * the detail card's: a listing carries no commits, only `updatedAt`, which a
- * comment moves as surely as a push does. So a stale badge means "something
- * happened after this review" until the card has been opened and answered
- * properly, which `applyKnownReviewStaleness` folds back in.
+ * The badge for one listed pull request. A listing has only `updatedAt`, which a
+ * comment moves as surely as a push, so "stale" here means "something happened
+ * after this review" until `applyKnownReviewStaleness` folds in an exact answer.
  */
-export function resolveRowReviewBadge(report: PlandropReport, updatedAt: string): ReviewRowBadge {
+function resolveRowReviewBadge(report: PlandropReport, updatedAt: string): ReviewRowBadge {
   return {
     state: report.verdict?.state ?? null,
     stale: isReviewStale(updatedAt, reviewStartedAt(report.generatedAt, null)),
@@ -204,11 +191,9 @@ export function buildRowReviewBadges(
 }
 
 /**
- * What opening a pull request taught the list about its review. The detail holds
- * the branch's commits and can say exactly whether the report still describes
- * them; a row holds only `updatedAt`, which a comment moves as surely as a push
- * does — including the comment the review itself posts. So the detail's answer
- * is carried back, and outranks the row's estimate for as long as it applies.
+ * What opening a pull request taught the list: the detail can tell from commits
+ * whether the report still applies, so its answer outranks the row's
+ * `updatedAt` estimate for as long as it applies.
  */
 export interface KnownReviewStaleness {
   /** The report that was judged: a newer review arrives with its own question. */
@@ -226,12 +211,9 @@ function covers(answer: KnownReviewStaleness, badge: ReviewRowBadge): boolean {
 }
 
 /**
- * Badges with the exact answers folded in where one is known and still applies.
- * A row that has moved on since the detail read it keeps the estimate: whether
- * that movement was a push is precisely what the old answer cannot vouch for.
- *
- * Returns the very same map when nothing changed, so a list nobody has opened a
- * pull request from renders no differently for having asked.
+ * Badges with exact answers folded in where they still apply; a row that moved
+ * since the detail read it keeps the estimate. Returns the same map when nothing
+ * changed, so asking costs no re-render.
  */
 export function applyKnownReviewStaleness(
   badges: ReadonlyMap<string, ReviewRowBadge>,

@@ -5,7 +5,6 @@ import {
   ENVIRONMENT_ACCENT_PALETTE,
   environmentAccentColor,
   environmentAccentGradientId,
-  environmentAccentStopOffset,
   environmentAccentTextColor,
   mixHexColors,
 } from "./environmentColor.ts";
@@ -35,11 +34,11 @@ function hueGap(left: number, right: number): number {
 
 /** Server-issued environment ids — one per machine, as clients see them. */
 const MACHINE_IDS = [
-  "6f1c9b6e-2a1d-4f3b-9c8e-1a2b3c4d5e6f", // this mac
-  "b2c3d4e5-6f70-4812-93a4-b5c6d7e8f901", // vps
-  "c3d4e5f6-7081-4923-a4b5-c6d7e8f90123", // laptop-server-home
-  "d4e5f607-8192-4a34-b5c6-d7e8f9012345", // laptop-server-node
-  "e5f60718-92a3-4b45-c6d7-e8f901234567", // desktop
+  "6f1c9b6e-2a1d-4f3b-9c8e-1a2b3c4d5e6f",
+  "b2c3d4e5-6f70-4812-93a4-b5c6d7e8f901",
+  "c3d4e5f6-7081-4923-a4b5-c6d7e8f90123",
+  "d4e5f607-8192-4a34-b5c6-d7e8f9012345",
+  "e5f60718-92a3-4b45-c6d7-e8f901234567",
 ];
 
 describe("environmentAccentColor", () => {
@@ -166,31 +165,6 @@ describe("environmentAccentTextColor", () => {
     const redChannel = (hex: string) => Number.parseInt(hex.slice(1, 3), 16);
     expect(redChannel(onDark)).toBeGreaterThan(redChannel(accent));
     expect(redChannel(onLight)).toBeLessThan(redChannel(accent));
-  });
-});
-
-describe("environmentAccentStopOffset", () => {
-  it("keeps a single-machine row on the original treatment", () => {
-    expect(environmentAccentStopOffset(0, 1)).toBe(0);
-  });
-
-  it("spreads a two-machine row across the blend span", () => {
-    expect(environmentAccentStopOffset(0, 2)).toBe(0);
-    expect(environmentAccentStopOffset(1, 2)).toBe(55);
-  });
-
-  it("spaces three machines evenly", () => {
-    expect(environmentAccentStopOffset(0, 3)).toBe(0);
-    expect(environmentAccentStopOffset(1, 3)).toBeCloseTo(27.5);
-    expect(environmentAccentStopOffset(2, 3)).toBe(55);
-  });
-
-  it("never emits a stop past the fade point", () => {
-    for (let count = 1; count <= 8; count += 1) {
-      for (let index = 0; index < count; index += 1) {
-        expect(environmentAccentStopOffset(index, count)).toBeLessThan(85);
-      }
-    }
   });
 });
 

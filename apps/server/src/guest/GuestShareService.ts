@@ -22,6 +22,7 @@ import {
 } from "@t3tools/contracts";
 import { chatMarkdownImageSources } from "@t3tools/shared/markdownPipeline";
 import { htmlRenderFromToolItem } from "@t3tools/shared/toolOutput";
+import * as Config from "effect/Config";
 import * as Context from "effect/Context";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as DateTime from "effect/DateTime";
@@ -286,8 +287,14 @@ const make = Effect.gen(function* () {
       return decodeSessionClaims(base64UrlDecodeUtf8(parts.payload));
     });
 
-  const connectHostname = managedEndpoint.inspectConnector.pipe(
-    Effect.map((facts) => facts?.hostname ?? null),
+  // Fork: a self-hosted tunnel (burrow) can serve guest links when T3 Connect is not running.
+  const fallbackHostname =
+    (yield* Config.String("T3CODE_GUEST_LINK_HOST").pipe(Config.withDefault("")))
+      .trim()
+      .replace(/^https?:\/\//, "")
+      .replace(/\/+$/, "") || null;
+  const linkHostname = managedEndpoint.inspectConnector.pipe(
+    Effect.map((facts) => facts?.hostname ?? fallbackHostname),
   );
   // A beta: while it is off, no link opens and every guest request is refused.
   const sharingEnabled = serverSettings.getSettings.pipe(
@@ -335,7 +342,7 @@ const make = Effect.gen(function* () {
       thread.deletedAt !== null ||
       DateTime.toEpochMillis(now) >= Date.parse(share.expiresAt) ||
       (kind === "session" && share.guestName === null) ||
-      (yield* connectHostname) !== share.host
+      (yield* linkHostname) !== share.host
     ) {
       return yield* inactive;
     }
@@ -346,7 +353,7 @@ const make = Effect.gen(function* () {
     if (!(yield* sharingEnabled)) {
       return yield* new GuestShareCreateError({ reason: "disabled" });
     }
-    const host = yield* connectHostname;
+    const host = yield* linkHostname;
     if (host === null) {
       return yield* new GuestShareCreateError({ reason: "connect_unavailable" });
     }
@@ -605,7 +612,7 @@ const make = Effect.gen(function* () {
       // keeps the guest in. Turning the beta off closes it the same way. Closing and expiry end
       // it above, with `ended`.
       Stream.interruptWhen(
-        Effect.all([connectHostname, sharingEnabled]).pipe(
+        Effect.all([linkHostname, sharingEnabled]).pipe(
           Effect.repeat({
             schedule: Schedule.spaced(ACCESS_RECHECK_INTERVAL),
             until: ([host, enabled]) => host !== share.host || !enabled,
