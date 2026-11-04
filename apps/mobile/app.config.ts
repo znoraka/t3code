@@ -128,12 +128,9 @@ const EAS_PROJECT_ID =
   repoEnv.EAS_PROJECT_ID ??
   (EAS_OWNER === "pingdotgg" ? "d763fcb8-d37c-41ea-a773-b54a0ab4a454" : undefined);
 
-// Universal Links (applinks) + passkey/password autofill (webcredentials) domain.
-// These only validate when this domain's apple-app-site-association lists THIS app's
-// ID, so a fork must point it at a domain it controls (MOBILE_RELYING_PARTY) AND enable
-// the Associated Domains capability on its provisioning profile. Enabling the entitlement
-// without a matching profile fails code signing, so default it on only for the upstream
-// app; when unset, the associatedDomains entitlement is omitted entirely.
+// applinks/webcredentials validate only when the domain's apple-app-site-association lists
+// THIS app, and the entitlement fails code signing without a matching profile. Forks set
+// MOBILE_RELYING_PARTY to a domain they control; unset, associatedDomains is omitted.
 const RELYING_PARTY =
   repoEnv.MOBILE_RELYING_PARTY ?? (EAS_OWNER === "pingdotgg" ? "clerk.t3.codes" : undefined);
 
@@ -276,7 +273,11 @@ const buildConfig = (base: ConfigContext["config"]): ExpoConfig => ({
     appleTeamId: "ARK85ZXQ4Z",
     ...(RELYING_PARTY
       ? {
-          associatedDomains: [`applinks:${RELYING_PARTY}`, `webcredentials:${RELYING_PARTY}`],
+          associatedDomains: [
+            `applinks:${RELYING_PARTY}`,
+            `webcredentials:${RELYING_PARTY}`,
+            `applinks:${HOSTED_APP_HOST}`,
+          ],
         }
       : {}),
     entitlements: {
