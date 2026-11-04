@@ -1,12 +1,6 @@
 // [FORK] lempire: agent-review card at the top of upstream's PR summary tab.
-//
-// /test-and-review publishes its verdict to plandrop as a data-only `meta.json`
-// artifact, and plandrop indexes those by pull request. The environment reads
-// that index (see the server's `_lempire/PlandropReports`), so the card shows
-// the review of record for this PR even when the run happened on another
-// machine or in a thread nobody linked — which is the normal case. It renders a
-// verdict ribbon + crit/warn/good tiles, flagged stale when the branch moved
-// past the commit the review read, above the list of this PR's review threads.
+// Reads the environment's plandrop index (server `_lempire/PlandropReports`), so the
+// review of record shows even when it ran on another machine or an unlinked thread.
 import type { EnvironmentId, PlandropReport, PullRequestDetailView } from "@t3tools/contracts";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { useNavigate } from "@tanstack/react-router";
@@ -17,8 +11,10 @@ import {
   FileChartColumnIcon,
   HistoryIcon,
 } from "lucide-react";
-import { memo, useMemo } from "react";
+import { memo } from "react";
 
+import { Button } from "../../components/ui/button";
+import { RefreshIcon } from "../../components/ui/refresh-icon";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../../components/ui/tooltip";
 import { cn } from "../../lib/utils";
 import { sourceControlClients } from "@t3tools/client-runtime/source-control-clients";
@@ -70,7 +66,7 @@ function ReportTiles({ sources }: { sources: PlandropReport["sources"] }) {
             )}
           >
             <div className="text-lg font-bold tabular-nums">{count}</div>
-            <div className="text-[9px] font-semibold uppercase tracking-wider opacity-70">
+            <div className="text-3xs font-semibold uppercase tracking-wider opacity-70">
               {source.name} · {kind === "good" ? "Good" : kind === "warn" ? "Warn" : "Crit"}
             </div>
           </div>
@@ -84,12 +80,16 @@ const ReportCardBody = memo(function ReportCardBody({
   report,
   updatedAt,
   stalePushedAt,
+  refreshing,
+  onRefresh,
   onOpenExternal,
 }: {
   report: PlandropReport;
   updatedAt: string | null;
   /** Relative time of the push that outdated this review, or null when fresh. */
   stalePushedAt: string | null;
+  refreshing: boolean;
+  onRefresh: () => void;
   onOpenExternal?: ((url: string) => void) | undefined;
 }) {
   const open = () => {
@@ -101,60 +101,81 @@ const ReportCardBody = memo(function ReportCardBody({
   const verdict = report.verdict;
 
   return (
-    <button
-      type="button"
-      onClick={open}
-      className={cn(
-        "block w-full max-w-2xl overflow-hidden rounded-xl border text-left transition-colors",
-        isStale
-          ? "border-amber-500/40 hover:border-amber-500/60"
-          : "border-border/70 hover:border-border",
-      )}
-    >
-      <div className="flex items-center gap-1.5 px-3 py-2 text-[11px] text-muted-foreground">
-        <FileChartColumnIcon className="size-3.5 shrink-0" aria-hidden="true" />
-        <span className="font-medium">Your review of this PR</span>
-        {updatedAt ? <span>· {updatedAt}</span> : null}
-        {isStale ? (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-300">
-            <HistoryIcon className="size-2.5" aria-hidden="true" />
-            Stale
+    // The refresh control sits beside the card's open button, not inside it:
+    // buttons can't nest.
+    <div className="relative w-full max-w-2xl">
+      <button
+        type="button"
+        onClick={open}
+        className={cn(
+          "block w-full overflow-hidden rounded-xl border text-left transition-colors",
+          isStale
+            ? "border-warning/40 hover:border-warning/60"
+            : "border-border/70 hover:border-border",
+        )}
+      >
+        <div className="flex items-center gap-1.5 px-3 py-2 text-2xs text-muted-foreground">
+          <FileChartColumnIcon className="size-3.5 shrink-0" aria-hidden="true" />
+          <span className="font-medium">Your review of this PR</span>
+          {updatedAt ? <span>· {updatedAt}</span> : null}
+          {isStale ? (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-warning/30 bg-warning/10 px-1.5 py-0.5 text-3xs font-semibold uppercase tracking-wide text-warning-foreground">
+              <HistoryIcon className="size-2.5" aria-hidden="true" />
+              Stale
+            </span>
+          ) : null}
+          <span className="ml-auto mr-6 inline-flex items-center gap-1 text-muted-foreground/70">
+            plans.gawaak.ovh
+            <ExternalLinkIcon className="size-3" aria-hidden="true" />
           </span>
-        ) : null}
-        <span className="ml-auto inline-flex items-center gap-1 text-muted-foreground/70">
-          plans.gawaak.ovh
-          <ExternalLinkIcon className="size-3" aria-hidden="true" />
-        </span>
-      </div>
-      {/* Say it in words too — the badge alone doesn't explain why the numbers
+        </div>
+        {/* Say it in words too — the badge alone doesn't explain why the numbers
           below can't be trusted. */}
-      {isStale ? (
-        <div className="flex items-start gap-1.5 border-t border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-[11px] leading-snug text-amber-700 dark:text-amber-300">
-          <AlertTriangleIcon className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
-          <span>
-            New code was pushed {stalePushedAt}, after this review read the branch — it may not
-            cover the current state. Re-run it to be sure.
-          </span>
-        </div>
-      ) : null}
-      {verdict && verdict.label.length > 0 ? (
-        <div
-          className={cn(
-            "px-3 py-1.5 text-xs font-bold uppercase tracking-wider",
-            RIBBON_STYLES[verdict.state],
-            // A stale verdict shouldn't shout as loudly as a current one.
-            isStale && "opacity-60",
-          )}
-        >
-          {RIBBON_MARKS[verdict.state]} {verdict.label}
-        </div>
-      ) : null}
-      {report.sources.length > 0 ? (
-        <div className={cn(isStale && "opacity-60")}>
-          <ReportTiles sources={report.sources} />
-        </div>
-      ) : null}
-    </button>
+        {isStale ? (
+          <div className="flex items-start gap-1.5 border-t border-warning/20 bg-warning/10 px-3 py-1.5 text-2xs leading-snug text-warning-foreground">
+            <AlertTriangleIcon className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
+            <span>
+              New code was pushed {stalePushedAt}, after this review read the branch. It may not
+              cover the current state. Re-run it to be sure.
+            </span>
+          </div>
+        ) : null}
+        {verdict && verdict.label.length > 0 ? (
+          <div
+            className={cn(
+              "px-3 py-1.5 text-xs font-bold uppercase tracking-wider",
+              RIBBON_STYLES[verdict.state],
+              // A stale verdict shouldn't shout as loudly as a current one.
+              isStale && "opacity-60",
+            )}
+          >
+            {RIBBON_MARKS[verdict.state]} {verdict.label}
+          </div>
+        ) : null}
+        {report.sources.length > 0 ? (
+          <div className={cn(isStale && "opacity-60")}>
+            <ReportTiles sources={report.sources} />
+          </div>
+        ) : null}
+      </button>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost-muted"
+              size="icon-micro"
+              aria-label="Fetch the latest review"
+              disabled={refreshing}
+              onClick={onRefresh}
+              className="absolute top-1.5 right-2"
+            >
+              <RefreshIcon refreshing={refreshing} />
+            </Button>
+          }
+        />
+        <TooltipPopup side="bottom">Fetch the latest review</TooltipPopup>
+      </Tooltip>
+    </div>
   );
 });
 
@@ -163,7 +184,7 @@ function threadStatus(thread: EnvironmentThreadShell): { label: string; classNam
     return { label: "Running", className: "text-blue-500" };
   if (thread.runtime?.status === "failed") return { label: "Error", className: "text-destructive" };
   if (thread.hasPendingApprovals || thread.hasPendingUserInput) {
-    return { label: "Waiting", className: "text-amber-500" };
+    return { label: "Waiting", className: "text-warning" };
   }
   return { label: "Idle", className: "text-muted-foreground" };
 }
@@ -182,20 +203,17 @@ export function AgentReviewCard({
 }) {
   const allThreads = useThreadShells();
   const navigate = useNavigate();
-  const { lookup, retry } = useReviewOfRecord(environmentId, detail, activityPending);
+  const { lookup, refresh, refreshing } = useReviewOfRecord(environmentId, detail, activityPending);
 
   // Review threads are the ones linked to this PR (explicitly, or through the
   // branch they run on), newest first.
-  const reviewThreads = useMemo(() => {
-    const candidates = allThreads.filter((thread) => {
+  const reviewThreads = allThreads
+    .filter((thread) => {
       if (thread.environmentId !== environmentId || thread.archivedAt !== null) return false;
       const linked = thread.linkedPullRequest ?? thread.branchPullRequest;
       return linked != null && sourceControlClients.isSameChangeRequest(linked.url, detail.url);
-    });
-    return candidates.sort((a, b) =>
-      (b.updatedAt ?? b.createdAt).localeCompare(a.updatedAt ?? a.createdAt),
-    );
-  }, [allThreads, environmentId, detail.url]);
+    })
+    .sort((a, b) => (b.updatedAt ?? b.createdAt).localeCompare(a.updatedAt ?? a.createdAt));
 
   // A lookup that failed is worth a line: silence here reads as "nobody has
   // reviewed this", which is the one thing a failed lookup cannot tell you.
@@ -209,6 +227,8 @@ export function AgentReviewCard({
           report={lookup.review.report}
           updatedAt={relativeTime(lookup.review.report.generatedAt)}
           stalePushedAt={relativeTime(lookup.review.stalePushedAt)}
+          refreshing={refreshing}
+          onRefresh={refresh}
           onOpenExternal={onOpenExternal}
         />
       ) : lookup.state === "unavailable" ? (
@@ -217,13 +237,10 @@ export function AgentReviewCard({
             render={
               <button
                 type="button"
-                onClick={retry}
+                onClick={refresh}
                 className="flex items-center gap-2 rounded-md px-2 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/50"
               >
-                <AlertTriangleIcon
-                  className="size-3.5 shrink-0 text-amber-500"
-                  aria-hidden="true"
-                />
+                <AlertTriangleIcon className="size-3.5 shrink-0 text-warning" aria-hidden="true" />
                 <span className="min-w-0 flex-1 truncate">
                   Could not check whether this pull request has been reviewed.
                 </span>
@@ -253,10 +270,10 @@ export function AgentReviewCard({
                 <span className="min-w-0 flex-1 truncate font-medium text-foreground">
                   {thread.title}
                 </span>
-                <span className={cn("shrink-0 text-[11px] font-medium", status.className)}>
+                <span className={cn("shrink-0 text-2xs font-medium", status.className)}>
                   {status.label}
                 </span>
-                <span className="shrink-0 text-[11px] text-muted-foreground">
+                <span className="shrink-0 text-2xs text-muted-foreground">
                   {relativeTime(thread.updatedAt ?? thread.createdAt)}
                 </span>
               </button>

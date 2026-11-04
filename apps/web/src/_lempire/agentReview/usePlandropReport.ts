@@ -1,11 +1,6 @@
-// [FORK] lempire: the review of record for a pull request, read over this
-// client's socket.
-//
-// Reports come from the environment's plandrop lookup rather than from thread
-// messages, so a review counts wherever it ran. The decision itself — newest
-// report, whether the branch has moved past the commit it read, and what an
-// empty or failed answer is allowed to claim — is shared with the mobile card in
-// `@t3tools/client-runtime/_lempire/review-of-record`.
+// [FORK] lempire: the review of record for a pull request, read from the environment's
+// plandrop lookup so a review counts wherever it ran. The decision logic is shared with
+// mobile in `@t3tools/client-runtime/_lempire/review-of-record`.
 import {
   createPlandropReportsAtomFamily,
   REPORTS_STALE_TIME_MS,
@@ -18,7 +13,7 @@ import {
 } from "@t3tools/client-runtime/_lempire/review-of-record";
 import { recordReviewStaleness } from "@t3tools/client-runtime/_lempire/review-staleness-store";
 import type { EnvironmentId, PullRequestDetailView } from "@t3tools/contracts";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import { connectionAtomRuntime } from "../../connection/runtime";
 import { useEnvironmentQuery } from "../../state/query";
@@ -36,9 +31,11 @@ export type { PullRequestReview, ReviewLookup };
 function useRefreshWhenVisible(refresh: () => void): void {
   const lastRefreshedAtRef = useRef(0);
   // Mount reads through the atom's own revalidation: the window starts there.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- stamps the mount time read by the visibility listener
   useEffect(() => {
     lastRefreshedAtRef.current = Date.now();
   }, []);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes to document visibilitychange
   useEffect(() => {
     const onVisibilityChange = () => {
       if (document.visibilityState !== "visible") return;
@@ -57,30 +54,30 @@ export function useReviewOfRecord(
   detail: PullRequestDetailView,
   /** Commits ride on the activity half of the detail; no verdict on staleness until it lands. */
   activityPending: boolean,
-): { readonly lookup: ReviewLookup; readonly retry: () => void } {
+): {
+  readonly lookup: ReviewLookup;
+  readonly refresh: () => void;
+  readonly refreshing: boolean;
+} {
   const query = useEnvironmentQuery(
     plandropReportsAtom({
       environmentId,
       input: { repository: detail.repository, number: detail.number },
     }),
   );
-  const { data, error, refresh } = query;
+  const { data, error, refresh, isPending } = query;
   useRefreshWhenVisible(refresh);
 
-  const lookup = useMemo(
-    () =>
-      resolveReviewLookup({
-        result: data,
-        error,
-        commits: detail.commits,
-        activityPending,
-      }),
-    [data, error, detail.commits, activityPending],
-  );
+  const lookup = resolveReviewLookup({
+    result: data,
+    error,
+    commits: detail.commits,
+    activityPending,
+  });
 
   useAnswerRowBadge(lookup, detail);
 
-  return { lookup, retry: refresh };
+  return { lookup, refresh, refreshing: isPending };
 }
 
 /**
@@ -91,6 +88,7 @@ export function useReviewOfRecord(
  */
 function useAnswerRowBadge(lookup: ReviewLookup, detail: PullRequestDetailView): void {
   const { repository, number, updatedAt } = detail;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- writes this page's answer to the list's external badge store
   useEffect(() => {
     if (lookup.state !== "reviewed" || !lookup.review.exact) return;
     recordReviewStaleness(reviewBadgeKey({ repository, number }), {
