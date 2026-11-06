@@ -9,7 +9,10 @@ private final class WorkspaceTabBar: UITabBar {
     // iOS 26.6 doesn't copy item identifiers onto its tab buttons; the bar holds no other controls.
     // iOS 27 tags item views that aren't UIControls, so identifiers match any view class.
     let identified = tabButtons(in: self) { $0.accessibilityIdentifier?.hasPrefix("workspace-tab-") == true }
-    let buttons = identified.isEmpty ? tabButtons(in: self) { $0 is UIControl } : identified
+    let candidates = identified.isEmpty ? tabButtons(in: self) { $0 is UIControl } : identified
+    // Pressing a tab adds a magnified copy of the row for the glass lens, without identifiers.
+    // Sizing compose from it leaves compose enlarged until the bar lays out again.
+    let buttons = candidates.filter { convert($0.bounds, from: $0).size == $0.bounds.size }
     let row = buttons.reduce(CGRect.null) { $0.union(convert($1.bounds, from: $1)) }
     // Without a row, Compose keeps a zero frame: its icon still draws, but no touch can reach it.
     let content = bounds.inset(by: UIEdgeInsets(top: 0, left: 0, bottom: safeAreaInsets.bottom, right: 0))

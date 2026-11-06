@@ -1,3 +1,4 @@
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import { assert, describe, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
@@ -81,7 +82,7 @@ describe("DesktopLocalEnvironmentAuth", () => {
         ]),
       } as unknown as DesktopBackendPool.DesktopBackendPool["Service"]);
       const layerTest = DesktopLocalEnvironmentAuth.layer.pipe(
-        Layer.provide(Layer.mergeAll(layerPool, layerHttpClient, DesktopAdoptedServer.layerTest())),
+        Layer.provide(Layer.mergeAll(layerPool, layerHttpClient, NodeCrypto.layerMac, DesktopAdoptedServer.layerTest())),
       );
 
       const [first, second] = yield* Effect.gen(function* () {
@@ -152,16 +153,17 @@ describe("DesktopLocalEnvironmentAuth", () => {
         }).pipe(
           Effect.provide(
             DesktopLocalEnvironmentAuth.layer.pipe(
-              Layer.provide(
-                Layer.mergeAll(poolLayer, httpClientLayer, DesktopAdoptedServer.layerTest()),
-              ),
+              Layer.provide(Layer.mergeAll(poolLayer, httpClientLayer, NodeCrypto.layerMac, DesktopAdoptedServer.layerTest())),
             ),
           ),
         );
 
         assert.strictEqual(
           yield* Ref.get(presented),
-          currentDesktopBootstrapToken("desktop-secret", DESKTOP_BOOTSTRAP_TOKEN_WINDOW_MS * 2 + 1),
+          yield* currentDesktopBootstrapToken(
+            "desktop-secret",
+            DESKTOP_BOOTSTRAP_TOKEN_WINDOW_MS * 2 + 1,
+          ).pipe(Effect.provide(NodeCrypto.layerMac)),
         );
       }).pipe(Effect.provide(TestClock.layer())),
   );
@@ -208,9 +210,7 @@ describe("DesktopLocalEnvironmentAuth", () => {
       const auth = yield* DesktopLocalEnvironmentAuth.DesktopLocalEnvironmentAuth.pipe(
         Effect.provide(
           DesktopLocalEnvironmentAuth.layer.pipe(
-            Layer.provide(
-              Layer.mergeAll(layerPool, layerHttpClient, DesktopAdoptedServer.layerTest()),
-            ),
+            Layer.provide(Layer.mergeAll(layerPool, layerHttpClient, NodeCrypto.layerMac, DesktopAdoptedServer.layerTest())),
           ),
         ),
       );

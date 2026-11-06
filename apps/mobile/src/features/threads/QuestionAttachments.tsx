@@ -46,8 +46,6 @@ export function QuestionAttachments(props: {
   const configs = useServerConfigs();
   const drafts = useAtomValue(composerDraftsAtom);
   const focusedRef = useRef(false);
-  const inputRef = useRef<TextInputInstance>(null);
-  const typedRef = useRef(props.value);
   const onInputFocusChange = props.onInputFocusChange;
   // The caller keys this component by request and question, so unmounting ends any open
   // picker's scope.
@@ -60,20 +58,24 @@ export function QuestionAttachments(props: {
       scope.active = false;
     };
   }, []);
-  // A controlled value lags fast typing and snaps the cursor back, so the input owns its text.
-  // Picking an option is the only outside edit, and it only ever clears the answer.
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- pushes the option-tap clear into the uncontrolled native input
-  useEffect(() => {
-    if (props.value !== "" || typedRef.current === "") return;
-    typedRef.current = "";
-    inputRef.current?.clear();
-  }, [props.value]);
   // Unmounted inputs never emit onBlur; explicitly release keyboard ownership.
   const releaseFocus = useEffectEvent(() => {
     if (focusedRef.current) onInputFocusChange?.(false);
   });
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- releases keyboard ownership on unmount, since an unmounted native input never emits blur
   useEffect(() => () => releaseFocus(), []);
+  // A controlled value makes Fabric rebuild the native text on every keystroke, which discards
+  // iOS's pending autocorrection. The input owns its text; the only outside write is an option
+  // selection clearing the draft.
+  const inputRef = useRef<TextInputInstance>(null);
+  const [initialText] = useState(props.value);
+  const nativeText = useRef(props.value);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- pushes an option selection's cleared draft into the uncontrolled native input
+  useEffect(() => {
+    if (props.value !== "" || nativeText.current === "") return;
+    nativeText.current = "";
+    inputRef.current?.clear();
+  }, [props.value]);
   const append = (
     key: string,
     attachments: Parameters<typeof appendComposerDraftAttachments>[1],
@@ -206,13 +208,13 @@ export function QuestionAttachments(props: {
       <TextInputWrapper onPaste={paste}>
         <TextInput
           ref={inputRef}
-          defaultValue={props.value}
+          defaultValue={initialText}
           multiline={props.question.initialAnswer !== undefined}
           submitBehavior={props.question.initialAnswer !== undefined ? "newline" : undefined}
           editable={!props.disabled}
-          onChangeText={(value) => {
-            typedRef.current = value;
-            props.onChangeText(value);
+          onChangeText={(text) => {
+            nativeText.current = text;
+            props.onChangeText(text);
           }}
           onFocus={() => {
             focusedRef.current = true;
