@@ -1,13 +1,7 @@
 // [FORK] lempire: the plandrop review report index, read for one pull request.
-//
-// /test-and-review uploads its verdict as a data-only `meta.json` artifact and
-// plandrop indexes those by pull request, so `GET /api/reports?repo&number`
-// answers "has this PR been reviewed" even when the run happened on another
-// machine or in a thread nobody linked. The index needs the host's plandrop
-// bearer token (`~/.plandrop/config.json`, written by the plandrop installer),
-// which is why the lookup lives here instead of in the client: the token never
-// leaves the environment, and every client — web, desktop, mobile, remote —
-// gets the answer through the socket it already has.
+// Lives on the server because the index needs the host's plandrop bearer token
+// (`~/.plandrop/config.json`); the token never leaves the environment, and every
+// client gets the answer through the socket it already has.
 import {
   PlandropUnavailableError,
   type PlandropListReportsInput,
@@ -16,6 +10,7 @@ import {
   type PlandropReportsInput,
   type PlandropReportsResult,
 } from "@t3tools/contracts";
+import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
@@ -141,8 +136,11 @@ interface PlandropCredential {
 const readCredential = Effect.fn("_lempire.plandropCredential")(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const configPath =
-    process.env[CONFIG_PATH_ENV] ?? path.join(NodeOS.homedir(), ".plandrop", "config.json");
+  const defaultPath = path.join(NodeOS.homedir(), ".plandrop", "config.json");
+  const configPath = yield* Config.String(CONFIG_PATH_ENV).pipe(
+    Config.withDefault(defaultPath),
+    Effect.orElseSucceed(() => defaultPath),
+  );
   const raw = yield* fileSystem.readFileString(configPath).pipe(Effect.orElseSucceed(() => null));
   if (raw === null) return null;
   const config = yield* decodeConfig(raw).pipe(Effect.orElseSucceed(() => null));

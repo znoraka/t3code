@@ -510,10 +510,7 @@ const RootStackConfig = createWorkspaceStackNavigator({
     PullRequests: createNativeStackScreen({
       screen: PullRequestsRouteScreen,
       linking: "pull-requests",
-      options: {
-        ...GLASS_HEADER_OPTIONS,
-        title: "Pull Requests",
-      },
+      options: pageRoute({ title: "Pull Requests", duoMinimize: "never" }),
     }),
     // [FORK] end
     PullRequest: createNativeStackScreen({

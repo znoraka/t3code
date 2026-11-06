@@ -1550,10 +1550,7 @@ export function deriveMessagesTimelineRows(input: {
       input.pendingApprovalRequestIds?.has(item.requestId) === true
     );
   };
-  const timelineEntries = withoutApprovalGatedTools(
-    timelineRowEntries(input),
-    isPendingApproval,
-  );
+  const timelineEntries = withoutApprovalGatedTools(timelineRowEntries(input), isPendingApproval);
   const turnDiffSummaryByAssistantMessageId = new Map<MessageId, TurnDiffSummary>();
   for (const summary of input.turnDiffSummaries) {
     if (summary.assistantMessageId) {

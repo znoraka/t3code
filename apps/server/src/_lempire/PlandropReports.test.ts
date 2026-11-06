@@ -1,5 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import type { PlatformError } from "effect/PlatformError";
@@ -54,14 +55,10 @@ const withConfig = <A, E, R>(
     if (config !== null) {
       yield* fileSystem.writeFileString(configPath, JSON.stringify(config));
     }
-    const previous = process.env[CONFIG_PATH_ENV];
-    process.env[CONFIG_PATH_ENV] = configPath;
-    return yield* Effect.ensuring(
-      use,
-      Effect.sync(() => {
-        if (previous === undefined) delete process.env[CONFIG_PATH_ENV];
-        else process.env[CONFIG_PATH_ENV] = previous;
-      }),
+    return yield* use.pipe(
+      Effect.provide(
+        ConfigProvider.layer(ConfigProvider.fromEnv({ env: { [CONFIG_PATH_ENV]: configPath } })),
+      ),
     );
   }).pipe(Effect.scoped);
 

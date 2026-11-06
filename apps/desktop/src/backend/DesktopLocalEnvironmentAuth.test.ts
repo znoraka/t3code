@@ -82,7 +82,14 @@ describe("DesktopLocalEnvironmentAuth", () => {
         ]),
       } as unknown as DesktopBackendPool.DesktopBackendPool["Service"]);
       const layerTest = DesktopLocalEnvironmentAuth.layer.pipe(
-        Layer.provide(Layer.mergeAll(layerPool, layerHttpClient, NodeCrypto.layerMac, DesktopAdoptedServer.layerTest())),
+        Layer.provide(
+          Layer.mergeAll(
+            layerPool,
+            layerHttpClient,
+            NodeCrypto.layerMac,
+            DesktopAdoptedServer.layerTest(),
+          ),
+        ),
       );
 
       const [first, second] = yield* Effect.gen(function* () {
@@ -153,7 +160,14 @@ describe("DesktopLocalEnvironmentAuth", () => {
         }).pipe(
           Effect.provide(
             DesktopLocalEnvironmentAuth.layer.pipe(
-              Layer.provide(Layer.mergeAll(poolLayer, httpClientLayer, NodeCrypto.layerMac, DesktopAdoptedServer.layerTest())),
+              Layer.provide(
+                Layer.mergeAll(
+                  poolLayer,
+                  httpClientLayer,
+                  NodeCrypto.layerMac,
+                  DesktopAdoptedServer.layerTest(),
+                ),
+              ),
             ),
           ),
         );
@@ -210,7 +224,14 @@ describe("DesktopLocalEnvironmentAuth", () => {
       const auth = yield* DesktopLocalEnvironmentAuth.DesktopLocalEnvironmentAuth.pipe(
         Effect.provide(
           DesktopLocalEnvironmentAuth.layer.pipe(
-            Layer.provide(Layer.mergeAll(layerPool, layerHttpClient, NodeCrypto.layerMac, DesktopAdoptedServer.layerTest())),
+            Layer.provide(
+              Layer.mergeAll(
+                layerPool,
+                layerHttpClient,
+                NodeCrypto.layerMac,
+                DesktopAdoptedServer.layerTest(),
+              ),
+            ),
           ),
         ),
       );
