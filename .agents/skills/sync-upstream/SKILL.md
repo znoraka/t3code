@@ -50,8 +50,8 @@ Hard rules (non-negotiable):
 5. If a native mobile build looks likely (Phase 2), check disk space now:
    `df -h /System/Volumes/Data` — the local EAS build needs **~15 GB free**.
    ENOSPC shows up obliquely (pod install rsync errors, `libtool: error
-writing file`, 7z "errno=28"). Reclaim order if short: `corepack
-pnpm@11.10.0 store prune`, old `release/*.dmg` + `apps/mobile/build-*.ipa`
+   writing file`, 7z "errno=28"). Reclaim order if short: `corepack
+   pnpm@11.10.0 store prune`, old `release/*.dmg` + `apps/mobile/build-*.ipa`
    (keep newest), `~/Library/Caches` app caches, duplicate Xcode archives.
    Never touch Docker.raw without asking.
 
@@ -143,8 +143,15 @@ Mac; do not attempt it.
 3. From `apps/mobile/` (**must** cd there — from the root, eas-cli invents a
    bogus EAS project and leaves a stray root `eas.json`):
    ```
-   LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 npx eas build -p ios --profile preview --local --non-interactive
+   EAS_LOCAL_BUILD_WORKINGDIR=$HOME/.cache/eas-local-work \
+     LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 npx eas build -p ios --profile preview --local --non-interactive
+   rm -rf ~/.cache/eas-local-work
    ```
+   The working dir must have no symlink in its path: under the default
+   `$TMPDIR` (`/var` → `/private/var`, likewise `/tmp`) the expo-widgets
+   bundler writes the widget `initialLayout` import as a non-real path that
+   Metro can't resolve ("Unable to resolve module …/AgentActivityWidget.tsx",
+   `[CP-User] Build ExpoWidgets Bundle` fails).
    Always `--local` (build on this Mac, never the EAS cloud queue). Credentials
    live on EAS (account znoraka@gmail.com, project `@gawaak/t3-code`, team
    N3RCJ8629P, ad-hoc distribution). Output: `build-<ts>.ipa` in `apps/mobile/`.
