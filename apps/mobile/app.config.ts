@@ -251,7 +251,7 @@ const buildConfig = (base: ConfigContext["config"]): ExpoConfig => ({
   slug: "t3-code",
   platforms: ["ios", "android"],
   scheme: variant.scheme,
-  version: repoEnv.T3CODE_MOBILE_VERSION ?? "2.2.0",
+  version: repoEnv.T3CODE_MOBILE_VERSION ?? "2.3.0",
   // [FORK] app.json pins runtimeVersion for the self-hosted OTA server; fall
   // back to upstream's policy when it is absent.
   runtimeVersion: base.runtimeVersion ?? {
@@ -350,10 +350,6 @@ const buildConfig = (base: ConfigContext["config"]): ExpoConfig => ({
   },
   plugins: [
     "expo-asset",
-    "react-native-pdf-jsi",
-    // These aliases match the fonts' PostScript names on iOS. Register the same
-    // names on Android so React Native and the native composer use one set of
-    // family names without waiting for runtime font loading.
     [
       "expo-font",
       {
