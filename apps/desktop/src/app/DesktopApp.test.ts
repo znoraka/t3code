@@ -94,8 +94,7 @@ it.effect.each([false, true])(
         });
       const runApp = DesktopApp.program
         .pipe(
-          Effect.provide(NodeCrypto.layer),
-          Effect.provide(DesktopAdoptedServer.layerTest()),
+          Effect.provide(Layer.mergeAll(NodeCrypto.layer, DesktopAdoptedServer.layerTest())),
           Effect.provideService(DesktopAppIdentity.DesktopAppIdentity, {
             resolveUserDataPath: Effect.succeed("/isolated/userdata"),
             configure: record("identity"),
