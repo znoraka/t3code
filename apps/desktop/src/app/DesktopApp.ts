@@ -22,6 +22,7 @@ import * as DesktopAdoptedServer from "../backend/DesktopAdoptedServer.ts";
 import * as PreviewPasskeys from "../preview/Passkeys.ts";
 import * as DesktopBackendManager from "../backend/DesktopBackendManager.ts";
 import * as DesktopBackendPool from "../backend/DesktopBackendPool.ts";
+import * as DesktopHomeOwner from "../backend/DesktopHomeOwner.ts";
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 import * as DesktopLegacyLocalStorage from "./DesktopLegacyLocalStorage.ts";
 import * as DesktopLifecycle from "./DesktopLifecycle.ts";
@@ -229,6 +230,25 @@ const bootstrap = Effect.gen(function* () {
   // pool's primary instance (built at layer init) observed the same result.
   const adoptedServer = yield* DesktopAdoptedServer.DesktopAdoptedServer;
   const adopted = yield* adoptedServer.decide;
+
+  // A backend started while another server holds this home's lock can only exit with code 78.
+  // An adopted server is that owner, so the check only guards a backend we spawn.
+  if (
+    Option.isNone(adopted) &&
+    !(settings.wslOnly && settings.wslBackendEnabled) &&
+    !(yield* DesktopHomeOwner.awaitHomeOwnershipRelease())
+  ) {
+    const owner = yield* DesktopHomeOwner.readLiveHomeOwner();
+    yield* logBootstrapWarning("bootstrap found another server owning the T3 home", {
+      owner: Option.getOrNull(owner),
+    });
+    yield* (yield* ElectronDialog.ElectronDialog).showErrorBox(
+      "This T3 home is unavailable",
+      DesktopHomeOwner.homeOwnedMessage(owner),
+    );
+    return yield* (yield* ElectronApp.ElectronApp).quit;
+  }
+
   const backendPortSelection = Option.isSome(adopted)
     ? ({ port: adopted.value.port, selectedByScan: false } as const)
     : yield* resolveDesktopBackendPort(environment.configuredBackendPort);

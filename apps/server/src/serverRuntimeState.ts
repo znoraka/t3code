@@ -6,9 +6,9 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 import { writeFileStringAtomically } from "@t3tools/shared/atomicWrite";
+import { formatHostForUrl, isWildcardHost } from "@t3tools/shared/hostClassification";
 import packageJson from "../package.json" with { type: "json" };
 import type * as ServerConfig from "./config.ts";
-import { formatHostForUrl, isWildcardHost } from "./startupAccess.ts";
 
 // The schema lives in contracts so the desktop app can decode the state file
 // when deciding whether to adopt an already-running server.
@@ -170,4 +170,17 @@ export const readPersistedServerRuntimeState = Effect.fn(
         Effect.as(Option.none<PersistedServerRuntimeState>()),
       ),
   }),
+);
+
+/**
+ * The runtime record, only while its server process is alive. Read this before sending
+ * credentials to the recorded origin: a killed server leaves its record behind, and
+ * another process may own its port by now.
+ */
+export const readLiveServerRuntimeState = Effect.fn(
+  "serverRuntimeState.readLiveServerRuntimeState",
+)((path: string) =>
+  readPersistedServerRuntimeState(path).pipe(
+    Effect.map(Option.filter((state) => isProcessAlive(state.pid))),
+  ),
 );
