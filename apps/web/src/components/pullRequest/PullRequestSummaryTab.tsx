@@ -37,6 +37,8 @@ import { useOpenLink } from "~/browser/useOpenLink";
 import { AgentReviewCard } from "~/_lempire/agentReview/AgentReviewCard";
 // [FORK] end
 import { RelativeTime } from "~/components/RelativeTime";
+import { useClientSettings } from "~/hooks/useSettings";
+import { formatFullTimestamp } from "~/timestampFormat";
 
 import { Button } from "../ui/button";
 import { PullRequestEditButton } from "./PullRequestEditButton";
@@ -98,6 +100,7 @@ import {
   pullRequestCompletionScope,
 } from "./PullRequestMarkdownTextarea";
 import { PullRequestReactionBar } from "./PullRequestReactions";
+import { canReactPullRequestComment } from "@t3tools/client-runtime/pull-request-reactions";
 import { PullRequestResolveThreadButton } from "./PullRequestResolveThreadButton";
 import { PullRequestConversationGhost } from "./PullRequestGhosts";
 import { sectionCollapseAnchorScrollTop } from "./pullRequestSummaryScroll.logic";
@@ -113,6 +116,7 @@ function CommentIdentity({
   comment: PullRequestComment;
   detail: PullRequestDetailView;
 }) {
+  const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
   const actor = comment.author;
   const profileUrl = actor
     ? sourceControlClients.get(detail.provider).authorProfileUrl(actor.login, detail.url)
@@ -140,7 +144,7 @@ function CommentIdentity({
           </time>
         </TooltipTrigger>
         <TooltipPopup>
-          {new Date(comment.createdAt).toLocaleString()}
+          {formatFullTimestamp(comment.createdAt, timestampFormat)}
           {comment.url ? " · Open comment on host" : ""}
         </TooltipPopup>
       </Tooltip>
@@ -338,7 +342,7 @@ function CollapsedComment({
   );
 }
 
-function MetaRow({
+export function PullRequestMetaRow({
   icon,
   label,
   children,
@@ -358,7 +362,7 @@ function MetaRow({
   );
 }
 
-function Section({
+export function PullRequestSection({
   title,
   defaultOpen = true,
   keepMounted = false,
@@ -695,7 +699,7 @@ export function PullRequestSummaryTab({
     <PullRequestReactionBar
       className="ml-auto justify-end"
       reactions={comment.reactions ?? []}
-      canReact={detail.capabilities.reactions === true}
+      canReact={canReactPullRequestComment(detail, comment)}
       subjectId={comment.id}
       environmentId={environmentId}
       reference={reference}
@@ -842,7 +846,7 @@ export function PullRequestSummaryTab({
       {/* [FORK] end */}
       <section className="px-4 pt-2.5 pb-1">
         <div className="space-y-2">
-          <MetaRow icon={<UsersIcon className="size-3.5" />} label="Reviewers">
+          <PullRequestMetaRow icon={<UsersIcon className="size-3.5" />} label="Reviewers">
             <span className="flex min-w-0 flex-wrap items-center gap-1.5">
               {reviewerEntries.length === 0 ? (
                 <span className="text-muted-foreground">None</span>
@@ -915,9 +919,9 @@ export function PullRequestSummaryTab({
                 />
               ) : null}
             </span>
-          </MetaRow>
+          </PullRequestMetaRow>
           {detail.labels.length > 0 || detail.capabilities.labels === true ? (
-            <MetaRow icon={<TagIcon className="size-3.5" />} label="Labels">
+            <PullRequestMetaRow icon={<TagIcon className="size-3.5" />} label="Labels">
               <span className="flex min-w-0 flex-wrap items-center gap-1">
                 {detail.labels.length === 0 ? (
                   <span className="text-muted-foreground">None</span>
@@ -940,12 +944,12 @@ export function PullRequestSummaryTab({
                   />
                 ) : null}
               </span>
-            </MetaRow>
+            </PullRequestMetaRow>
           ) : null}
         </div>
       </section>
 
-      <Section
+      <PullRequestSection
         key={`description:${detail.url}`}
         title="Description"
         keepMounted
@@ -985,9 +989,9 @@ export function PullRequestSummaryTab({
             </div>
           )}
         </div>
-      </Section>
+      </PullRequestSection>
 
-      <Section
+      <PullRequestSection
         key={`checks:${detail.url}`}
         title="Checks"
         defaultOpen={false}
@@ -1049,9 +1053,9 @@ export function PullRequestSummaryTab({
               } /* oxlint-enable react/no-array-index-key */,
           )
         )}
-      </Section>
+      </PullRequestSection>
 
-      <Section
+      <PullRequestSection
         title={`Comments (${detail.commentCount})`}
         actions={
           <div className="flex shrink-0 items-center gap-1">
@@ -1145,7 +1149,7 @@ export function PullRequestSummaryTab({
             )}
           </>
         )}
-      </Section>
+      </PullRequestSection>
     </div>
   );
 }

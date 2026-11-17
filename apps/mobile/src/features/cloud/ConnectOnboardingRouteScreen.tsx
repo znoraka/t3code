@@ -7,7 +7,8 @@ import { useCloudAuth as useAuth } from "../../_lempire/cloudAuth";
 // [FORK] end
 import { useNavigation } from "@react-navigation/native";
 import { useState } from "react";
-import { RefreshControl, View } from "react-native";
+import { View } from "react-native";
+import { RefreshControl } from "../../components/ui/RefreshControl";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { reportAtomCommandResult, settlePromise } from "@t3tools/client-runtime/state/runtime";

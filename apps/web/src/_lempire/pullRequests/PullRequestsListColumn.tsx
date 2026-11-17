@@ -303,7 +303,7 @@ function PullRequestListPanel({
   const queries = [reviewing, involved, mine, merged];
   const anyData = queries.some((query) => query.data !== null);
   const isPending = queries.some((query) => query.isPending);
-  const error = queries.find((query) => query.error !== null)?.error ?? null;
+  const error = queries.find((query) => query.error !== null)?.error?.message ?? null;
   const refresh = () => {
     for (const query of queries) query.refresh();
   };
