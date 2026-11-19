@@ -2,12 +2,9 @@ import type { AuthClientPresentationMetadata } from "@t3tools/contracts";
 import { requireOptionalNativeModule } from "expo";
 import { Platform } from "react-native";
 
-// [FORK] lempire: upstream imports `expo-device`, whose entry point calls
-// `requireNativeModule("ExpoDevice")` and throws when the native module is
-// missing. This fork ships OTA updates to binaries built before expo-device
-// was a dependency, and this module sits on the connection path — a throw here
-// takes the whole app down at import time. Read the module optionally instead
-// so pre-expo-device runtimes just omit the device fields.
+// [FORK] lempire: `expo-device` throws at import when its native module is missing,
+// and OTA bundles reach binaries built before it was a dependency. This sits on the
+// connection path, so read it optionally and omit the device fields instead.
 const ExpoDevice = requireOptionalNativeModule<{
   readonly osVersion?: string | null;
   readonly modelName?: string | null;
@@ -25,6 +22,7 @@ export function authClientMetadata(appVersion?: string): AuthClientPresentationM
   const deviceModel = ExpoDevice?.modelName?.trim();
 
   return {
+    // oxlint-disable-next-line t3code/no-untranslated-copy -- product name
     label: "T3 Code Mobile",
     deviceType:
       ExpoDevice?.deviceType === DEVICE_TYPE_TABLET

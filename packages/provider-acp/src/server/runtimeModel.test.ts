@@ -1092,6 +1092,65 @@ describe("AcpRuntimeModel", () => {
       },
     });
     expect(idle.events).toEqual([]);
+
+    const toolCall = (update: EffectAcpSchema.SessionUpdate) => {
+      const event = parseSessionUpdateEvent({ sessionId: "session-1", update }).events[0];
+      if (event?._tag !== "ToolCallUpdated") throw new Error("expected a compaction tool call");
+      return event.toolCall;
+    };
+    const draft = toolCall({
+      sessionUpdate: "compaction_summary_chunk",
+      compactionId: "compact-1",
+      content: { type: "text", text: "Draft summary" },
+    });
+    const finish = (summary?: ReadonlyArray<EffectAcpSchema.ContentBlock> | null) =>
+      mergeToolCallState(
+        draft,
+        toolCall({
+          sessionUpdate: "compaction_update",
+          compactionId: "compact-1",
+          status: "completed",
+          ...(summary === undefined ? {} : { summary }),
+        }),
+      ).data.rawOutput;
+
+    expect(finish()).toBe("Draft summary");
+    expect([finish(null), finish([]), finish([{ type: "text", text: "" }])]).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
+
+    const fail = (
+      previous: ReturnType<typeof toolCall>,
+      patch: Pick<
+        Extract<EffectAcpSchema.SessionUpdate, { sessionUpdate: "compaction_update" }>,
+        "summary" | "error"
+      >,
+    ) =>
+      mergeToolCallState(
+        previous,
+        toolCall({
+          sessionUpdate: "compaction_update",
+          compactionId: "compact-1",
+          status: "failed",
+          ...patch,
+        }),
+      );
+    const failed = fail(draft, { error: "Budget exhausted" });
+    const summaryCleared = fail(failed, { summary: null });
+    const errorCleared = fail(summaryCleared, { error: null });
+    const fields = (state: ReturnType<typeof toolCall>) => [
+      state.data.rawOutput,
+      state.data.compactionError,
+    ];
+    expect(fields(failed)).toEqual(["Draft summary", "Budget exhausted"]);
+    expect(fields(summaryCleared)).toEqual([undefined, "Budget exhausted"]);
+    expect(fields(errorCleared)).toEqual([undefined, undefined]);
+    expect(fields(fail(draft, { summary: null, error: "Budget exhausted" }))).toEqual([
+      undefined,
+      "Budget exhausted",
+    ]);
   });
 
   it("applies ACP v2 agent-owned terminal snapshots and output chunks", () => {
@@ -1376,6 +1435,7 @@ describe("extractMcpToolCallIdentity", () => {
     });
     const merged = mergeToolCallState(created, completed);
 
+    expect(merged.title).toBe(created.title);
     expect(extractMcpToolCallIdentity(merged)).toEqual({
       server: "t3-code",
       tool: "orchestrator_capabilities",
@@ -1395,6 +1455,10 @@ describe("extractMcpToolCallIdentity", () => {
       // Kimi retitles with partial JSON and middle-truncates args over 50 characters.
       'delegate_task: {"mode":"async","task":"Ru',
       'delegate_task: {"mode":"async","task":"Ru...cho child-result-42\'"}',
+      // Antigravity: "Running <tool>" before agy 1.5.8, "Run mcp_<server>_<tool>" since, "?" on prompts.
+      "Running delegate_task",
+      "Run mcp_t3-code_delegate_task",
+      "Run mcp_t3-code_delegate_task?",
     ]) {
       const toolCall = toolCallFromUpdate({
         sessionUpdate: "tool_call",
@@ -1612,7 +1676,12 @@ describe("extractMcpToolCallIdentity", () => {
   });
 
   it("does not brand path-like or unknown-tool titles", () => {
-    for (const title of ["t3-code/README.md", "t3-code_not_a_real_tool"]) {
+    for (const title of [
+      "t3-code/README.md",
+      "t3-code_not_a_real_tool",
+      "Run mcp_t3-code_not_a_real_tool",
+      "Run manage_task",
+    ]) {
       const toolCall = toolCallFromUpdate({
         sessionUpdate: "tool_call",
         toolCallId: "path-1",
